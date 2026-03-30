@@ -318,109 +318,119 @@ async function extractScript(page, url) {
   let pineCode = '';
   let isProtected = false;
 
-  // Method 1: Check if there's a "Source code" tab and click it
+  // Step A: Click "Source code" tab (TV shows Chart tab by default)
   try {
-    const sourceTab = page.locator('button, span, div, a').filter({ hasText: /source\s*code/i }).first();
-    await sourceTab.click({ timeout: 5000 });
-    await sleep(2000);
+    const sourceTab = page.locator('[role="tab"]').filter({ hasText: /source\s*code/i }).first();
+    await sourceTab.click({ timeout: 8000 });
+    await sleep(2500);
+    console.log(`[EXTRACT] Clicked Source code tab`);
   } catch {
-    // No source code tab — might be visible already or protected
+    console.log(`[EXTRACT] No Source code tab — might be protected`);
   }
 
-  // Method 2: Look for code in the code container (handles CSS hash classes)
+  // Step B: Try clipboard intercept + Copy button
+  // TV renders code as hundreds of <span> tokens — Copy button is most reliable
   try {
-    // TradingView uses dynamically-hashed class names like "code-xxxxx"
-    // We look for the container that holds Pine script code
-    pineCode = await page.evaluate(() => {
-      // Strategy A: Find elements with class containing "code-" that have inner code-like content
-      const codeContainers = document.querySelectorAll('[class*="code-"] > div, [class*="code-"]');
-      for (const el of codeContainers) {
-        const text = el.innerText || '';
-        // Pine scripts typically start with these patterns
-        if (
-          text.length > 50 &&
-          (text.includes('//@version') ||
-            text.includes('indicator(') ||
-            text.includes('strategy(') ||
-            text.includes('library(') ||
-            text.includes('study(') ||
-            text.includes('input.'))
-        ) {
-          return text;
-        }
-      }
-
-      // Strategy B: Look for <pre> or <code> tags
-      const pres = document.querySelectorAll('pre, code');
-      for (const el of pres) {
-        const text = el.innerText || '';
-        if (text.length > 50 && (text.includes('//@version') || text.includes('indicator('))) {
-          return text;
-        }
-      }
-
-      // Strategy C: Look for any element whose text looks like Pine Script
-      const allDivs = document.querySelectorAll('div');
-      for (const el of allDivs) {
-        const text = el.innerText || '';
-        if (
-          text.length > 100 &&
-          text.length < 50000 &&
-          (text.includes('//@version') || text.includes('indicator(') || text.includes('strategy(')) &&
-          text.includes('=') &&
-          (text.includes('plot(') || text.includes('plotshape(') || text.includes('barcolor(') || text.includes('input.') || text.includes('ta.'))
-        ) {
-          return text;
-        }
-      }
-
-      return '';
+    await page.evaluate(() => {
+      window.__copiedText = '';
+      const orig = navigator.clipboard.writeText.bind(navigator.clipboard);
+      navigator.clipboard.writeText = async (text) => {
+        window.__copiedText = text;
+        return orig(text);
+      };
     });
+
+    const copyBtn = page.locator('button[aria-label*="opy"], button[title*="opy"], button:has-text("Copy")').first();
+    await copyBtn.click({ timeout: 5000 });
+    await sleep(1500);
+
+    const copied = await page.evaluate(() => window.__copiedText || '');
+    if (copied && copied.length > 30) {
+      pineCode = copied;
+      console.log(`[EXTRACT] Got code via Copy button: ${copied.length} chars`);
+    }
   } catch (err) {
-    console.error(`[EXTRACT] DOM extraction failed: ${err.message}`);
+    console.log(`[EXTRACT] Copy button failed: ${err.message}`);
   }
 
-  // Method 3: Try clipboard approach — click copy button
+  // Step C: Fallback — extract from <main> element's innerText
+  // TV renders Pine code as individual token <span>s inside <main>
   if (!pineCode) {
     try {
-      await page.evaluate(() => {
-        // Override clipboard to capture copy
-        window.__copiedText = '';
-        const origWriteText = navigator.clipboard.writeText;
-        navigator.clipboard.writeText = async (text) => {
-          window.__copiedText = text;
-          return origWriteText.call(navigator.clipboard, text);
-        };
+      pineCode = await page.evaluate(() => {
+        const main = document.querySelector('main');
+        if (!main) return '';
+        const text = main.innerText || '';
+        if (
+          text.length > 50 &&
+          (text.includes('//@version') || text.includes('indicator(') ||
+           text.includes('strategy(') || text.includes('library('))
+        ) {
+          // Clean: remove line numbers and UI text
+          const lines = text.split('\n');
+          const clean = [];
+          let started = false;
+          for (const line of lines) {
+            if (/^\d+$/.test(line.trim())) continue;
+            if (/^(Pine Script|Source code|Chart|Copy)/.test(line.trim())) continue;
+            if (!started && (line.includes('//') || line.includes('//@version') ||
+                line.includes('indicator') || line.includes('strategy'))) {
+              started = true;
+            }
+            if (started) clean.push(line);
+          }
+          return clean.join('\n').trim();
+        }
+        return '';
       });
-
-      const copyBtn = page.locator('button, span').filter({ hasText: /copy\s*(source|script|code)?/i }).first();
-      await copyBtn.click({ timeout: 4000 });
-      await sleep(1500);
-
-      const copied = await page.evaluate(() => window.__copiedText || '');
-      if (copied && copied.length > 50) {
-        pineCode = copied;
-        console.log(`[EXTRACT] Got code via clipboard: ${copied.length} chars`);
+      if (pineCode && pineCode.length > 50) {
+        console.log(`[EXTRACT] Got code from <main>: ${pineCode.length} chars`);
+      } else {
+        pineCode = '';
       }
-    } catch {
-      // Copy approach didn't work
+    } catch (err) {
+      console.log(`[EXTRACT] <main> extraction failed: ${err.message}`);
     }
   }
 
-  // Check for protected indicators
+  // Step D: Broad scan — any element with Pine patterns
   if (!pineCode) {
-    const pageText = await page.evaluate(() => document.body.innerText);
+    try {
+      pineCode = await page.evaluate(() => {
+        const els = document.querySelectorAll('div, section, article, main');
+        for (const el of els) {
+          const t = el.innerText || '';
+          if (t.length > 100 && t.length < 100000 &&
+              (t.includes('//@version') || t.includes('indicator(') || t.includes('strategy(')) &&
+              (t.includes('plot(') || t.includes('input.') || t.includes('ta.'))) {
+            return t;
+          }
+        }
+        return '';
+      });
+      if (pineCode) console.log(`[EXTRACT] Got code via broad scan: ${pineCode.length} chars`);
+    } catch (err) {
+      console.log(`[EXTRACT] Broad scan failed: ${err.message}`);
+    }
+  }
+
+  // Check for protected/invite-only indicators
+  if (!pineCode) {
+    const pageText = await page.evaluate(() => document.body.innerText.substring(0, 3000));
     if (
       pageText.includes('invite-only') ||
       pageText.includes('protected source') ||
-      pageText.includes('This script\'s source code is not available') ||
-      pageText.includes('Access to this script is restricted')
+      pageText.includes('source code is not available') ||
+      pageText.includes('Access to this script is restricted') ||
+      pageText.includes('This is an invite-only')
     ) {
       isProtected = true;
       pineCode = 'PROTECTED';
+      console.log(`[EXTRACT] Script is PROTECTED`);
     } else {
       isProtected = true;
       pineCode = 'REQUIRES_BROWSER_EXTRACTION';
+      console.log(`[EXTRACT] Could not extract — REQUIRES_BROWSER_EXTRACTION`);
     }
   }
 
