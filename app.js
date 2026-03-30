@@ -25,6 +25,7 @@ let lastStatus = 'idle';
 let lastError = null;
 let running = false;
 let scriptsFound = 0;
+let lastResults = [];
 
 // ── EXPRESS  (starts IMMEDIATELY — fixes 502) ─────────────────
 const app = express();
@@ -48,7 +49,20 @@ app.post('/run', (_req, res) => {
   runScrape().catch(err => console.error('[FATAL]', err));
 });
 
-app.get('/', (_req, res) => res.json({ service: 'quantum-scraper', version: '2.0.0' }));
+app.get('/', (_req, res) => res.json({ service: 'quantum-scraper', version: '2.6.0' }));
+
+// Return last scrape results (for debugging)
+app.get('/results', (_req, res) => {
+  const summary = lastResults.map(r => ({
+    title: r.title,
+    author: r.author,
+    script_url: r.script_url,
+    pine_code_length: r.pine_code ? r.pine_code.length : 0,
+    pine_code_preview: r.pine_code ? r.pine_code.substring(0, 100) : '',
+    is_protected: r.is_protected,
+  }));
+  res.json({ count: summary.length, scripts: summary });
+});
 
 app.listen(PORT, '0.0.0.0', () => {
   console.log(`[SERVER] Listening on 0.0.0.0:${PORT}`);
@@ -134,6 +148,7 @@ async function runScrape() {
     }
 
     scriptsFound = results.length;
+    lastResults = results;
     const withCode = results.filter(r => !r.is_protected && !r.pine_code.startsWith('ERROR')).length;
     console.log(`[SCRAPE] Done: ${results.length} scripts, ${withCode} with Pine code`);
 
