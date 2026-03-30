@@ -4,7 +4,7 @@
  * ───────────────────────────────────────────────────────────── */
 
 const express = require('express');
-const { chromium } = require('playwright');
+const { chromium } = require('playwright-core');
 const { google } = require('googleapis');
 const https = require('https');
 const http = require('http');
