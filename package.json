@@ -1,11 +1,14 @@
 {
   "name": "quantum-scraper",
-  "version": "1.0.0",
-  "type": "module",
+  "version": "2.0.0",
+  "description": "TradingView Pine Script scraper — Railway + Playwright",
+  "main": "app.js",
   "scripts": {
     "start": "node app.js"
   },
   "dependencies": {
-    "express": "^4.19.2"
+    "express": "^4.21.2",
+    "playwright": "1.50.1",
+    "googleapis": "^144.0.0"
   }
 }
