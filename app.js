@@ -68,7 +68,7 @@ async function runScrape() {
 
   try {
     console.log('[SCRAPE] Launching browser …');
-    browser = await chromium.launch({
+    const launchOpts = {
       headless: true,
       args: [
         '--no-sandbox',
@@ -77,7 +77,12 @@ async function runScrape() {
         '--disable-gpu',
         '--single-process',
       ],
-    });
+    };
+    // Use system Chromium if available (Docker), otherwise Playwright's bundled one
+    if (process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH) {
+      launchOpts.executablePath = process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH;
+    }
+    browser = await chromium.launch(launchOpts);
     const context = await browser.newContext({
       viewport: { width: 1440, height: 900 },
       userAgent:
