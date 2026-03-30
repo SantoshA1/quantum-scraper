@@ -87,6 +87,7 @@ async function runScrape() {
       viewport: { width: 1440, height: 900 },
       userAgent:
         'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36',
+      permissions: ['clipboard-read', 'clipboard-write'],
     });
     const page = await context.newPage();
     page.setDefaultTimeout(30000);
@@ -331,20 +332,40 @@ async function extractScript(page, url) {
   // Step B: Try clipboard intercept + Copy button
   // TV renders code as hundreds of <span> tokens — Copy button is most reliable
   try {
+    // Intercept both clipboard.writeText AND execCommand('copy')
     await page.evaluate(() => {
       window.__copiedText = '';
-      const orig = navigator.clipboard.writeText.bind(navigator.clipboard);
-      navigator.clipboard.writeText = async (text) => {
-        window.__copiedText = text;
-        return orig(text);
+      // Intercept modern clipboard API
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        const orig = navigator.clipboard.writeText.bind(navigator.clipboard);
+        navigator.clipboard.writeText = async (text) => {
+          window.__copiedText = text;
+          return orig(text);
+        };
+      }
+      // Intercept legacy execCommand('copy') — capture selection
+      const origExec = document.execCommand.bind(document);
+      document.execCommand = function(cmd, ...args) {
+        if (cmd === 'copy') {
+          const sel = window.getSelection();
+          if (sel) window.__copiedText = sel.toString();
+        }
+        return origExec(cmd, ...args);
       };
     });
 
     const copyBtn = page.locator('button[aria-label*="opy"], button[title*="opy"], button:has-text("Copy")').first();
     await copyBtn.click({ timeout: 5000 });
-    await sleep(1500);
+    await sleep(2000);
 
-    const copied = await page.evaluate(() => window.__copiedText || '');
+    // Try intercepted text first
+    let copied = await page.evaluate(() => window.__copiedText || '');
+    // If intercept didn't work, try reading clipboard directly
+    if (!copied || copied.length < 30) {
+      try {
+        copied = await page.evaluate(() => navigator.clipboard.readText());
+      } catch { /* clipboard read may fail */ }
+    }
     if (copied && copied.length > 30) {
       pineCode = copied;
       console.log(`[EXTRACT] Got code via Copy button: ${copied.length} chars`);
