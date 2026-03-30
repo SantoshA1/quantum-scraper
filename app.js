@@ -167,40 +167,53 @@ async function runScrape() {
  * ───────────────────────────────────────────────────────────── */
 async function tvLogin(page) {
   await page.goto('https://www.tradingview.com/#signin', { waitUntil: 'domcontentloaded', timeout: 45000 });
-  await sleep(3000);
+  await sleep(4000);
 
-  // Click "Email" tab in the sign-in modal
-  const emailTab = page.locator('button, span, div').filter({ hasText: /^Email$/ }).first();
+  // Step 1: Click "Email" button in the sign-in panel
   try {
-    await emailTab.click({ timeout: 8000 });
-    await sleep(1000);
+    // The Email button in the initial sign-in panel
+    const emailBtn = page.locator('button[name="Email"], button:has-text("Email")').first();
+    await emailBtn.click({ timeout: 10000 });
+    await sleep(2000);
+    console.log('[LOGIN] Clicked Email button');
   } catch {
-    console.log('[LOGIN] No Email tab found — trying direct form');
+    console.log('[LOGIN] No Email button found — form may already be visible');
   }
 
-  // Fill username
-  const usernameField = page.locator('input[name="id"], input[name="username"], input[type="email"]').first();
-  await usernameField.waitFor({ timeout: 10000 });
+  // Step 2: Fill username (stable selectors: name="username" or id="id_username")
+  const usernameField = page.locator('#id_username, input[name="username"]').first();
+  await usernameField.waitFor({ state: 'visible', timeout: 10000 });
   await usernameField.fill(TV_USER);
   await sleep(500);
+  console.log('[LOGIN] Filled username');
 
-  // Fill password
-  const passwordField = page.locator('input[name="password"], input[type="password"]').first();
-  await passwordField.waitFor({ timeout: 5000 });
+  // Step 3: Fill password (stable selectors: name="password" or id="id_password")
+  const passwordField = page.locator('#id_password, input[name="password"]').first();
+  await passwordField.waitFor({ state: 'visible', timeout: 5000 });
   await passwordField.fill(TV_PASS);
   await sleep(500);
+  console.log('[LOGIN] Filled password');
 
-  // Click sign in button
-  const signInBtn = page.locator('button[type="submit"], button').filter({ hasText: /sign in/i }).first();
+  // Step 4: Click Sign In submit button
+  const signInBtn = page.locator('button[type="submit"]').first();
   await signInBtn.click();
+  console.log('[LOGIN] Clicked Sign In');
   await sleep(5000);
 
-  // Verify we're logged in by checking for user menu or avatar
+  // Step 5: Verify login — check for user menu avatar
   try {
-    await page.waitForSelector('[data-name="user-menu-button"], .tv-header__user-menu-button', { timeout: 15000 });
-    console.log('[LOGIN] Success');
+    await page.waitForSelector('[data-name="user-menu-button"], [class*="userAvatar"]', { timeout: 15000 });
+    console.log('[LOGIN] Success — logged in');
   } catch {
-    console.log('[LOGIN] Could not confirm login — continuing anyway');
+    // Check if there's a CAPTCHA or 2FA
+    const bodyText = await page.evaluate(() => document.body.innerText.substring(0, 2000));
+    if (bodyText.includes('captcha') || bodyText.includes('CAPTCHA') || bodyText.includes('robot')) {
+      console.log('[LOGIN] CAPTCHA detected — continuing without login');
+    } else if (bodyText.includes('Two factor') || bodyText.includes('verification')) {
+      console.log('[LOGIN] 2FA required — continuing without login');
+    } else {
+      console.log('[LOGIN] Could not confirm login — continuing anyway');
+    }
   }
 }
 
