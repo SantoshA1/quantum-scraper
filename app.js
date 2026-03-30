@@ -544,13 +544,16 @@ async function pushToSheets(results) {
     return;
   }
 
-  // Append new rows
+  // Append new rows (truncate pine_code to 49000 chars — Sheets limit is 50000)
+  const MAX_CELL = 49000;
   const rows = newResults.map(r => [
     r.title,
     r.author,
     r.script_url,
     r.category,
-    r.pine_code,
+    r.pine_code && r.pine_code.length > MAX_CELL
+      ? r.pine_code.substring(0, MAX_CELL) + '\n// ... TRUNCATED (full code: ' + r.pine_code.length + ' chars)'
+      : r.pine_code,
     String(r.is_protected),
     r.description,
     r.screenshot_url,
