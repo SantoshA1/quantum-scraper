@@ -91,10 +91,14 @@ async function runScrape() {
     const page = await context.newPage();
     page.setDefaultTimeout(30000);
 
-    // ── Step 1: Login ───────────────────────────────────────
+    // ── Step 1: Login (optional — open-source scripts work without it)
     if (TV_USER && TV_PASS) {
-      console.log('[SCRAPE] Logging in to TradingView …');
-      await tvLogin(page);
+      console.log('[SCRAPE] Attempting TradingView login …');
+      try {
+        await tvLogin(page);
+      } catch (loginErr) {
+        console.log(`[SCRAPE] Login failed: ${loginErr.message} — continuing without login`);
+      }
     } else {
       console.log('[SCRAPE] No credentials — running without login');
     }
@@ -195,9 +199,16 @@ async function tvLogin(page) {
   console.log('[LOGIN] Filled password');
 
   // Step 4: Click Sign In submit button
-  const signInBtn = page.locator('button[type="submit"]').first();
-  await signInBtn.click();
-  console.log('[LOGIN] Clicked Sign In');
+  try {
+    // Try multiple selector strategies
+    const signInBtn = page.locator('button[type="submit"], button:has-text("Sign in"), button[class*="submitButton"]').first();
+    await signInBtn.click({ timeout: 8000 });
+    console.log('[LOGIN] Clicked Sign In');
+  } catch {
+    // Fallback: press Enter in the password field
+    console.log('[LOGIN] Submit button not found — pressing Enter');
+    await passwordField.press('Enter');
+  }
   await sleep(5000);
 
   // Step 5: Verify login — check for user menu avatar
