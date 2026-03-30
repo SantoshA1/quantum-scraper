@@ -1,0 +1,14 @@
+{
+  "name": "quantum-scraper",
+  "version": "1.0.0",
+  "main": "app.js",
+  "type": "module",
+  "scripts": {
+    "start": "node app.js"
+  },
+  "dependencies": {
+    "playwright": "^1.48.0",
+    "google-spreadsheet": "^4.1.0",
+    "node-cron": "^3.0.3"
+  }
+}
