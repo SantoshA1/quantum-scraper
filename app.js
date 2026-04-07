@@ -104,7 +104,8 @@ Rules:
 - meta.glow: rgba string matching the color (e.g. "rgba(0,229,153,0.35)" for BUY)
 - poweredBy: always exactly "Grok-3 · AgilityServ Quantum Pipeline"
 
-Output ONLY valid JSON with these exact keys. No markdown fences. No explanation outside the JSON.`;
+Output ONLY valid JSON with these exact keys. No markdown fences. No explanation outside the JSON.
+- CRITICAL: Use square brackets [ ] for ALL JSON arrays. NEVER use Python-style parentheses ( ) for arrays.`;
 
   const userMsg = `Ticker: ${ticker} | Last Close: $${price} (${pct >= 0 ? '+' : ''}${Number(pct).toFixed(2)}%) | Date: ${lastDate}
 
@@ -161,14 +162,175 @@ Provide the Quantum Pipeline signal JSON for ${ticker}.`;
     const xaiJson = JSON.parse(xaiRes.body);
     const content = xaiJson.choices?.[0]?.message?.content || '';
 
-    // Strip markdown fences if Grok wraps in ```json
-    const clean = content.replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/i, '').trim();
+    // Sanitize LLM response: strip fences + fix Python tuple arrays → JSON arrays
+    const clean = sanitizeLLMJson(content);
     const signal = JSON.parse(clean);
 
     console.log(`[SIGNAL] ${ticker} → ${signal.signal} (${signal.confidence}%)`);
     res.json(signal);
   } catch (err) {
     console.error('[SIGNAL] Failed:', err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+/* ─────────────────────────────────────────────────────────────
+ *  /ai-analysis  — Structured AI verdict for Telegram messages
+ *  POST { ticker, signal_type, price, rsi, macd, adx, bias,
+ *         vix, cross_asset, options, dark_pool, strategy_stats }
+ *  Returns the parsed JSON analysis (no raw API object)
+ * ───────────────────────────────────────────────────────────── */
+app.post('/ai-analysis', async (req, res) => {
+  const {
+    ticker = 'UNKNOWN',
+    signal_type = 'UNKNOWN',
+    price = 0,
+    rsi = null,
+    macd = null,
+    adx = null,
+    bias = null,
+    vix = null,
+    cross_asset = '',
+    options = '',
+    dark_pool = '',
+    strategy_stats = ''
+  } = req.body || {};
+
+  const prompt = `You are a quantitative trading AI analyst. Analyze the trading signal context below.
+
+Output ONLY a valid JSON object — no markdown, no explanation, no extra text.
+CRITICAL: Use square brackets [ ] for JSON arrays. NEVER use Python parentheses ( ) for arrays.
+
+Context:
+Ticker: ${ticker}
+Signal: ${signal_type}
+Price: $${price}
+RSI: ${rsi != null ? rsi : 'N/A'}
+MACD: ${macd != null ? macd : 'N/A'}
+ADX: ${adx != null ? adx : 'N/A'}
+Bias: ${bias != null ? bias + '%' : 'N/A'}
+VIX: ${vix != null ? vix : 'N/A'}
+Cross-Asset: ${cross_asset || 'N/A'}
+Options Flow: ${options || 'N/A'}
+Dark Pool: ${dark_pool || 'N/A'}
+Strategy Stats: ${strategy_stats || 'N/A'}
+
+Return exactly this JSON structure:
+{
+  "spy_correlation": <float 0.0-1.0>,
+  "sentiment": "<bearish|bullish|neutral>",
+  "sweep_verdict": "<positive|negative|neutral>",
+  "strategy_performance": <float 0.0-1.0>,
+  "options_flow": "<bearish|bullish|neutral>",
+  "cross_asset": "<correlated|uncorrelated|divergent|neutral>",
+  "signal_verdict": "<valid|invalid|confirmed|unconfirmed>",
+  "confidence": <float 0.0-1.0>,
+  "trade_action": "<BUY|SELL|HOLD>",
+  "regime_tags": ["<tag1>", "<tag2>"]
+}`;
+
+  try {
+    const payload = JSON.stringify({
+      model: 'grok-3',
+      temperature: 0.1,
+      max_tokens: 320,
+      messages: [{ role: 'user', content: prompt }]
+    });
+
+    const xaiRes = await new Promise((resolve, reject) => {
+      const r2 = https.request({
+        hostname: 'api.x.ai',
+        path: '/v1/chat/completions',
+        method: 'POST',
+        headers: {
+          'Authorization': 'Bearer ' + XAI_API_KEY,
+          'Content-Type': 'application/json',
+          'Content-Length': Buffer.byteLength(payload)
+        },
+        timeout: 30000
+      }, (r) => {
+        let body = '';
+        r.on('data', d => body += d);
+        r.on('end', () => resolve({ status: r.statusCode, body }));
+      });
+      r2.on('error', reject);
+      r2.on('timeout', () => { r2.destroy(); reject(new Error('xAI timeout')); });
+      r2.write(payload);
+      r2.end();
+    });
+
+    if (xaiRes.status !== 200) {
+      console.error('[AI-ANALYSIS] xAI error:', xaiRes.status, xaiRes.body.substring(0, 200));
+      return res.status(502).json({ error: 'xAI API error', status: xaiRes.status });
+    }
+
+    const xaiJson = JSON.parse(xaiRes.body);
+    const rawContent = xaiJson.choices?.[0]?.message?.content || '';
+    const clean = sanitizeLLMJson(rawContent);
+    const analysis = JSON.parse(clean);
+
+    console.log(`[AI-ANALYSIS] ${ticker} → ${analysis.trade_action} (conf: ${analysis.confidence})`);
+    res.json(analysis);
+  } catch (err) {
+    console.error('[AI-ANALYSIS] Failed:', err.message);
+    res.status(500).json({ error: err.message, hint: 'JSON parse failed — raw LLM response had invalid syntax' });
+  }
+});
+
+/* ─────────────────────────────────────────────────────────────
+ *  /technical  — Fetch & compute technical indicators
+ *  GET /technical?ticker=TXG
+ *  Returns { rsi, macd, macd_signal, macd_hist, adx,
+ *            sma50, ema200, vwap, range, range_high, range_low }
+ * ───────────────────────────────────────────────────────────── */
+app.get('/technical', async (req, res) => {
+  const ticker = (req.query.ticker || '').trim().toUpperCase();
+  if (!ticker) return res.status(400).json({ error: 'ticker query param required' });
+
+  try {
+    // Fetch 250 days daily + today's 5-min intraday in parallel
+    const [daily, intraday] = await Promise.all([
+      fetchYahooChart(ticker, '250d', '1d'),
+      fetchYahooChart(ticker, '1d', '5m')
+    ]);
+
+    if (!daily || daily.closes.length < 30) {
+      return res.status(404).json({ error: `No data found for ${ticker}` });
+    }
+
+    const { closes, highs, lows, volumes } = daily;
+
+    const rsiVal       = calcRSI(closes, 14);
+    const macdObj      = calcMACD(closes);
+    const adxVal       = calcADX(highs, lows, closes, 14);
+    const sma50Val     = calcSMA(closes, 50);
+    const ema200Val    = calcEMA(closes, 200);
+    const todayHigh    = highs[highs.length - 1];
+    const todayLow     = lows[lows.length - 1];
+    const range        = parseFloat((todayHigh - todayLow).toFixed(4));
+
+    let vwapVal = null;
+    if (intraday && intraday.closes.length > 0) {
+      vwapVal = calcVWAP(intraday.highs, intraday.lows, intraday.closes, intraday.volumes);
+    }
+
+    res.json({
+      ticker,
+      rsi:         rsiVal,
+      macd:        macdObj ? macdObj.macd        : null,
+      macd_signal: macdObj ? macdObj.signal      : null,
+      macd_hist:   macdObj ? macdObj.histogram   : null,
+      adx:         adxVal,
+      sma50:       sma50Val,
+      ema200:      ema200Val,
+      vwap:        vwapVal,
+      range,
+      range_high:  parseFloat(todayHigh.toFixed(4)),
+      range_low:   parseFloat(todayLow.toFixed(4)),
+      timestamp:   new Date().toISOString()
+    });
+  } catch (err) {
+    console.error('[TECHNICAL]', err.message);
     res.status(500).json({ error: err.message });
   }
 });
@@ -738,8 +900,192 @@ function sendWebhook(results) {
 }
 
 /* ─────────────────────────────────────────────────────────────
- *  Utility
+ *  Utilities
  * ───────────────────────────────────────────────────────────── */
 function sleep(ms) {
   return new Promise((r) => setTimeout(r, ms));
+}
+
+/**
+ * sanitizeLLMJson
+ * Fixes two common Grok output bugs before JSON.parse:
+ *  1. Markdown fences  (```json ... ```)
+ *  2. Python-style tuple arrays  ("key": ("a", "b"))  →  ["a", "b"]
+ */
+function sanitizeLLMJson(text) {
+  // 1. Strip markdown fences
+  let s = text.replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/i, '').trim();
+  // 2. Replace Python tuples used as JSON arrays
+  //    Pattern: colon then (  ...items...  ) where items are strings or numbers
+  s = s.replace(/(:\s*)\(([^()]*)\)/g, (match, colon, inner) => {
+    // Only convert if inner looks like a list (has a comma or starts with quote/digit)
+    if (/[,"'\d]/.test(inner.trim())) {
+      return colon + '[' + inner + ']';
+    }
+    return match; // leave non-list parens alone
+  });
+  return s;
+}
+
+/* ── Yahoo Finance ──────────────────────────────────────────────── */
+
+/** Fetch OHLCV arrays from Yahoo Finance chart API */
+function fetchYahooChart(ticker, range, interval) {
+  return new Promise((resolve, reject) => {
+    const path = `/v8/finance/chart/${encodeURIComponent(ticker)}` +
+      `?range=${range}&interval=${interval}&includePrePost=false`;
+    const opts = {
+      hostname: 'query1.finance.yahoo.com',
+      path,
+      method: 'GET',
+      headers: {
+        'User-Agent': 'Mozilla/5.0 (compatible; QuantumScraper/2.7)',
+        'Accept': 'application/json'
+      },
+      timeout: 15000
+    };
+    const req = https.request(opts, (r) => {
+      let body = '';
+      r.on('data', d => body += d);
+      r.on('end', () => {
+        try {
+          const json = JSON.parse(body);
+          const result = json.chart?.result?.[0];
+          if (!result) return resolve(null);
+          const quote = result.indicators?.quote?.[0];
+          if (!quote) return resolve(null);
+          // Filter null candles
+          const out = { closes: [], highs: [], lows: [], opens: [], volumes: [] };
+          const ts = result.timestamp || [];
+          for (let i = 0; i < ts.length; i++) {
+            if (quote.close[i] != null && quote.high[i] != null && quote.low[i] != null) {
+              out.closes.push(quote.close[i]);
+              out.highs.push(quote.high[i]);
+              out.lows.push(quote.low[i]);
+              out.opens.push(quote.open[i] ?? quote.close[i]);
+              out.volumes.push(quote.volume[i] ?? 0);
+            }
+          }
+          resolve(out);
+        } catch (e) { reject(e); }
+      });
+    });
+    req.on('error', reject);
+    req.on('timeout', () => { req.destroy(); reject(new Error('Yahoo Finance timeout')); });
+    req.end();
+  });
+}
+
+/* ── Technical Indicator Calculators ────────────────────────────── */
+
+/** RSI(14) — Wilder's smoothing */
+function calcRSI(closes, period = 14) {
+  if (closes.length < period + 1) return null;
+  const delta = closes.slice(1).map((v, i) => v - closes[i]);
+  let avgG = 0, avgL = 0;
+  for (let i = 0; i < period; i++) {
+    if (delta[i] > 0) avgG += delta[i]; else avgL -= delta[i];
+  }
+  avgG /= period; avgL /= period;
+  for (let i = period; i < delta.length; i++) {
+    avgG = (avgG * (period - 1) + Math.max(delta[i], 0)) / period;
+    avgL = (avgL * (period - 1) + Math.max(-delta[i], 0)) / period;
+  }
+  if (avgL === 0) return 100;
+  return parseFloat((100 - 100 / (1 + avgG / avgL)).toFixed(2));
+}
+
+/** EMA helper — returns final EMA value */
+function calcEMA(values, period) {
+  if (values.length < period) return null;
+  const k = 2 / (period + 1);
+  let ema = values.slice(0, period).reduce((a, b) => a + b, 0) / period;
+  for (let i = period; i < values.length; i++) ema = values[i] * k + ema * (1 - k);
+  return parseFloat(ema.toFixed(4));
+}
+
+/** EMA helper — returns full array (for MACD) */
+function emaArray(values, period) {
+  if (values.length < period) return [];
+  const k = 2 / (period + 1);
+  const arr = [];
+  let cur = values.slice(0, period).reduce((a, b) => a + b, 0) / period;
+  arr.push(cur);
+  for (let i = period; i < values.length; i++) {
+    cur = values[i] * k + cur * (1 - k);
+    arr.push(cur);
+  }
+  return arr;
+}
+
+/** SMA */
+function calcSMA(values, period) {
+  if (values.length < period) return null;
+  const s = values.slice(-period).reduce((a, b) => a + b, 0);
+  return parseFloat((s / period).toFixed(4));
+}
+
+/** MACD(12,26,9) */
+function calcMACD(closes, fast = 12, slow = 26, signal = 9) {
+  const fastArr = emaArray(closes, fast);
+  const slowArr = emaArray(closes, slow);
+  if (!fastArr.length || !slowArr.length) return null;
+  const offset = fastArr.length - slowArr.length;
+  const macdLine = slowArr.map((v, i) => fastArr[i + offset] - v);
+  const sigArr = emaArray(macdLine, signal);
+  if (!sigArr.length) return null;
+  const lastM = macdLine[macdLine.length - 1];
+  const lastS = sigArr[sigArr.length - 1];
+  return {
+    macd:      parseFloat(lastM.toFixed(6)),
+    signal:    parseFloat(lastS.toFixed(6)),
+    histogram: parseFloat((lastM - lastS).toFixed(6))
+  };
+}
+
+/** ADX(14) — Wilder's Directional Movement */
+function calcADX(highs, lows, closes, period = 14) {
+  const n = closes.length;
+  if (n < period * 2 + 1) return null;
+  const tr = [], pDM = [], mDM = [];
+  for (let i = 1; i < n; i++) {
+    tr.push(Math.max(
+      highs[i] - lows[i],
+      Math.abs(highs[i] - closes[i - 1]),
+      Math.abs(lows[i] - closes[i - 1])
+    ));
+    const up = highs[i] - highs[i - 1];
+    const dn = lows[i - 1] - lows[i];
+    pDM.push(up > dn && up > 0 ? up : 0);
+    mDM.push(dn > up && dn > 0 ? dn : 0);
+  }
+  // Wilder smooth
+  let sTR  = tr.slice(0, period).reduce((a, b) => a + b, 0);
+  let sP   = pDM.slice(0, period).reduce((a, b) => a + b, 0);
+  let sM   = mDM.slice(0, period).reduce((a, b) => a + b, 0);
+  const dx = [];
+  for (let i = period; i < tr.length; i++) {
+    sTR = sTR - sTR / period + tr[i];
+    sP  = sP  - sP  / period + pDM[i];
+    sM  = sM  - sM  / period + mDM[i];
+    const pDI = sTR > 0 ? 100 * sP / sTR : 0;
+    const mDI = sTR > 0 ? 100 * sM / sTR : 0;
+    const sum = pDI + mDI;
+    dx.push(sum > 0 ? 100 * Math.abs(pDI - mDI) / sum : 0);
+  }
+  if (dx.length < period) return null;
+  let adxVal = dx.slice(0, period).reduce((a, b) => a + b, 0) / period;
+  for (let i = period; i < dx.length; i++) adxVal = (adxVal * (period - 1) + dx[i]) / period;
+  return parseFloat(adxVal.toFixed(2));
+}
+
+/** Intraday VWAP */
+function calcVWAP(highs, lows, closes, volumes) {
+  let tpv = 0, vol = 0;
+  for (let i = 0; i < closes.length; i++) {
+    const tp = (highs[i] + lows[i] + closes[i]) / 3;
+    tpv += tp * (volumes[i] || 0);
+    vol += (volumes[i] || 0);
+  }
+  return vol > 0 ? parseFloat((tpv / vol).toFixed(4)) : null;
 }
