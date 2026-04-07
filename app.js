@@ -11,6 +11,7 @@ const http = require('http');
 
 // ── ENV ───────────────────────────────────────────────────────
 const PORT = parseInt(process.env.PORT || '8080', 10);
+const XAI_API_KEY = process.env.XAI_API_KEY || ''; // Set XAI_API_KEY in Railway env vars
 const TV_USER = process.env.TRADINGVIEW_USERNAME || '';
 const TV_PASS = process.env.TRADINGVIEW_PASSWORD || '';
 const SHEET_ID = process.env.GOOGLE_SHEET_ID || '16QmkJdHUptjAxLkVpJ5bghVSKRup3KtjKyaHQtz6BoQ';
@@ -31,6 +32,15 @@ let lastResults = [];
 const app = express();
 app.use(express.json());
 
+// CORS — allow browser calls from agilityserv.com and any origin
+app.use((req, res, next) => {
+  res.setHeader('Access-Control-Allow-Origin', '*');
+  res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+  if (req.method === 'OPTIONS') return res.sendStatus(204);
+  next();
+});
+
 app.get('/health', (_req, res) => {
   res.json({
     status: 'ok',
@@ -49,7 +59,117 @@ app.post('/run', (_req, res) => {
   runScrape().catch(err => console.error('[FATAL]', err));
 });
 
-app.get('/', (_req, res) => res.json({ service: 'quantum-scraper', version: '2.6.0' }));
+app.get('/', (_req, res) => res.json({ service: 'quantum-scraper', version: '2.7.0' }));
+
+/* ─────────────────────────────────────────────────────────────
+ *  /signal  — Grok-3 Quantum Pipeline Signal Engine
+ *  POST { ticker, price, change, rsi, macd, ema20, ema50,
+ *         bb_upper, bb_lower, volume, atr, obv, indicators[] }
+ *  Returns { signal, confidence, correlationScore, vcGateScore,
+ *            reasons[], tradePlan{}, standAsideConditions[],
+ *            marketContext, meta{}, poweredBy }
+ * ───────────────────────────────────────────────────────────── */
+app.post('/signal', async (req, res) => {
+  const {
+    ticker = 'UNKNOWN', price = 0,
+    change = 0, changePct = 0,
+    rsi = 50, macd = 0, macdSignal = 0, macdHist = 0,
+    ema20 = 0, ema50 = 0,
+    bbUpper = 0, bbMiddle = 0, bbLower = 0, bbPosition = 0.5,
+    atr = 0, obvTrend = 'NEUTRAL', volRatio = 1,
+    high52 = 0, low52 = 0, lastDate = 'N/A', roc10 = 0,
+    // also accept snake_case
+    bb_upper, bb_lower, volume = 0, obv = 0, indicators = []
+  } = req.body || {};
+
+  const bbUp = bbUpper || bb_upper || 0;
+  const bbLo = bbLower || bb_lower || 0;
+  const pct = changePct || change;
+
+  const systemPrompt = `You are the AgilityServ Quantum Trading Pipeline AI, powered by Grok-3.
+You are a world-class quant analyst. Analyze the given ticker's technical indicators and output a structured JSON trading signal.
+
+Rules:
+- Signal must be exactly one of: "BUY", "SELL", or "STAND ASIDE"
+- Confidence is 0-100 (integer)
+- correlationScore is 0-100 (cross-asset momentum alignment score)
+- vcGateScore is 0-100 (volatility-corrected momentum gate score)
+- reasons: 3-5 specific data-backed bullet strings citing actual indicator values
+- tradePlan: direction ("LONG" or "SHORT"), entry, stopLoss, target1, target2 as "$X.XX" strings, riskReward as "1:X" ratio
+- standAsideConditions: 2-3 specific conditions that would invalidate the signal
+- marketContext: 1 concise sentence about current macro/sector context for this ticker
+- meta.color: "#00E599" for BUY, "#FF4444" for SELL, "#FFB800" for STAND ASIDE
+- meta.glow: rgba string matching the color (e.g. "rgba(0,229,153,0.35)" for BUY)
+- poweredBy: always exactly "Grok-3 · AgilityServ Quantum Pipeline"
+
+Output ONLY valid JSON with these exact keys. No markdown fences. No explanation outside the JSON.`;
+
+  const userMsg = `Ticker: ${ticker} | Last Close: $${price} (${pct >= 0 ? '+' : ''}${Number(pct).toFixed(2)}%) | Date: ${lastDate}
+
+Technical Indicators:
+- RSI(14): ${rsi} ${rsi > 70 ? '[OVERBOUGHT]' : rsi < 30 ? '[OVERSOLD]' : '[NEUTRAL]'}
+- MACD: ${macd} | Signal: ${macdSignal} | Histogram: ${Number(macdHist).toFixed(4)}
+- EMA20: $${Number(ema20).toFixed(2)} | EMA50: $${Number(ema50).toFixed(2)} ${ema20 > ema50 ? '[BULLISH CROSS]' : '[BEARISH CROSS]'}
+- Bollinger Upper: $${Number(bbUp).toFixed(2)} | Mid: $${Number(bbMiddle).toFixed(2)} | Lower: $${Number(bbLo).toFixed(2)}
+- BB Position: ${Number(bbPosition * 100).toFixed(0)}% (0=lower band, 100=upper band)
+- ATR(14): ${atr} | OBV Trend: ${obvTrend} | Volume Ratio vs Avg: ${Number(volRatio).toFixed(2)}x
+- 52W High: $${high52} | 52W Low: $${low52} | ROC(10): ${roc10}%
+
+Provide the Quantum Pipeline signal JSON for ${ticker}.`;
+
+
+  try {
+    const payload = JSON.stringify({
+      model: 'grok-3',
+      temperature: 0.2,
+      max_tokens: 900,
+      messages: [
+        { role: 'system', content: systemPrompt },
+        { role: 'user', content: userMsg }
+      ]
+    });
+
+    const xaiRes = await new Promise((resolve, reject) => {
+      const req2 = https.request({
+        hostname: 'api.x.ai',
+        path: '/v1/chat/completions',
+        method: 'POST',
+        headers: {
+          'Authorization': 'Bearer ' + XAI_API_KEY,
+          'Content-Type': 'application/json',
+          'Content-Length': Buffer.byteLength(payload)
+        },
+        timeout: 30000
+      }, (r) => {
+        let body = '';
+        r.on('data', d => body += d);
+        r.on('end', () => resolve({ status: r.statusCode, body }));
+      });
+      req2.on('error', reject);
+      req2.on('timeout', () => { req2.destroy(); reject(new Error('xAI timeout')); });
+      req2.write(payload);
+      req2.end();
+    });
+
+    if (xaiRes.status !== 200) {
+      console.error('[SIGNAL] xAI error:', xaiRes.status, xaiRes.body.substring(0, 200));
+      return res.status(502).json({ error: 'xAI API error', status: xaiRes.status });
+    }
+
+    const xaiJson = JSON.parse(xaiRes.body);
+    const content = xaiJson.choices?.[0]?.message?.content || '';
+
+    // Strip markdown fences if Grok wraps in ```json
+    const clean = content.replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/i, '').trim();
+    const signal = JSON.parse(clean);
+
+    console.log(`[SIGNAL] ${ticker} → ${signal.signal} (${signal.confidence}%)`);
+    res.json(signal);
+  } catch (err) {
+    console.error('[SIGNAL] Failed:', err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
 
 // Return last scrape results (for debugging)
 app.get('/results', (_req, res) => {
