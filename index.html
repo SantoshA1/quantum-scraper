@@ -1,0 +1,1848 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+<title>AgilityServ — Quantum-Quantitative Trading Pipeline</title>
+<meta name="description" content="End-to-end alpha generation powered by classical infrastructure + quantum advantage. From raw market data to live execution."/>
+<meta property="og:title" content="AgilityServ — Quantum-Quantitative Trading Pipeline"/>
+<meta property="og:description" content="Quantum-Quantitative Edge, Engineered for Speed."/>
+<meta property="og:type" content="website"/>
+<meta property="og:url" content="https://agilityserv.com"/>
+<link rel="preconnect" href="https://fonts.googleapis.com"/>
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet"/>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<style>
+:root{
+  --bg:#050A14;--surface:#0D1726;--border:#1A2740;
+  --cyan:#00D4FF;--violet:#7B61FF;--green:#00E599;--red:#FF4D4D;
+  --text:#F0F4FF;--muted:#6B80A0;--orange:#F5A623;
+  --grad:linear-gradient(135deg,#00D4FF 0%,#7B61FF 100%);
+}
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+html{scroll-behavior:smooth;font-size:16px}
+body{background:var(--bg);color:var(--text);font-family:'Inter',sans-serif;overflow-x:hidden;line-height:1.6}
+
+/* Grid texture */
+body::before{content:'';position:fixed;inset:0;
+  background-image:linear-gradient(var(--border) 1px,transparent 1px),linear-gradient(90deg,var(--border) 1px,transparent 1px);
+  background-size:60px 60px;opacity:.18;pointer-events:none;z-index:0}
+
+/* Utility */
+.grad-text{background:var(--grad);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text}
+.mono{font-family:'JetBrains Mono',monospace}
+.section-label{font-family:'JetBrains Mono',monospace;font-size:.72rem;letter-spacing:.18em;color:var(--cyan);text-transform:uppercase;margin-bottom:.75rem}
+.section-title{font-family:'Space Grotesk',sans-serif;font-size:clamp(1.8rem,4vw,2.8rem);font-weight:700;line-height:1.2;margin-bottom:1rem}
+.section-sub{color:var(--muted);font-size:1.05rem;max-width:620px;line-height:1.7}
+section{position:relative;z-index:1}
+.container{max-width:1200px;margin:0 auto;padding:0 1.5rem}
+.fade-up{opacity:0;transform:translateY(32px);transition:opacity .7s ease,transform .7s ease}
+.fade-up.visible{opacity:1;transform:translateY(0)}
+
+/* ─── NAV ─── */
+nav{position:fixed;top:0;left:0;right:0;z-index:1000;padding:0 1.5rem;height:68px;display:flex;align-items:center;justify-content:space-between;transition:background .35s,box-shadow .35s}
+nav.scrolled{background:rgba(5,10,20,.88);backdrop-filter:blur(16px);-webkit-backdrop-filter:blur(16px);box-shadow:0 1px 0 var(--border)}
+.nav-logo{display:flex;align-items:center;gap:.6rem;text-decoration:none}
+.nav-logo-text{font-family:'Space Grotesk',sans-serif;font-weight:700;font-size:1.1rem;color:var(--text)}
+.nav-links{display:flex;align-items:center;gap:2rem;list-style:none}
+.nav-links a{color:var(--muted);text-decoration:none;font-size:.9rem;font-weight:500;transition:color .2s}
+.nav-links a:hover{color:var(--text)}
+.nav-cta{background:var(--cyan);color:#050A14;font-weight:700;font-size:.85rem;padding:.5rem 1.2rem;border-radius:999px;text-decoration:none;transition:box-shadow .2s,transform .2s;white-space:nowrap}
+.nav-cta:hover{box-shadow:0 0 20px rgba(0,212,255,.45);transform:translateY(-1px)}
+.hamburger{display:none;flex-direction:column;gap:5px;cursor:pointer;padding:.5rem;background:none;border:none}
+.hamburger span{width:22px;height:2px;background:var(--text);border-radius:2px;transition:.3s}
+.hamburger.open span:nth-child(1){transform:rotate(45deg) translate(5px,5px)}
+.hamburger.open span:nth-child(2){opacity:0}
+.hamburger.open span:nth-child(3){transform:rotate(-45deg) translate(5px,-5px)}
+.mobile-menu{display:none;position:fixed;top:68px;left:0;right:0;background:rgba(5,10,20,.97);backdrop-filter:blur(20px);padding:1.5rem;flex-direction:column;gap:1.2rem;z-index:999;border-bottom:1px solid var(--border)}
+.mobile-menu a{color:var(--muted);text-decoration:none;font-size:1rem;font-weight:500;padding:.5rem 0;border-bottom:1px solid var(--border)}
+.mobile-menu.open{display:flex}
+
+/* ─── HERO ─── */
+#home{min-height:100vh;display:flex;flex-direction:column;justify-content:center;align-items:center;text-align:center;padding:7rem 1.5rem 4rem;position:relative;overflow:hidden}
+#particle-canvas{position:absolute;inset:0;z-index:0}
+.hero-content{position:relative;z-index:1;max-width:860px}
+.hero-badge{display:inline-flex;align-items:center;gap:.5rem;border:1px solid var(--border);border-radius:999px;padding:.35rem 1rem;font-size:.78rem;color:var(--muted);margin-bottom:1.5rem;background:rgba(13,23,38,.6);backdrop-filter:blur(8px)}
+.hero-badge-dot{width:7px;height:7px;border-radius:50%;background:var(--green);animation:pulse-dot 2s infinite}
+@keyframes pulse-dot{0%,100%{box-shadow:0 0 0 0 rgba(0,229,153,.4)}50%{box-shadow:0 0 0 6px rgba(0,229,153,0)}}
+.hero-h1{font-family:'Space Grotesk',sans-serif;font-size:clamp(2.2rem,6vw,4.2rem);font-weight:700;line-height:1.1;margin-bottom:1.4rem}
+.hero-sub{font-size:clamp(1rem,2vw,1.2rem);color:var(--muted);max-width:640px;margin:0 auto 2.5rem;line-height:1.75}
+.hero-btns{display:flex;gap:1rem;justify-content:center;flex-wrap:wrap;margin-bottom:4rem}
+.btn-primary{background:var(--cyan);color:#050A14;font-weight:700;padding:.85rem 2rem;border-radius:999px;text-decoration:none;font-size:.95rem;transition:box-shadow .2s,transform .2s}
+.btn-primary:hover{box-shadow:0 0 28px rgba(0,212,255,.5);transform:translateY(-2px)}
+.btn-outline{border:1px solid var(--border);color:var(--text);font-weight:600;padding:.85rem 2rem;border-radius:999px;text-decoration:none;font-size:.95rem;transition:border-color .2s,box-shadow .2s,transform .2s;background:rgba(13,23,38,.5)}
+.btn-outline:hover{border-color:var(--cyan);box-shadow:0 0 16px rgba(0,212,255,.2);transform:translateY(-2px)}
+.hero-stats{display:grid;grid-template-columns:repeat(4,1fr);gap:1.5rem;width:100%;max-width:760px;margin:0 auto}
+.hero-stat{background:rgba(13,23,38,.7);border:1px solid var(--border);border-radius:12px;padding:1.2rem 1rem;backdrop-filter:blur(12px)}
+.hero-stat-val{font-family:'Space Grotesk',sans-serif;font-size:1.6rem;font-weight:700;color:var(--cyan);display:block}
+.hero-stat-label{font-size:.75rem;color:var(--muted);margin-top:.25rem}
+.scroll-hint{position:absolute;bottom:2rem;left:50%;transform:translateX(-50%);display:flex;flex-direction:column;align-items:center;gap:.4rem;color:var(--muted);font-size:.75rem}
+.scroll-arrow{width:20px;height:20px;border-right:2px solid var(--muted);border-bottom:2px solid var(--muted);transform:rotate(45deg);animation:bounce .8s infinite alternate}
+@keyframes bounce{from{transform:rotate(45deg) translateY(0)}to{transform:rotate(45deg) translateY(6px)}}
+
+/* ─── PIPELINE OVERVIEW ─── */
+#pipeline{padding:6rem 1.5rem}
+.pipeline-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:1.5rem;margin-top:3rem}
+.pipe-card{background:rgba(13,23,38,.8);border:1px solid var(--border);border-radius:16px;padding:2rem;backdrop-filter:blur(12px);transition:transform .25s,box-shadow .25s;position:relative;overflow:hidden}
+.pipe-card::before{content:'';position:absolute;top:0;left:0;right:0;height:2px;background:var(--grad)}
+.pipe-card:hover{transform:translateY(-4px);box-shadow:0 0 28px rgba(0,212,255,.15)}
+.pipe-icon{width:48px;height:48px;border-radius:12px;background:rgba(0,212,255,.1);border:1px solid rgba(0,212,255,.2);display:flex;align-items:center;justify-content:center;margin-bottom:1.25rem}
+.pipe-card h3{font-family:'Space Grotesk',sans-serif;font-size:1.15rem;font-weight:700;margin-bottom:.6rem}
+.pipe-card p{color:var(--muted);font-size:.9rem;line-height:1.6}
+
+/* ─── PIPELINE ARCHITECTURE ─── */
+#architecture{padding:6rem 1.5rem;background:rgba(13,23,38,.3)}
+.pipeline-svg-wrap{overflow-x:auto;margin-top:3rem}
+.pipeline-svg-wrap svg{min-width:720px;width:100%;max-width:860px;display:block;margin:0 auto}
+
+/* SVG node styles */
+.node-rect{rx:8;ry:8;stroke-width:1.5}
+.node-data{fill:#051a1a;stroke:#00D4FF}
+.node-signal{fill:#130d26;stroke:#7B61FF}
+.node-quantum{fill:#1a0d26;stroke:#b561ff}
+.node-exec{fill:#051226;stroke:#00D4FF}
+.node-monitor{fill:#051a10;stroke:#00E599}
+.node-label{font-family:'JetBrains Mono',monospace;font-size:11px;fill:#F0F4FF;text-anchor:middle;dominant-baseline:middle}
+.node-sub{font-family:'JetBrains Mono',monospace;font-size:9px;fill:#6B80A0;text-anchor:middle;dominant-baseline:middle}
+.conn-line{stroke:#1A2740;stroke-width:1.5;fill:none}
+.pulse-path{fill:none;stroke-width:2;stroke-linecap:round}
+.pulse-cyan{stroke:var(--cyan)}
+.pulse-violet{stroke:var(--violet)}
+.pulse-green{stroke:var(--green)}
+
+/* ─── CORE FEATURES ─── */
+#features{padding:6rem 1.5rem}
+.features-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:1.5rem;margin-top:3rem}
+.feat-card{background:rgba(13,23,38,.8);border:1px solid var(--border);border-radius:16px;padding:1.75rem;backdrop-filter:blur(12px);transition:transform .25s,box-shadow .25s;position:relative;overflow:hidden;cursor:default}
+.feat-card:nth-child(even)::before{content:'';position:absolute;top:0;left:0;right:0;height:2px;background:linear-gradient(90deg,var(--violet),transparent)}
+.feat-card:nth-child(odd)::before{content:'';position:absolute;top:0;left:0;right:0;height:2px;background:linear-gradient(90deg,var(--cyan),transparent)}
+.feat-card:hover{transform:translateY(-4px);box-shadow:0 0 28px rgba(0,212,255,.15)}
+.feat-card h3{font-family:'Space Grotesk',sans-serif;font-size:1rem;font-weight:700;margin-bottom:.6rem}
+.feat-card p{color:var(--muted);font-size:.875rem;line-height:1.6}
+.feat-more{font-size:.8rem;color:var(--cyan);margin-top:.8rem;display:inline-block;text-decoration:none}
+.feat-more:hover{text-decoration:underline}
+
+/* ─── PERFORMANCE ─── */
+#performance{padding:6rem 1.5rem;background:rgba(13,23,38,.3)}
+.perf-layout{display:grid;grid-template-columns:1fr 1fr;gap:2rem;margin-top:3rem;align-items:start}
+.kpi-grid{display:grid;grid-template-columns:1fr 1fr;gap:1rem}
+.kpi-card{background:rgba(5,10,20,.8);border:1px solid var(--border);border-radius:12px;padding:1.25rem;font-family:'JetBrains Mono',monospace}
+.kpi-val{font-size:1.7rem;font-weight:700;color:var(--cyan)}
+.kpi-label{font-size:.75rem;color:var(--muted);margin-top:.25rem}
+.chart-card{background:rgba(5,10,20,.8);border:1px solid var(--border);border-radius:16px;padding:1.5rem;height:280px}
+.chart-card-title{font-size:.78rem;color:var(--muted);font-family:'JetBrains Mono',monospace;margin-bottom:1rem;text-transform:uppercase;letter-spacing:.1em}
+.strategy-badges{display:flex;flex-wrap:wrap;gap:.6rem;margin-top:1.5rem}
+.strat-badge{background:rgba(13,23,38,.8);border:1px solid var(--border);border-radius:999px;padding:.35rem .9rem;font-family:'JetBrains Mono',monospace;font-size:.72rem;color:var(--muted)}
+
+/* ─── TECHNOLOGY ─── */
+#technology{padding:6rem 1.5rem}
+.tech-layout{display:grid;grid-template-columns:1fr 1fr;gap:3rem;margin-top:3rem;align-items:start}
+.tech-category{margin-bottom:1.5rem}
+.tech-cat-label{font-family:'Space Grotesk',sans-serif;font-weight:700;font-size:.9rem;margin-bottom:.6rem;color:var(--text)}
+.tech-chips{display:flex;flex-wrap:wrap;gap:.5rem}
+.chip{background:rgba(13,23,38,.8);border:1px solid var(--border);border-radius:6px;padding:.3rem .7rem;font-family:'JetBrains Mono',monospace;font-size:.72rem;color:var(--muted);transition:border-color .2s,color .2s}
+.chip:hover{border-color:var(--cyan);color:var(--cyan)}
+.chip.quantum-chip{border-color:rgba(123,97,255,.4);color:var(--violet)}
+
+/* Timeline */
+.tech-timeline{position:relative;padding-left:2rem}
+.tech-timeline::before{content:'';position:absolute;left:0;top:0;bottom:0;width:2px;background:linear-gradient(180deg,var(--cyan),var(--violet),var(--green))}
+.timeline-item{position:relative;margin-bottom:1.5rem;padding-left:.75rem}
+.timeline-item::before{content:'';position:absolute;left:-2.25rem;top:.35rem;width:10px;height:10px;border-radius:50%;background:var(--cyan);border:2px solid var(--bg)}
+.timeline-item:nth-child(even)::before{background:var(--violet)}
+.timeline-item:last-child::before{background:var(--green)}
+.timeline-item h4{font-family:'Space Grotesk',sans-serif;font-size:.95rem;font-weight:700;margin-bottom:.25rem}
+.timeline-item p{font-size:.83rem;color:var(--muted)}
+
+/* ─── USE CASES ─── */
+#usecases{padding:6rem 1.5rem;background:rgba(13,23,38,.3)}
+.usecase-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:1.5rem;margin-top:3rem}
+.usecase-card{background:rgba(5,10,20,.9);border:1px solid var(--border);border-radius:16px;padding:2rem;transition:transform .25s,border-color .25s,box-shadow .25s}
+.usecase-card:hover{transform:translateY(-4px);border-color:rgba(0,212,255,.3);box-shadow:0 0 28px rgba(0,212,255,.1)}
+.usecase-card h3{font-family:'Space Grotesk',sans-serif;font-size:1.1rem;font-weight:700;margin-bottom:.75rem;color:var(--cyan)}
+.usecase-card p{color:var(--muted);font-size:.9rem;line-height:1.65}
+
+/* ─── TICKER INTELLIGENCE ─── */
+#ticker{padding:6rem 1.5rem}
+.ticker-card{max-width:1100px;margin:3rem auto 0;background:rgba(13,23,38,.85);border:1px solid var(--border);border-radius:20px;padding:2.5rem;backdrop-filter:blur(16px);box-shadow:0 0 60px rgba(0,212,255,.05)}
+.ticker-input-row{display:flex;gap:1rem;margin-bottom:1.5rem}
+.ticker-input{flex:1;background:rgba(5,10,20,.8);border:1px solid var(--border);border-radius:12px;padding:1rem 1.25rem;font-family:'JetBrains Mono',monospace;font-size:1rem;color:var(--text);outline:none;transition:border-color .2s,box-shadow .2s}
+.ticker-input:focus{border-color:var(--cyan);box-shadow:0 0 0 3px rgba(0,212,255,.1)}
+.ticker-input::placeholder{color:var(--muted)}
+.ticker-btn{background:var(--cyan);color:#050A14;font-weight:700;font-size:.9rem;padding:1rem 1.75rem;border-radius:12px;border:none;cursor:pointer;white-space:nowrap;transition:box-shadow .2s,transform .2s}
+.ticker-btn:hover{box-shadow:0 0 24px rgba(0,212,255,.5);transform:translateY(-1px)}
+.ticker-btn:disabled{opacity:.6;cursor:not-allowed;transform:none}
+
+/* Loading state */
+.ticker-loader{display:none;text-align:center;padding:3rem;color:var(--muted);font-family:'JetBrains Mono',monospace;font-size:.9rem}
+.quantum-spinner{width:48px;height:48px;border:3px solid var(--border);border-top-color:var(--cyan);border-radius:50%;animation:spin .8s linear infinite;margin:0 auto 1rem}
+@keyframes spin{to{transform:rotate(360deg)}}
+
+/* Results */
+.ticker-results{display:none}
+.results-fade{animation:fadeInUp .5s ease forwards}
+@keyframes fadeInUp{from{opacity:0;transform:translateY(16px)}to{opacity:1;transform:translateY(0)}}
+
+/* Signal row */
+.signal-row{display:grid;grid-template-columns:auto 1fr 1fr 1fr;gap:1.5rem;margin-bottom:1.5rem;align-items:center}
+.signal-badge{display:inline-flex;align-items:center;justify-content:center;padding:.6rem 1.6rem;border-radius:12px;font-family:'Space Grotesk',sans-serif;font-size:1.4rem;font-weight:700;min-width:110px}
+.signal-badge.buy{background:rgba(0,229,153,.15);color:#00E599;border:1px solid rgba(0,229,153,.3)}
+.signal-badge.hold{background:rgba(0,212,255,.15);color:#00D4FF;border:1px solid rgba(0,212,255,.3)}
+.signal-badge.sell{background:rgba(255,77,77,.15);color:#FF4D4D;border:1px solid rgba(255,77,77,.3)}
+.metric-block{background:rgba(5,10,20,.6);border:1px solid var(--border);border-radius:10px;padding:1rem}
+.metric-block-label{font-size:.7rem;font-family:'JetBrains Mono',monospace;color:var(--muted);text-transform:uppercase;letter-spacing:.1em;margin-bottom:.35rem}
+.metric-block-val{font-family:'Space Grotesk',sans-serif;font-size:1.3rem;font-weight:700}
+.progress-bar-wrap{height:8px;background:rgba(255,255,255,.08);border-radius:999px;margin-top:.5rem;overflow:hidden}
+.progress-bar-fill{height:100%;border-radius:999px;background:var(--grad);box-shadow:0 0 8px rgba(0,212,255,.4);transition:width .8s ease}
+
+/* Main panels */
+.panels-row{display:grid;grid-template-columns:1fr 1.4fr;gap:1.5rem;margin-bottom:1.5rem}
+.panel{background:rgba(5,10,20,.7);border:1px solid var(--border);border-radius:14px;padding:1.25rem;overflow:hidden}
+.panel-header{display:flex;align-items:center;gap:.6rem;margin-bottom:1rem;font-family:'JetBrains Mono',monospace;font-size:.75rem;color:var(--muted);text-transform:uppercase;letter-spacing:.1em}
+.live-dot{width:7px;height:7px;border-radius:50%;background:var(--green);animation:pulse-dot 1.5s infinite;flex-shrink:0}
+
+/* Order book */
+.ob-table{width:100%;border-collapse:collapse;font-family:'JetBrains Mono',monospace;font-size:.75rem}
+.ob-table th{color:var(--muted);font-weight:500;padding:.3rem .5rem;text-align:right;border-bottom:1px solid var(--border)}
+.ob-table th:first-child{text-align:left}
+.ob-table td{padding:.28rem .5rem;text-align:right;border-bottom:1px solid rgba(26,39,64,.4)}
+.ob-table td:first-child{text-align:left}
+.ob-ask{color:#FF6B6B}
+.ob-bid{color:#00E599}
+.ob-section-label{font-family:'JetBrains Mono',monospace;font-size:.68rem;color:var(--muted);padding:.4rem .5rem;border-bottom:1px solid var(--border);letter-spacing:.08em}
+
+/* Equity chart */
+.chart-panel{height:260px;position:relative}
+.chart-panel canvas{width:100%!important}
+
+/* Quantum metrics bottom */
+.qmetrics-row{display:grid;grid-template-columns:repeat(4,1fr);gap:1rem;margin-bottom:1.5rem}
+.qm-card{background:rgba(5,10,20,.7);border:1px solid var(--border);border-radius:12px;padding:1rem}
+.qm-label{font-family:'JetBrains Mono',monospace;font-size:.68rem;color:var(--muted);text-transform:uppercase;letter-spacing:.08em;margin-bottom:.4rem}
+.qm-val{font-family:'Space Grotesk',sans-serif;font-size:1rem;font-weight:700}
+
+/* Factor chips */
+.factor-chips{display:flex;flex-wrap:wrap;gap:.5rem;margin-top:.75rem}
+.factor-chip{background:rgba(123,97,255,.12);border:1px solid rgba(123,97,255,.25);border-radius:999px;padding:.28rem .8rem;font-size:.75rem;color:var(--violet);font-family:'JetBrains Mono',monospace}
+
+/* Strategy row */
+.strategy-row{background:rgba(5,10,20,.6);border:1px solid var(--border);border-radius:10px;padding:1rem 1.25rem;margin-bottom:1rem;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:.5rem}
+.strategy-label{font-size:.75rem;color:var(--muted);font-family:'JetBrains Mono',monospace}
+.strategy-val{font-size:.9rem;color:var(--cyan);font-weight:600}
+
+/* Disclaimer */
+.ticker-disclaimer{text-align:center;font-size:.72rem;color:var(--muted);font-family:'JetBrains Mono',monospace;margin-top:1.5rem;padding-top:1rem;border-top:1px solid var(--border)}
+
+/* ─── CTA ─── */
+#contact{padding:6rem 1.5rem;position:relative;overflow:hidden}
+#contact::before{content:'';position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);width:600px;height:600px;border-radius:50%;background:radial-gradient(circle,rgba(0,212,255,.06) 0%,transparent 70%);pointer-events:none}
+.cta-box{max-width:700px;margin:0 auto;text-align:center;padding:3.5rem 2rem;background:rgba(13,23,38,.8);border:1px solid;border-image:var(--grad) 1;border-radius:20px;backdrop-filter:blur(16px);position:relative}
+.cta-box::before{content:'';position:absolute;inset:-1px;border-radius:20px;background:var(--grad);z-index:-1;opacity:.3}
+.cta-inner{position:relative;z-index:1}
+.cta-box h2{font-family:'Space Grotesk',sans-serif;font-size:clamp(1.8rem,4vw,2.5rem);font-weight:700;margin-bottom:1rem}
+.cta-box p{color:var(--muted);margin-bottom:2rem;font-size:1rem;line-height:1.7}
+.cta-btns{display:flex;gap:1rem;justify-content:center;flex-wrap:wrap;margin-bottom:1.5rem}
+.cta-email{font-family:'JetBrains Mono',monospace;font-size:.85rem;color:var(--muted)}
+.cta-email a{color:var(--cyan);text-decoration:none}
+.cta-email a:hover{text-decoration:underline}
+
+/* ─── FOOTER ─── */
+footer{background:rgba(5,10,20,.95);border-top:1px solid var(--border);padding:3rem 1.5rem 2rem}
+.footer-grid{display:grid;grid-template-columns:1.5fr 1fr 1fr 1fr;gap:2rem;margin-bottom:2.5rem}
+.footer-brand p{color:var(--muted);font-size:.875rem;margin-top:.75rem;max-width:240px;line-height:1.6}
+.footer-col h4{font-family:'Space Grotesk',sans-serif;font-size:.85rem;font-weight:700;margin-bottom:1rem;color:var(--text)}
+.footer-col ul{list-style:none}
+.footer-col li{margin-bottom:.6rem}
+.footer-col a{color:var(--muted);font-size:.85rem;text-decoration:none;transition:color .2s}
+.footer-col a:hover{color:var(--cyan)}
+.footer-bottom{display:flex;align-items:center;justify-content:space-between;padding-top:1.5rem;border-top:1px solid var(--border);flex-wrap:wrap;gap:1rem}
+.footer-bottom p{font-size:.78rem;color:var(--muted);font-family:'JetBrains Mono',monospace}
+.footer-links{display:flex;gap:1.5rem}
+.footer-links a{font-size:.78rem;color:var(--muted);text-decoration:none;transition:color .2s}
+.footer-links a:hover{color:var(--cyan)}
+.social-icons{display:flex;gap:.75rem}
+.social-icon{width:34px;height:34px;border:1px solid var(--border);border-radius:8px;display:flex;align-items:center;justify-content:center;color:var(--muted);text-decoration:none;transition:border-color .2s,color .2s}
+.social-icon:hover{border-color:var(--cyan);color:var(--cyan)}
+
+/* ─── QUANTUM SIGNAL ENGINE ─── */
+#signal-engine{background:rgba(13,23,38,.3)}
+.se-card{max-width:900px;margin:0 auto;background:rgba(13,23,38,.8);border:1px solid var(--border);border-radius:20px;padding:2rem;backdrop-filter:blur(12px)}
+.se-search-wrap{display:flex;gap:.75rem;margin-bottom:1.25rem}
+.se-input{flex:1;background:rgba(5,10,20,.9);border:1.5px solid var(--border);border-radius:10px;padding:.9rem 1.25rem;font-family:'JetBrains Mono',monospace;font-size:1rem;color:var(--text);outline:none;transition:border-color .2s,box-shadow .2s;letter-spacing:.04em}
+.se-input:focus{border-color:var(--cyan);box-shadow:0 0 0 3px rgba(0,212,255,.12)}
+.se-input::placeholder{color:var(--muted);font-size:.82rem}
+.se-run-btn{background:var(--grad);color:#fff;font-family:'JetBrains Mono',monospace;font-weight:700;font-size:.82rem;letter-spacing:.08em;padding:.9rem 1.5rem;border-radius:10px;border:none;cursor:pointer;white-space:nowrap;transition:box-shadow .2s,transform .2s}
+.se-run-btn:hover{box-shadow:0 0 24px rgba(0,212,255,.45);transform:translateY(-1px)}
+.se-run-btn:disabled{opacity:.55;cursor:not-allowed;transform:none}
+.se-chips-row{display:flex;align-items:center;gap:.75rem;flex-wrap:wrap}
+.se-chips-label{font-family:'JetBrains Mono',monospace;font-size:.65rem;color:var(--muted);letter-spacing:.14em;white-space:nowrap}
+.se-chips{display:flex;gap:.5rem;flex-wrap:wrap}
+.se-chip{background:rgba(0,212,255,.07);border:1px solid rgba(0,212,255,.2);border-radius:6px;padding:.28rem .75rem;font-family:'JetBrains Mono',monospace;font-size:.72rem;color:var(--cyan);cursor:pointer;transition:background .2s,box-shadow .2s}
+.se-chip:hover{background:rgba(0,212,255,.16);box-shadow:0 0 12px rgba(0,212,255,.2)}
+/* Pipeline stages */
+.se-pipeline-wrap{max-width:900px;margin:2rem auto 0}
+.se-stages{display:flex;align-items:flex-start;gap:0}
+.se-stage{display:flex;flex-direction:column;align-items:center;flex:0 0 auto;width:100px}
+.se-stage-connector{flex:1;height:2px;background:var(--border);position:relative;overflow:hidden;align-self:26px;margin-top:25px}
+.se-connector-fill{height:100%;width:0%;background:var(--grad);transition:width .45s ease}
+.se-stage-node{width:52px;height:52px;border-radius:50%;border:2px solid var(--border);background:rgba(5,10,20,.8);display:flex;align-items:center;justify-content:center;position:relative;z-index:1;transition:border-color .3s,box-shadow .3s,color .3s;color:var(--muted)}
+.se-stage-node.se-active{border-color:var(--cyan);box-shadow:0 0 18px rgba(0,212,255,.45);color:var(--cyan);animation:se-pulse .65s ease infinite}
+.se-stage-node.se-done{border-color:var(--green);box-shadow:0 0 12px rgba(0,229,153,.3);color:var(--green)}
+@keyframes se-pulse{0%,100%{box-shadow:0 0 18px rgba(0,212,255,.4)}50%{box-shadow:0 0 32px rgba(0,212,255,.75)}}
+.se-stage-text{margin-top:.65rem;text-align:center}
+.se-stage-name{font-family:'JetBrains Mono',monospace;font-size:.6rem;color:var(--muted);text-transform:uppercase;letter-spacing:.1em;line-height:1.4}
+.se-stage-status{font-family:'JetBrains Mono',monospace;font-size:.58rem;margin-top:.25rem}
+.se-status-wait{color:rgba(107,128,160,.5)}
+.se-status-run{color:var(--cyan)}
+.se-status-done{color:var(--green)}
+/* Results */
+.se-results-wrap{max-width:900px;margin:2rem auto 0;animation:fadeInUp .5s ease}
+.se-header-card{background:rgba(13,23,38,.8);border:1px solid var(--border);border-radius:16px;padding:1.75rem;backdrop-filter:blur(12px);margin-bottom:1.25rem;display:grid;grid-template-columns:auto 1fr auto;gap:1.5rem;align-items:center}
+.se-verdict{font-family:'Space Grotesk',sans-serif;font-size:2.8rem;font-weight:700;padding:.6rem 1.5rem;border-radius:12px;text-align:center;letter-spacing:.05em;min-width:130px}
+.se-verdict.se-buy{color:var(--green);background:rgba(0,229,153,.12);border:1px solid rgba(0,229,153,.3)}
+.se-verdict.se-sell{color:var(--red);background:rgba(255,77,77,.12);border:1px solid rgba(255,77,77,.3)}
+.se-verdict.se-aside{color:#FFB547;background:rgba(255,181,71,.1);border:1px solid rgba(255,181,71,.25);font-size:1.5rem}
+.se-ticker-info h3{font-family:'Space Grotesk',sans-serif;font-size:1.5rem;font-weight:700;margin-bottom:.15rem}
+.se-ticker-name{font-size:.85rem;color:var(--muted);margin-bottom:.4rem}
+.se-price-disp{font-family:'JetBrains Mono',monospace;font-size:1.6rem;font-weight:700}
+.se-change-disp{font-family:'JetBrains Mono',monospace;font-size:.82rem;margin-left:.5rem}
+.se-change-disp.pos{color:var(--green)}.se-change-disp.neg{color:var(--red)}
+.se-score-col{text-align:center}
+.se-score-label{font-family:'JetBrains Mono',monospace;font-size:.62rem;color:var(--muted);text-transform:uppercase;letter-spacing:.12em;margin-bottom:.4rem}
+.se-gauge{position:relative;width:90px;height:52px;overflow:hidden;margin:0 auto}
+.se-gauge-val{position:absolute;bottom:0;left:50%;transform:translateX(-50%);font-family:'JetBrains Mono',monospace;font-size:1.1rem;font-weight:700}
+.se-cross-score{font-family:'JetBrains Mono',monospace;font-size:.65rem;color:var(--muted);margin-top:.4rem}
+/* Panels */
+.se-panels-row{display:grid;grid-template-columns:1fr 1fr;gap:1.25rem;margin-bottom:1.25rem}
+.se-panel{background:rgba(13,23,38,.8);border:1px solid var(--border);border-radius:14px;padding:1.25rem;backdrop-filter:blur(12px)}
+.se-panel-title{font-family:'JetBrains Mono',monospace;font-size:.65rem;color:var(--muted);text-transform:uppercase;letter-spacing:.14em;margin-bottom:1rem}
+.se-bd-table{width:100%;border-collapse:collapse}
+.se-bd-table td{padding:.35rem .3rem;font-size:.76rem;border-bottom:1px solid rgba(26,39,64,.4)}
+.se-bd-table tr:last-child td{border-bottom:none}
+.se-bd-table td:first-child{font-family:'JetBrains Mono',monospace;color:var(--muted)}
+.se-bd-table td:nth-child(2){font-family:'JetBrains Mono',monospace;color:var(--text);font-weight:600}
+.se-bd-table td:nth-child(3){text-align:right;font-family:'JetBrains Mono',monospace;font-size:.68rem}
+.se-bd-bull{color:var(--green)}.se-bd-bear{color:var(--red)}.se-bd-neutral{color:var(--muted)}
+.se-metrics-grid{display:grid;grid-template-columns:1fr 1fr;gap:.75rem}
+.se-metric-card{background:rgba(5,10,20,.6);border:1px solid var(--border);border-radius:10px;padding:.85rem}
+.se-metric-label{font-family:'JetBrains Mono',monospace;font-size:.58rem;color:var(--muted);text-transform:uppercase;letter-spacing:.1em;margin-bottom:.3rem}
+.se-metric-val{font-family:'JetBrains Mono',monospace;font-size:1.05rem;font-weight:700}
+/* Bottom row */
+.se-bottom-row{display:grid;grid-template-columns:1.2fr 1fr;gap:1.25rem;margin-bottom:1.25rem}
+.se-reasons-list{list-style:none;padding:0}
+.se-reasons-list li{display:flex;gap:.6rem;align-items:flex-start;padding:.45rem 0;border-bottom:1px solid rgba(26,39,64,.4);font-size:.8rem;line-height:1.5}
+.se-reasons-list li:last-child{border-bottom:none}
+.se-reason-icon{font-size:.78rem;flex-shrink:0;margin-top:.1rem}
+.se-trade-cards{display:grid;gap:.75rem}
+.se-trade-card{background:rgba(5,10,20,.7);border:1px solid var(--border);border-radius:12px;padding:1rem}
+.se-trade-card h4{font-family:'JetBrains Mono',monospace;font-size:.62rem;text-transform:uppercase;letter-spacing:.1em;color:var(--muted);margin-bottom:.6rem}
+.se-trade-row{display:flex;justify-content:space-between;font-family:'JetBrains Mono',monospace;font-size:.76rem;margin-bottom:.28rem}
+.se-trade-key{color:var(--muted)}.se-trade-val{font-weight:700}
+/* Disclaimer */
+.se-disclaimer{max-width:900px;margin:1.5rem auto 0;text-align:center;font-family:'JetBrains Mono',monospace;font-size:.65rem;color:var(--muted);padding-top:1rem;border-top:1px solid var(--border)}
+/* Error */
+.se-error-box{max-width:900px;margin:2rem auto 0;background:rgba(255,77,77,.08);border:1px solid rgba(255,77,77,.25);border-radius:14px;padding:1.5rem;text-align:center}
+.se-error-box p{color:var(--red);font-family:'JetBrains Mono',monospace;font-size:.85rem}
+/* Mobile */
+@media(max-width:600px){
+  .se-search-wrap{flex-direction:column}
+  .se-stages{flex-direction:column;align-items:stretch;gap:.6rem}
+  .se-stage{flex-direction:row;width:100%;gap:.75rem;align-items:center}
+  .se-stage-connector{display:none}
+  .se-stage-text{text-align:left}
+  .se-header-card{grid-template-columns:1fr;gap:1rem}
+  .se-verdict{font-size:2.5rem}
+  .se-verdict.se-aside{font-size:1.6rem}
+  .se-panels-row,.se-bottom-row{grid-template-columns:1fr}
+}
+
+/* ─── RESPONSIVE ─── */
+@media(max-width:900px){
+  .nav-links,.nav-cta{display:none}
+  .hamburger{display:flex}
+  .pipeline-grid,.features-grid,.usecase-grid{grid-template-columns:1fr 1fr}
+  .perf-layout,.tech-layout{grid-template-columns:1fr}
+  .signal-row{grid-template-columns:1fr 1fr}
+  .panels-row{grid-template-columns:1fr}
+  .qmetrics-row{grid-template-columns:1fr 1fr}
+  .footer-grid{grid-template-columns:1fr 1fr}
+  .hero-stats{grid-template-columns:1fr 1fr}
+}
+@media(max-width:600px){
+  .pipeline-grid,.features-grid,.usecase-grid{grid-template-columns:1fr}
+  .kpi-grid{grid-template-columns:1fr 1fr}
+  .qmetrics-row{grid-template-columns:1fr 1fr}
+  .footer-grid{grid-template-columns:1fr}
+  .signal-row{grid-template-columns:1fr 1fr}
+  .ticker-input-row{flex-direction:column}
+  .hero-stats{grid-template-columns:1fr 1fr}
+}
+
+.pipeline-credit{font-family:'JetBrains Mono',monospace;font-size:10px;color:#6B80A0;display:flex;align-items:center;gap:6px;margin-top:8px}
+.credit-dot{width:6px;height:6px;border-radius:50%;background:#7B61FF;animation:pulse-credit 2s infinite}
+@keyframes pulse-credit{0%,100%{box-shadow:0 0 0 0 rgba(123,97,255,.4)}50%{box-shadow:0 0 0 6px rgba(123,97,255,0)}}
+</style>
+</head>
+<body>
+
+<!-- NAV -->
+<nav id="navbar">
+  <a href="#home" class="nav-logo" aria-label="AgilityServ Home">
+    <svg width="32" height="32" viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+      <defs><linearGradient id="lg1" x1="0" y1="0" x2="32" y2="32" gradientUnits="userSpaceOnUse"><stop offset="0%" stop-color="#00D4FF"/><stop offset="100%" stop-color="#7B61FF"/></linearGradient></defs>
+      <path d="M16 3 L28 26 L22 26 L18.5 19 L13.5 19 L10 26 L4 26 Z" fill="none" stroke="url(#lg1)" stroke-width="2" stroke-linejoin="round"/>
+      <path d="M11.5 17 L20.5 17" stroke="url(#lg1)" stroke-width="2"/>
+      <path d="M19 17 L21 14" stroke="url(#lg1)" stroke-width="2" stroke-linecap="round"/>
+    </svg>
+    <span class="nav-logo-text">AgilityServ</span>
+  </a>
+  <ul class="nav-links">
+    <li><a href="#pipeline">Pipeline</a></li>
+    <li><a href="#features">Features</a></li>
+    <li><a href="#architecture">Architecture</a></li>
+    <li><a href="#signal-engine">Signal Engine</a></li>
+    <li><a href="#performance">Performance</a></li>
+    <li><a href="#technology">Technology</a></li>
+    <li><a href="#contact">Contact</a></li>
+  </ul>
+  <a href="#contact" class="nav-cta">Request Demo</a>
+  <button class="hamburger" id="hamburger" aria-label="Open menu">
+    <span></span><span></span><span></span>
+  </button>
+</nav>
+
+<!-- MOBILE MENU -->
+<div class="mobile-menu" id="mobile-menu" role="navigation">
+  <a href="#pipeline" onclick="closeMobile()">Pipeline</a>
+  <a href="#features" onclick="closeMobile()">Features</a>
+  <a href="#architecture" onclick="closeMobile()">Architecture</a>
+  <a href="#signal-engine" onclick="closeMobile()">Signal Engine</a>
+  <a href="#performance" onclick="closeMobile()">Performance</a>
+  <a href="#technology" onclick="closeMobile()">Technology</a>
+  <a href="#contact" onclick="closeMobile()">Contact</a>
+  <a href="#contact" class="btn-primary" style="text-align:center" onclick="closeMobile()">Request Demo</a>
+</div>
+
+<!-- HERO -->
+<section id="home">
+  <canvas id="particle-canvas" aria-hidden="true"></canvas>
+  <div class="hero-content fade-up">
+    <div class="hero-badge">
+      <span class="hero-badge-dot"></span>
+      Now in production · Quantum-enhanced since 2024
+    </div>
+    <h1 class="hero-h1">
+      Your <span class="grad-text">Quantum-Quantitative</span><br/>Trading Pipeline,<br/>Fully Engineered
+    </h1>
+    <p class="hero-sub">End-to-end alpha generation powered by classical infrastructure + quantum advantage — from raw market data ingestion to live order execution.</p>
+    <div class="hero-btns">
+      <a href="#contact" class="btn-primary">Get Started</a>
+      <a href="#architecture" class="btn-outline">View Architecture</a>
+    </div>
+    <div class="hero-stats">
+      <div class="hero-stat">
+        <span class="hero-stat-val mono" data-target="50" data-prefix="&lt;" data-suffix="μs">&lt;50μs</span>
+        <div class="hero-stat-label">Execution Latency</div>
+      </div>
+      <div class="hero-stat">
+        <span class="hero-stat-val mono" data-target="9999" data-prefix="" data-suffix="%">99.99%</span>
+        <div class="hero-stat-label">System Uptime</div>
+      </div>
+      <div class="hero-stat">
+        <span class="hero-stat-val mono" data-target="15" data-prefix="" data-suffix="+">15+</span>
+        <div class="hero-stat-label">Asset Classes</div>
+      </div>
+      <div class="hero-stat">
+        <span class="hero-stat-val mono" data-target="10" data-prefix="" data-suffix="B+">10B+</span>
+        <div class="hero-stat-label">Daily Signals</div>
+      </div>
+    </div>
+  </div>
+  <div class="scroll-hint" aria-hidden="true">
+    <span>Scroll</span><div class="scroll-arrow"></div>
+  </div>
+</section>
+
+<!-- PIPELINE OVERVIEW -->
+<section id="pipeline">
+  <div class="container">
+    <div class="fade-up">
+      <div class="section-label">What We Do</div>
+      <h2 class="section-title grad-text">The Full Quant Stack</h2>
+      <p class="section-sub">Three integrated layers — each precision-engineered, each quantum-enhanced where it matters most.</p>
+    </div>
+    <div class="pipeline-grid fade-up">
+      <div class="pipe-card">
+        <div class="pipe-icon">
+          <svg width="24" height="24" fill="none" viewBox="0 0 24 24"><path d="M4 6h16M4 10h16M4 14h10" stroke="#00D4FF" stroke-width="1.5" stroke-linecap="round"/><circle cx="18" cy="16" r="3" stroke="#00D4FF" stroke-width="1.5"/><path d="M20.5 18.5l2 2" stroke="#00D4FF" stroke-width="1.5" stroke-linecap="round"/></svg>
+        </div>
+        <h3>Data Ingestion</h3>
+        <p>WebSocket & FIX protocol feeds delivering tick-by-tick normalization across equities, futures, options, crypto, and forex. Quantum-accelerated normalisation for ultra-low latency preprocessing.</p>
+      </div>
+      <div class="pipe-card">
+        <div class="pipe-icon" style="background:rgba(123,97,255,.1);border-color:rgba(123,97,255,.2)">
+          <svg width="24" height="24" fill="none" viewBox="0 0 24 24"><path d="M12 3L3 8l9 5 9-5-9-5z" stroke="#7B61FF" stroke-width="1.5" stroke-linejoin="round"/><path d="M3 16l9 5 9-5" stroke="#7B61FF" stroke-width="1.5" stroke-linejoin="round"/><path d="M3 12l9 5 9-5" stroke="#7B61FF" stroke-width="1.5" stroke-linejoin="round"/></svg>
+        </div>
+        <h3>Signal Engine</h3>
+        <p>Hybrid classical + quantum ML alpha models — gradient boosting, LSTMs, variational quantum circuits, and quantum kernel SVMs — computing 200+ real-time factors with walk-forward validation.</p>
+      </div>
+      <div class="pipe-card">
+        <div class="pipe-icon">
+          <svg width="24" height="24" fill="none" viewBox="0 0 24 24"><path d="M5 12h14M12 5l7 7-7 7" stroke="#00D4FF" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        </div>
+        <h3>Execution Layer</h3>
+        <p>Sub-millisecond smart order routing via TWAP/VWAP, implementation shortfall optimisation, DMA to prime brokers, and quantum-annealed portfolio rebalancing at co-located infrastructure.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- PIPELINE ARCHITECTURE -->
+<section id="architecture" style="padding:6rem 1.5rem">
+  <div class="container">
+    <div class="fade-up" style="text-align:center;margin-bottom:.5rem">
+      <div class="section-label">Core Visual</div>
+      <h2 class="section-title">From <span class="grad-text">Tick to Trade</span> in Microseconds</h2>
+      <p class="section-sub" style="margin:0 auto">Animated data flow across the complete Hybrid Quantum-Quantitative Pipeline. Each layer is isolated, observable, and independently scalable.</p>
+    </div>
+
+    <!-- Pipeline Legend -->
+    <div style="display:flex;flex-wrap:wrap;gap:1.25rem;justify-content:center;margin:1.5rem 0 2rem" class="fade-up">
+      <div style="display:flex;align-items:center;gap:.4rem;font-family:'JetBrains Mono',monospace;font-size:.72rem;color:var(--muted)"><span style="width:10px;height:10px;border-radius:2px;background:#00D4FF;display:inline-block"></span>Data Layer</div>
+      <div style="display:flex;align-items:center;gap:.4rem;font-family:'JetBrains Mono',monospace;font-size:.72rem;color:var(--muted)"><span style="width:10px;height:10px;border-radius:2px;background:#7B61FF;display:inline-block"></span>Signal Layer</div>
+      <div style="display:flex;align-items:center;gap:.4rem;font-family:'JetBrains Mono',monospace;font-size:.72rem;color:var(--muted)"><span style="width:10px;height:10px;border-radius:2px;background:#b561ff;display:inline-block"></span>Quantum Optimizer</div>
+      <div style="display:flex;align-items:center;gap:.4rem;font-family:'JetBrains Mono',monospace;font-size:.72rem;color:var(--muted)"><span style="width:10px;height:10px;border-radius:2px;background:#00D4FF;display:inline-block"></span>Execution Layer</div>
+      <div style="display:flex;align-items:center;gap:.4rem;font-family:'JetBrains Mono',monospace;font-size:.72rem;color:var(--muted)"><span style="width:10px;height:10px;border-radius:2px;background:#00E599;display:inline-block"></span>Monitoring</div>
+    </div>
+
+    <div class="pipeline-svg-wrap fade-up">
+      <svg viewBox="0 0 820 1020" xmlns="http://www.w3.org/2000/svg" aria-label="AgilityServ Quantum-Quantitative Pipeline Architecture">
+        <defs>
+          <linearGradient id="lg2" x1="0%" y1="0%" x2="100%" y2="0%"><stop offset="0%" stop-color="#00D4FF"/><stop offset="100%" stop-color="#7B61FF"/></linearGradient>
+          <linearGradient id="lg3" x1="0%" y1="0%" x2="0%" y2="100%"><stop offset="0%" stop-color="#00D4FF"/><stop offset="100%" stop-color="#7B61FF"/></linearGradient>
+          <filter id="glow-cyan"><feGaussianBlur stdDeviation="3" result="blur"/><feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge></filter>
+          <filter id="glow-violet"><feGaussianBlur stdDeviation="4" result="blur"/><feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge></filter>
+        </defs>
+
+        <!-- ROW 1: Market Data + Normalizer -->
+        <rect class="node-rect node-data" x="20" y="20" width="180" height="50"/>
+        <text class="node-label" x="110" y="42">Market Data Feeds</text>
+        <text class="node-sub" x="110" y="57">WebSocket · FIX · ITCH</text>
+        <!-- Arrow right -->
+        <line x1="200" y1="45" x2="310" y2="45" stroke="#00D4FF" stroke-width="1.5" marker-end="url(#arrow-cyan)"/>
+        <rect class="node-rect node-data" x="310" y="20" width="200" height="50"/>
+        <text class="node-label" x="410" y="42">Normalizer / Data Lake</text>
+        <text class="node-sub" x="410" y="57">Arctic · Parquet · TimescaleDB</text>
+
+        <!-- Arrow markers -->
+        <defs>
+          <marker id="arrow-cyan" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto"><path d="M0,0 L0,6 L8,3 z" fill="#00D4FF"/></marker>
+          <marker id="arrow-violet" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto"><path d="M0,0 L0,6 L8,3 z" fill="#7B61FF"/></marker>
+          <marker id="arrow-green" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto"><path d="M0,0 L0,6 L8,3 z" fill="#00E599"/></marker>
+          <marker id="arrow-purple" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto"><path d="M0,0 L0,6 L8,3 z" fill="#b561ff"/></marker>
+        </defs>
+
+        <!-- Down from Normalizer to row 2 center -->
+        <line x1="410" y1="70" x2="410" y2="95" stroke="#1A2740" stroke-width="1.5"/>
+        <!-- Spread to 3 nodes -->
+        <line x1="410" y1="95" x2="120" y2="95" stroke="#1A2740" stroke-width="1.5"/>
+        <line x1="410" y1="95" x2="700" y2="95" stroke="#1A2740" stroke-width="1.5"/>
+        <line x1="120" y1="95" x2="120" y2="115" stroke="#1A2740" stroke-width="1.5" marker-end="url(#arrow-cyan)"/>
+        <line x1="410" y1="95" x2="410" y2="115" stroke="#1A2740" stroke-width="1.5" marker-end="url(#arrow-cyan)"/>
+        <line x1="700" y1="95" x2="700" y2="115" stroke="#1A2740" stroke-width="1.5" marker-end="url(#arrow-cyan)"/>
+
+        <!-- ROW 2: Feature Eng + Alt Data + Historical DB -->
+        <rect class="node-rect node-data" x="20" y="115" width="200" height="50"/>
+        <text class="node-label" x="120" y="137">Feature Engineering</text>
+        <text class="node-sub" x="120" y="152">Momentum · Vol Surface · 200+ Factors</text>
+        <rect class="node-rect node-data" x="310" y="115" width="200" height="50"/>
+        <text class="node-label" x="410" y="137">Alternative Data</text>
+        <text class="node-sub" x="410" y="152">Sentiment · Satellite · Order Flow</text>
+        <rect class="node-rect node-data" x="600" y="115" width="200" height="50"/>
+        <text class="node-label" x="700" y="137">Historical DB</text>
+        <text class="node-sub" x="700" y="152">Tick · OHLCV · Options Chain</text>
+
+        <!-- Converge to Signal Generator -->
+        <line x1="120" y1="165" x2="120" y2="210" stroke="#1A2740" stroke-width="1.5"/>
+        <line x1="410" y1="165" x2="410" y2="210" stroke="#1A2740" stroke-width="1.5"/>
+        <line x1="700" y1="165" x2="700" y2="210" stroke="#1A2740" stroke-width="1.5"/>
+        <line x1="120" y1="210" x2="700" y2="210" stroke="#1A2740" stroke-width="1.5"/>
+        <line x1="410" y1="210" x2="410" y2="225" stroke="#7B61FF" stroke-width="1.5" marker-end="url(#arrow-violet)"/>
+
+        <!-- ROW 3: Signal Generator -->
+        <rect class="node-rect node-signal" x="255" y="225" width="310" height="55"/>
+        <text class="node-label" x="410" y="247">Signal Generator</text>
+        <text class="node-sub" x="410" y="263">Hybrid QML: LSTM · Transformers · VQC · Quantum Kernel SVM</text>
+
+        <!-- Fan out to 3 -->
+        <line x1="410" y1="280" x2="410" y2="310" stroke="#1A2740" stroke-width="1.5"/>
+        <line x1="410" y1="310" x2="120" y2="310" stroke="#1A2740" stroke-width="1.5"/>
+        <line x1="410" y1="310" x2="700" y2="310" stroke="#1A2740" stroke-width="1.5"/>
+        <line x1="120" y1="310" x2="120" y2="325" stroke="#1A2740" stroke-width="1.5" marker-end="url(#arrow-violet)"/>
+        <line x1="410" y1="310" x2="410" y2="325" stroke="#1A2740" stroke-width="1.5" marker-end="url(#arrow-violet)"/>
+        <line x1="700" y1="310" x2="700" y2="325" stroke="#1A2740" stroke-width="1.5" marker-end="url(#arrow-violet)"/>
+
+        <!-- ROW 4: Alpha + Risk + Portfolio -->
+        <rect class="node-rect node-signal" x="20" y="325" width="200" height="50"/>
+        <text class="node-label" x="120" y="347">Alpha Signals</text>
+        <text class="node-sub" x="120" y="362">IC · Signal Decay · Z-Score</text>
+        <rect class="node-rect node-signal" x="310" y="325" width="200" height="50"/>
+        <text class="node-label" x="410" y="347">Risk Engine</text>
+        <text class="node-sub" x="410" y="362">VaR · CVaR · Kelly · Kill Switch</text>
+        <rect class="node-rect node-signal" x="600" y="325" width="200" height="50"/>
+        <text class="node-label" x="700" y="347">Portfolio Optimizer</text>
+        <text class="node-sub" x="700" y="362">Mean-Variance · Factor Exposure</text>
+
+        <!-- Converge to Quantum Optimizer -->
+        <line x1="120" y1="375" x2="120" y2="415" stroke="#1A2740" stroke-width="1.5"/>
+        <line x1="410" y1="375" x2="410" y2="415" stroke="#1A2740" stroke-width="1.5"/>
+        <line x1="700" y1="375" x2="700" y2="415" stroke="#1A2740" stroke-width="1.5"/>
+        <line x1="120" y1="415" x2="700" y2="415" stroke="#1A2740" stroke-width="1.5"/>
+        <line x1="410" y1="415" x2="410" y2="430" stroke="#b561ff" stroke-width="2" marker-end="url(#arrow-purple)"/>
+
+        <!-- ROW 4.5: QUANTUM OPTIMIZER (NEW - violet glow) -->
+        <rect x="235" y="430" width="350" height="58" rx="10" ry="10" fill="#1a0d26" stroke="#b561ff" stroke-width="2" filter="url(#glow-violet)"/>
+        <!-- Subtle inner glow -->
+        <rect x="237" y="432" width="346" height="54" rx="9" ry="9" fill="none" stroke="#7B61FF" stroke-width="0.5" opacity="0.5"/>
+        <text class="node-label" x="410" y="454" fill="#e0b4ff" style="font-size:12px;font-weight:600">⚛ Quantum Optimizer</text>
+        <text class="node-sub" x="410" y="471" fill="#b561ff">D-Wave Annealing · QUBO · Variational Quantum Eigensolver</text>
+
+        <!-- Down to Order Management -->
+        <line x1="410" y1="488" x2="410" y2="513" stroke="#00D4FF" stroke-width="1.5" marker-end="url(#arrow-cyan)"/>
+
+        <!-- ROW 5: Order Management -->
+        <rect class="node-rect node-exec" x="255" y="513" width="310" height="50"/>
+        <text class="node-label" x="410" y="535">Order Management</text>
+        <text class="node-sub" x="410" y="550">Pre-Trade Risk · Limit Checks · OMS</text>
+
+        <!-- Fan out to 3 -->
+        <line x1="410" y1="563" x2="410" y2="590" stroke="#1A2740" stroke-width="1.5"/>
+        <line x1="410" y1="590" x2="120" y2="590" stroke="#1A2740" stroke-width="1.5"/>
+        <line x1="410" y1="590" x2="700" y2="590" stroke="#1A2740" stroke-width="1.5"/>
+        <line x1="120" y1="590" x2="120" y2="605" stroke="#1A2740" stroke-width="1.5" marker-end="url(#arrow-cyan)"/>
+        <line x1="410" y1="590" x2="410" y2="605" stroke="#1A2740" stroke-width="1.5" marker-end="url(#arrow-cyan)"/>
+        <line x1="700" y1="590" x2="700" y2="605" stroke="#1A2740" stroke-width="1.5" marker-end="url(#arrow-cyan)"/>
+
+        <!-- ROW 6: Smart Router + Position Mgr + Compliance -->
+        <rect class="node-rect node-exec" x="20" y="605" width="200" height="50"/>
+        <text class="node-label" x="120" y="627">Smart Router</text>
+        <text class="node-sub" x="120" y="642">TWAP · VWAP · SOR · DMA</text>
+        <rect class="node-rect node-exec" x="310" y="605" width="200" height="50"/>
+        <text class="node-label" x="410" y="627">Position Manager</text>
+        <text class="node-sub" x="410" y="642">Delta · Gamma · Exposure Limits</text>
+        <rect class="node-rect node-exec" x="600" y="605" width="200" height="50"/>
+        <text class="node-label" x="700" y="627">Compliance</text>
+        <text class="node-sub" x="700" y="642">Reg · Circuit Breaker · Audit Log</text>
+
+        <!-- Converge to Exchange -->
+        <line x1="120" y1="655" x2="120" y2="690" stroke="#1A2740" stroke-width="1.5"/>
+        <line x1="410" y1="655" x2="410" y2="690" stroke="#1A2740" stroke-width="1.5"/>
+        <line x1="700" y1="655" x2="700" y2="690" stroke="#1A2740" stroke-width="1.5"/>
+        <line x1="120" y1="690" x2="700" y2="690" stroke="#1A2740" stroke-width="1.5"/>
+        <line x1="410" y1="690" x2="410" y2="705" stroke="#00D4FF" stroke-width="1.5" marker-end="url(#arrow-cyan)"/>
+
+        <!-- ROW 7: Exchange / Broker API -->
+        <rect class="node-rect node-exec" x="255" y="705" width="310" height="50"/>
+        <text class="node-label" x="410" y="727">Exchange / Broker API</text>
+        <text class="node-sub" x="410" y="742">FIX · REST · WebSocket · Co-location</text>
+
+        <!-- Down to Monitoring -->
+        <line x1="410" y1="755" x2="410" y2="780" stroke="#00E599" stroke-width="1.5" marker-end="url(#arrow-green)"/>
+
+        <!-- ROW 8: Monitoring -->
+        <rect class="node-rect node-monitor" x="160" y="780" width="500" height="55"/>
+        <text class="node-label" x="410" y="803">Monitoring / Performance Attribution</text>
+        <text class="node-sub" x="410" y="820">Grafana · Prometheus · PnL · Sharpe · Factor Decomposition</text>
+
+        <!-- Animated pulse paths -->
+        <!-- Pulse 1: top horizontal (data feeds → normalizer) -->
+        <path class="pulse-path pulse-cyan" id="p1" d="M200,45 L310,45" stroke-dasharray="8 100" stroke-dashoffset="0">
+          <animate attributeName="stroke-dashoffset" from="108" to="0" dur="1.5s" repeatCount="indefinite"/>
+        </path>
+        <!-- Pulse 2: down normalizer to row 2 -->
+        <path class="pulse-path pulse-cyan" d="M410,70 L410,95 L120,95 L120,115" stroke-dasharray="6 80" stroke-dashoffset="0">
+          <animate attributeName="stroke-dashoffset" from="0" to="-86" dur="1.8s" repeatCount="indefinite" begin="0.3s"/>
+        </path>
+        <!-- Pulse 3: down to signal gen -->
+        <path class="pulse-path pulse-violet" d="M410,165 L410,210 L410,225" stroke-dasharray="6 60" stroke-dashoffset="0">
+          <animate attributeName="stroke-dashoffset" from="0" to="-66" dur="1.4s" repeatCount="indefinite" begin="0.6s"/>
+        </path>
+        <!-- Pulse 4: signal gen to alpha/risk/portfolio -->
+        <path class="pulse-path pulse-violet" d="M410,280 L410,310 L700,310 L700,325" stroke-dasharray="6 90" stroke-dashoffset="0">
+          <animate attributeName="stroke-dashoffset" from="0" to="-96" dur="1.6s" repeatCount="indefinite" begin="1s"/>
+        </path>
+        <!-- Pulse 5: to quantum optimizer -->
+        <path class="pulse-path" stroke="#b561ff" d="M410,375 L410,415 L410,430" stroke-dasharray="6 60" stroke-dashoffset="0">
+          <animate attributeName="stroke-dashoffset" from="0" to="-66" dur="1.2s" repeatCount="indefinite" begin="1.4s"/>
+        </path>
+        <!-- Pulse 6: quantum to order mgmt -->
+        <path class="pulse-path pulse-cyan" d="M410,488 L410,513" stroke-dasharray="5 25" stroke-dashoffset="0">
+          <animate attributeName="stroke-dashoffset" from="0" to="-30" dur="1s" repeatCount="indefinite" begin="1.8s"/>
+        </path>
+        <!-- Pulse 7: order mgmt to exchange -->
+        <path class="pulse-path pulse-cyan" d="M410,563 L410,590 L120,590 L120,605" stroke-dasharray="6 80" stroke-dashoffset="0">
+          <animate attributeName="stroke-dashoffset" from="0" to="-86" dur="1.6s" repeatCount="indefinite" begin="2s"/>
+        </path>
+        <!-- Pulse 8: to monitoring -->
+        <path class="pulse-path pulse-green" d="M410,755 L410,780" stroke-dasharray="5 25" stroke-dashoffset="0">
+          <animate attributeName="stroke-dashoffset" from="0" to="-30" dur="1s" repeatCount="indefinite" begin="2.4s"/>
+        </path>
+      </svg>
+    </div>
+  </div>
+</section>
+
+<!-- QUANTUM SIGNAL ENGINE -->
+<section id="signal-engine" style="padding:6rem 1.5rem;background:rgba(13,23,38,.3)">
+  <div class="container">
+    <div class="fade-up" style="text-align:center;margin-bottom:3rem">
+      <div class="section-label">QUANTUM SIGNAL ENGINE</div>
+      <h2 class="section-title grad-text">Enter Any Ticker. Get a Decision.</h2>
+      <p class="section-sub" style="margin:0 auto;text-align:center">Every ticker is analyzed by Grok-3 running through the AgilityServ Quantum Pipeline — the same engine behind our live institutional signals. Results are based on the latest close pricing, available 24/7.</p>
+    </div>
+
+    <!-- Search Card -->
+    <div class="se-card fade-up">
+      <div class="se-search-wrap">
+        <input type="text" id="se-input" class="se-input" placeholder="ENTER TICKER — e.g. NVDA, TSLA, SPY" maxlength="12" autocomplete="off" spellcheck="false"/>
+        <button id="se-btn" class="se-run-btn" onclick="seRun()">RUN PIPELINE ►</button>
+      </div>
+      <div class="se-chips-row">
+        <span class="se-chips-label">POPULAR —</span>
+        <div class="se-chips">
+          <button class="se-chip" onclick="seChip('NVDA')">NVDA</button>
+          <button class="se-chip" onclick="seChip('TSLA')">TSLA</button>
+          <button class="se-chip" onclick="seChip('MSFT')">MSFT</button>
+          <button class="se-chip" onclick="seChip('SPY')">SPY</button>
+          <button class="se-chip" onclick="seChip('AMD')">AMD</button>
+          <button class="se-chip" onclick="seChip('META')">META</button>
+          <button class="se-chip" onclick="seChip('AAPL')">AAPL</button>
+          <button class="se-chip" onclick="seChip('BTC-USD')">BTC-USD</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Pipeline Animation -->
+    <div id="se-pipeline" class="se-pipeline-wrap" style="display:none">
+      <div class="se-stages">
+        <div class="se-stage">
+          <div class="se-stage-node" id="se-n0">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2L2 7l10 5 10-5-10-5z"/><path d="M2 17l10 5 10-5"/><path d="M2 12l10 5 10-5"/></svg>
+          </div>
+          <div class="se-stage-text">
+            <div class="se-stage-name">Data<br/>Ingestion</div>
+            <div class="se-stage-status se-status-wait" id="se-ss0">WAITING</div>
+          </div>
+        </div>
+        <div class="se-stage-connector"><div class="se-connector-fill" id="se-cf0"></div></div>
+        <div class="se-stage">
+          <div class="se-stage-node" id="se-n1">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
+          </div>
+          <div class="se-stage-text">
+            <div class="se-stage-name">Feature<br/>Engineering</div>
+            <div class="se-stage-status se-status-wait" id="se-ss1">WAITING</div>
+          </div>
+        </div>
+        <div class="se-stage-connector"><div class="se-connector-fill" id="se-cf1"></div></div>
+        <div class="se-stage">
+          <div class="se-stage-node" id="se-n2">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M12 1v4M12 19v4M4.22 4.22l2.83 2.83M16.95 16.95l2.83 2.83M1 12h4M19 12h4M4.22 19.78l2.83-2.83M16.95 7.05l2.83-2.83"/></svg>
+          </div>
+          <div class="se-stage-text">
+            <div class="se-stage-name">Grok-3<br/>Analysis</div>
+            <div class="se-stage-status se-status-wait" id="se-ss2">WAITING</div>
+          </div>
+        </div>
+        <div class="se-stage-connector"><div class="se-connector-fill" id="se-cf2"></div></div>
+        <div class="se-stage">
+          <div class="se-stage-node" id="se-n3">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg>
+          </div>
+          <div class="se-stage-text">
+            <div class="se-stage-name">VC Gate<br/>Scoring</div>
+            <div class="se-stage-status se-status-wait" id="se-ss3">WAITING</div>
+          </div>
+        </div>
+        <div class="se-stage-connector"><div class="se-connector-fill" id="se-cf3"></div></div>
+        <div class="se-stage">
+          <div class="se-stage-node" id="se-n4">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
+          </div>
+          <div class="se-stage-text">
+            <div class="se-stage-name">Decision<br/>Engine</div>
+            <div class="se-stage-status se-status-wait" id="se-ss4">WAITING</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Error -->
+    <div id="se-error-box" class="se-error-box" style="display:none">
+      <p id="se-error-msg">Unable to fetch market data. Please check the ticker and try again.</p>
+    </div>
+
+    <!-- Results -->
+    <div id="se-results-wrap" class="se-results-wrap" style="display:none">
+      <!-- Header Card -->
+      <div class="se-header-card">
+        <div id="se-verdict" class="se-verdict se-buy">BUY</div>
+        <div class="se-ticker-info">
+          <h3 id="se-ticker-display">—</h3>
+          <div class="se-ticker-name" id="se-company-name"></div>
+          <div>
+            <span class="se-price-disp" id="se-price-display">$0.00</span>
+            <span class="se-change-disp" id="se-change-display">+0.00%</span>
+          </div>
+        </div>
+        <div class="se-score-col">
+          <div class="se-score-label">SIGNAL SCORE</div>
+          <div class="se-gauge">
+            <svg viewBox="0 0 90 52" width="90" height="52" style="overflow:visible">
+              <path d="M10,46 A36,36 0 0,1 80,46" fill="none" stroke="#1A2740" stroke-width="8" stroke-linecap="round"/>
+              <path id="se-gauge-fill" d="M10,46 A36,36 0 0,1 80,46" fill="none" stroke="#00D4FF" stroke-width="8" stroke-linecap="round" stroke-dasharray="0 113" style="transition:stroke-dasharray 1s ease,stroke .3s"/>
+            </svg>
+            <div class="se-gauge-val" id="se-score-val" style="bottom:2px">--</div>
+          </div>
+          <div class="se-cross-score" id="se-cross-score">Cross-asset: --/100</div>
+        </div>
+      </div>
+
+      <!-- Breakdown + Metrics -->
+      <div class="se-panels-row">
+        <div class="se-panel">
+          <div class="se-panel-title">▸ Pipeline Breakdown</div>
+          <table class="se-bd-table" id="se-bd-tbl"></table>
+        </div>
+        <div class="se-panel">
+          <div class="se-panel-title">▸ Key Metrics</div>
+          <div class="se-metrics-grid" id="se-metrics-grid"></div>
+        </div>
+      </div>
+
+      <!-- Why Signal + Trade Plan -->
+      <div class="se-bottom-row">
+        <div class="se-panel">
+          <div class="se-panel-title">▸ Why This Signal</div>
+          <ul class="se-reasons-list" id="se-reasons-list"></ul>
+        </div>
+        <div class="se-panel">
+          <div class="se-panel-title">▸ Indicative Trade Plan</div>
+          <div class="se-trade-cards" id="se-trade-cards"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Disclaimer -->
+    <p class="se-disclaimer">Pipeline signals are for informational purposes only and do not constitute financial advice. Past performance does not guarantee future results. Always conduct your own research before making any investment decisions.</p>
+  </div>
+</section>
+
+<!-- CORE FEATURES -->
+<section id="features" style="padding:6rem 1.5rem">
+  <div class="container">
+    <div class="fade-up">
+      <div class="section-label">Core Features</div>
+      <h2 class="section-title">Every Layer. <span class="grad-text">Fully Optimized.</span></h2>
+      <p class="section-sub">Six precision-engineered modules forming a complete hybrid quantum-quantitative trading stack.</p>
+    </div>
+    <div class="features-grid fade-up">
+      <div class="feat-card">
+        <h3>Real-Time Data Ingestion</h3>
+        <p>WebSocket & FIX protocol feeds with tick-by-tick normalisation and multi-venue aggregation. Supports equities, futures, options, crypto, and forex across 15+ asset classes.</p>
+        <a class="feat-more" href="#contact">Learn more →</a>
+      </div>
+      <div class="feat-card">
+        <h3>Factor & Feature Engineering</h3>
+        <p>Momentum, mean-reversion, volatility surface, and 200+ technical indicators computed in real time. Quantum kernel methods for non-linear feature extraction beyond classical PCA.</p>
+        <a class="feat-more" href="#contact">Learn more →</a>
+      </div>
+      <div class="feat-card">
+        <h3>Hybrid QML Signal Generation</h3>
+        <p>Gradient boosting, LSTM, transformer-based, and variational quantum circuit alpha models. Walk-forward validation, IC tracking, and signal decay analysis baked in.</p>
+        <a class="feat-more" href="#contact">Learn more →</a>
+      </div>
+      <div class="feat-card">
+        <h3>Risk Management Engine</h3>
+        <p>Real-time VaR, CVaR, and drawdown monitoring with position sizing via Kelly Criterion. Quantum Monte Carlo simulation for tail-risk estimation beyond classical methods.</p>
+        <a class="feat-more" href="#contact">Learn more →</a>
+      </div>
+      <div class="feat-card">
+        <h3>Backtesting & Simulation</h3>
+        <p>Event-driven backtesting with realistic slippage, commission, and market impact models. Regime-conditioned performance attribution and quantum-annealed walk-forward optimisation.</p>
+        <a class="feat-more" href="#contact">Learn more →</a>
+      </div>
+      <div class="feat-card">
+        <h3>Smart Order Execution</h3>
+        <p>TWAP/VWAP algorithms with implementation shortfall optimisation and co-location support. DMA and broker-neutral smart routing with sub-50μs latency benchmarking.</p>
+        <a class="feat-more" href="#contact">Learn more →</a>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- PERFORMANCE METRICS -->
+<section id="performance" style="padding:6rem 1.5rem;background:rgba(13,23,38,.35)">
+  <div class="container">
+    <div class="fade-up">
+      <div class="section-label">Performance</div>
+      <h2 class="section-title">Built for Alpha. <span class="grad-text">Measured in Numbers.</span></h2>
+      <p class="section-sub">Simulated performance across live deployments. Quantum-enhanced strategies show consistent edge over classical baselines.</p>
+    </div>
+    <div class="perf-layout fade-up">
+      <div>
+        <div class="kpi-grid">
+          <div class="kpi-card"><div class="kpi-val" data-counter="247" data-decimal="true">2.47</div><div class="kpi-label">Sharpe Ratio</div></div>
+          <div class="kpi-card"><div class="kpi-val" style="color:var(--green)" data-counter="342">+34.2%</div><div class="kpi-label">Annualised Return</div></div>
+          <div class="kpi-card"><div class="kpi-val" style="color:var(--red)">-8.1%</div><div class="kpi-label">Max Drawdown</div></div>
+          <div class="kpi-card"><div class="kpi-val" style="color:var(--green)">61.3%</div><div class="kpi-label">Win Rate</div></div>
+          <div class="kpi-card"><div class="kpi-val">2.4d</div><div class="kpi-label">Avg Holding Period</div></div>
+          <div class="kpi-card"><div class="kpi-val">0.12</div><div class="kpi-label">Strategy Correlation</div></div>
+        </div>
+        <div class="strategy-badges">
+          <span class="strat-badge">Long/Short Equity</span>
+          <span class="strat-badge">Statistical Arbitrage</span>
+          <span class="strat-badge">Momentum</span>
+          <span class="strat-badge">Market Making</span>
+        </div>
+      </div>
+      <div>
+        <div class="chart-card">
+          <div class="chart-card-title">Portfolio Equity Curve — Quantum-Enhanced vs. Classical Baseline</div>
+          <canvas id="perf-chart" style="height:200px"></canvas>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- TECHNOLOGY STACK -->
+<section id="technology" style="padding:6rem 1.5rem">
+  <div class="container">
+    <div class="fade-up">
+      <div class="section-label">Technology</div>
+      <h2 class="section-title">The Stack <span class="grad-text">Behind the Edge</span></h2>
+      <p class="section-sub">Battle-tested classical infrastructure fused with quantum computing primitives — no compromises on either side.</p>
+    </div>
+    <div class="tech-layout fade-up">
+      <div>
+        <div class="tech-category">
+          <div class="tech-cat-label">Languages</div>
+          <div class="tech-chips"><span class="chip">Python</span><span class="chip">C++</span><span class="chip">Rust</span></div>
+        </div>
+        <div class="tech-category">
+          <div class="tech-cat-label">Data Infrastructure</div>
+          <div class="tech-chips"><span class="chip">Apache Kafka</span><span class="chip">TimescaleDB</span><span class="chip">Arctic</span><span class="chip">Parquet</span></div>
+        </div>
+        <div class="tech-category">
+          <div class="tech-cat-label">ML & Quantum ML</div>
+          <div class="tech-chips">
+            <span class="chip">PyTorch</span><span class="chip">scikit-learn</span><span class="chip">XGBoost</span><span class="chip">Ray</span>
+            <span class="chip quantum-chip">Quantum Kernel Methods</span>
+            <span class="chip quantum-chip">Variational Quantum Circuits</span>
+            <span class="chip quantum-chip">D-Wave Leap</span>
+            <span class="chip quantum-chip">Qiskit</span>
+            <span class="chip quantum-chip">PennyLane</span>
+          </div>
+        </div>
+        <div class="tech-category">
+          <div class="tech-cat-label">Optimisation</div>
+          <div class="tech-chips">
+            <span class="chip">CVXPY</span><span class="chip">CPLEX</span>
+            <span class="chip quantum-chip">Quantum Annealing + Classical Hybrid Solvers</span>
+          </div>
+        </div>
+        <div class="tech-category">
+          <div class="tech-cat-label">Infrastructure</div>
+          <div class="tech-chips"><span class="chip">Kubernetes</span><span class="chip">AWS</span><span class="chip">Docker</span><span class="chip">Terraform</span></div>
+        </div>
+        <div class="tech-category">
+          <div class="tech-cat-label">Execution</div>
+          <div class="tech-chips"><span class="chip">FIX Protocol</span><span class="chip">ITCH</span><span class="chip">QuickFIX/J</span><span class="chip">FPGA/ASIC</span></div>
+        </div>
+        <div class="tech-category">
+          <div class="tech-cat-label">Monitoring</div>
+          <div class="tech-chips"><span class="chip">Grafana</span><span class="chip">Prometheus</span><span class="chip">OpenTelemetry</span></div>
+        </div>
+      </div>
+      <div class="tech-timeline">
+        <div class="timeline-item">
+          <h4>Data Ingestion</h4>
+          <p>Multi-venue WebSocket + FIX feeds → normalisation → Arctic/Parquet storage</p>
+        </div>
+        <div class="timeline-item">
+          <h4>Feature Engineering</h4>
+          <p>200+ real-time factors via Python SDK + quantum kernel feature extraction</p>
+        </div>
+        <div class="timeline-item">
+          <h4>Hybrid QML Models</h4>
+          <p>Classical LSTMs & transformers paired with variational quantum circuits</p>
+        </div>
+        <div class="timeline-item">
+          <h4>Risk Engine</h4>
+          <p>Real-time VaR/CVaR + quantum Monte Carlo tail risk simulation</p>
+        </div>
+        <div class="timeline-item">
+          <h4>Quantum Optimiser</h4>
+          <p>D-Wave annealing + QUBO formulation for portfolio construction at scale</p>
+        </div>
+        <div class="timeline-item">
+          <h4>Smart Execution</h4>
+          <p>TWAP/VWAP/SOR with sub-50μs latency at co-located infrastructure</p>
+        </div>
+        <div class="timeline-item">
+          <h4>Monitoring & Attribution</h4>
+          <p>Grafana dashboards · factor decomposition · live PnL streaming</p>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- USE CASES -->
+<section id="usecases" style="padding:6rem 1.5rem;background:rgba(13,23,38,.35)">
+  <div class="container">
+    <div class="fade-up" style="text-align:center">
+      <div class="section-label">Who It's For</div>
+      <h2 class="section-title">Built for <span class="grad-text">Institutional Edge</span></h2>
+    </div>
+    <div class="usecase-grid fade-up">
+      <div class="usecase-card">
+        <h3>Proprietary Trading Desks</h3>
+        <p>Full pipeline deployment in on-prem or hybrid cloud. Sub-millisecond latency with FIX integration to your prime broker. Quantum-annealed intraday portfolio rebalancing.</p>
+      </div>
+      <div class="usecase-card">
+        <h3>Quantitative Hedge Funds</h3>
+        <p>Multi-strategy alpha platform with portfolio-level risk aggregation. Factor exposure management, quantum Monte Carlo drawdown forecasting, and full PnL attribution.</p>
+      </div>
+      <div class="usecase-card">
+        <h3>Systematic Traders & Quants</h3>
+        <p>Python-first SDK. Plug in your own models — our infrastructure handles data ingestion, quantum feature extraction, execution, and production monitoring.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- LIVE TICKER INTELLIGENCE -->
+<section id="ticker" style="padding:6rem 1.5rem">
+  <div class="container">
+    <div class="fade-up" style="text-align:center">
+      <div class="section-label">Live Demo</div>
+      <h2 class="section-title">Live <span class="grad-text">Ticker Intelligence</span></h2>
+      <p class="section-sub" style="margin:0 auto 0">Type any ticker. Get instant quantum-quantitative recommendations from the full AgilityServ pipeline.</p>
+    </div>
+    <div class="ticker-card fade-up">
+      <div class="ticker-input-row">
+        <input type="text" class="ticker-input" id="ticker-input" placeholder="AAPL, TSLA, BTC-USD, NVDA, GOOGL, ES=F…" maxlength="12" aria-label="Enter ticker symbol"/>
+        <button class="ticker-btn" id="ticker-btn" onclick="runTickerAnalysis()">⚛ Analyze with Quantum Pipeline</button>
+      </div>
+
+      <!-- Loading -->
+      <div class="ticker-loader" id="ticker-loader">
+        <div class="quantum-spinner"></div>
+        <div id="loader-text">Initialising quantum annealing solver…</div>
+      </div>
+
+      <!-- Results -->
+      <div class="ticker-results" id="ticker-results">
+        <!-- Signal Summary Row -->
+        <div class="signal-row" id="signal-row">
+          <div id="signal-badge" class="signal-badge buy">BUY</div>
+          <div class="metric-block">
+            <div class="metric-block-label">Confidence</div>
+            <div class="metric-block-val" id="conf-val" style="color:var(--cyan)">87%</div>
+          </div>
+          <div class="metric-block">
+            <div class="metric-block-label">Quantum Edge Score</div>
+            <div class="metric-block-val" id="qedge-val" style="color:var(--violet)">8.7/10</div>
+            <div class="progress-bar-wrap"><div class="progress-bar-fill" id="qedge-bar" style="width:87%"></div></div>
+          </div>
+          <div class="metric-block">
+            <div class="metric-block-label">Expected Edge (5d)</div>
+            <div class="metric-block-val" id="edge-val" style="color:var(--green)">+1.42%</div>
+          </div>
+        </div>
+
+        <!-- Strategy + Risk -->
+        <div class="strategy-row">
+          <div>
+            <div class="strategy-label">Recommended Strategy</div>
+            <div class="strategy-val" id="strat-val">Momentum + Quantum Portfolio Optimization</div>
+          </div>
+          <div style="text-align:right">
+            <div class="strategy-label">Risk Score</div>
+            <div class="strategy-val" id="risk-val" style="color:var(--green)">Low</div>
+          </div>
+        </div>
+
+        <!-- Main Panels: Order Book + Equity Curve -->
+        <div class="panels-row">
+          <!-- Order Book -->
+          <div class="panel">
+            <div class="panel-header">
+              <span class="live-dot"></span>
+              Live Order Book · Updated 300ms ago
+            </div>
+            <table class="ob-table" id="ob-table">
+              <thead>
+                <tr><th>Price</th><th>Size</th><th>Cumulative</th></tr>
+              </thead>
+              <tbody id="ob-asks"></tbody>
+              <tr class="ob-section-label"><td colspan="3">— Spread —</td></tr>
+              <tbody id="ob-bids"></tbody>
+            </table>
+          </div>
+
+          <!-- Equity Curve -->
+          <div class="panel chart-panel">
+            <div class="panel-header">5-Day Forward Equity Curve (Quantum-Optimized)</div>
+            <canvas id="ticker-chart" style="height:200px"></canvas>
+          </div>
+        </div>
+
+        <!-- Quantum Metrics Bottom Row -->
+        <div class="qmetrics-row">
+          <div class="qm-card">
+            <div class="qm-label">Volatility Regime</div>
+            <div class="qm-val" id="qm-vol">Low</div>
+          </div>
+          <div class="qm-card">
+            <div class="qm-label">Factor Exposure</div>
+            <div class="qm-val" id="qm-factor" style="font-size:.82rem;line-height:1.4">Momentum 68% • Mean-Rev 22%</div>
+          </div>
+          <div class="qm-card">
+            <div class="qm-label">Quantum Optimizer Edge</div>
+            <div class="qm-val" id="qm-qedge" style="color:var(--violet)">+0.84%</div>
+          </div>
+          <div class="qm-card">
+            <div class="qm-label">Risk-Adjusted Sharpe</div>
+            <div class="qm-val" id="qm-sharpe" style="color:var(--cyan)">2.61</div>
+          </div>
+        </div>
+
+        <!-- Key Factors -->
+        <div style="margin-bottom:1rem">
+          <div style="font-family:'JetBrains Mono',monospace;font-size:.72rem;color:var(--muted);text-transform:uppercase;letter-spacing:.1em;margin-bottom:.5rem">Key Factors</div>
+          <div class="factor-chips" id="factor-chips"></div>
+        </div>
+
+        <div class="ticker-disclaimer">Simulated output from AgilityServ Hybrid Quantum-Quantitative Pipeline &nbsp;•&nbsp; For demonstration only &nbsp;•&nbsp; Not financial advice</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- CTA / CONTACT -->
+<section id="contact" style="padding:6rem 1.5rem;position:relative;overflow:hidden">
+  <div style="position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);width:700px;height:700px;border-radius:50%;background:radial-gradient(circle,rgba(0,212,255,.05) 0%,transparent 70%);pointer-events:none"></div>
+  <div class="container">
+    <div class="fade-up" style="max-width:680px;margin:0 auto;text-align:center">
+      <div style="background:rgba(13,23,38,.85);border-radius:20px;padding:3.5rem 2.5rem;border:1px solid var(--border);backdrop-filter:blur(16px);position:relative">
+        <div style="position:absolute;inset:-1px;border-radius:20px;background:var(--grad);z-index:-1;opacity:.15"></div>
+        <div class="section-label">Get Started</div>
+        <h2 class="section-title" style="margin-bottom:1rem">Ready to Engineer<br/><span class="grad-text">Your Edge?</span></h2>
+        <p style="color:var(--muted);margin-bottom:2rem;line-height:1.75">Whether you're launching your first systematic strategy or scaling a multi-portfolio platform — AgilityServ gives you the infrastructure to compete at institutional level.</p>
+        <div class="cta-btns" style="display:flex;gap:1rem;justify-content:center;flex-wrap:wrap;margin-bottom:1.5rem">
+          <a href="mailto:admin@agilityserv.com" class="btn-primary">Request a Demo</a>
+          <a href="mailto:admin@agilityserv.com" class="btn-outline">Talk to a Quant Engineer</a>
+        </div>
+        <div style="font-family:'JetBrains Mono',monospace;font-size:.83rem;color:var(--muted)">
+          Or email us at <a href="mailto:admin@agilityserv.com" style="color:var(--cyan);text-decoration:none">admin@agilityserv.com</a>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- FOOTER -->
+<footer>
+  <div class="container">
+    <div class="footer-grid">
+      <div class="footer-brand">
+        <a href="#home" class="nav-logo" style="margin-bottom:.75rem;display:inline-flex">
+          <svg width="28" height="28" viewBox="0 0 32 32" fill="none"><defs><linearGradient id="lg4" x1="0" y1="0" x2="32" y2="32" gradientUnits="userSpaceOnUse"><stop offset="0%" stop-color="#00D4FF"/><stop offset="100%" stop-color="#7B61FF"/></linearGradient></defs><path d="M16 3 L28 26 L22 26 L18.5 19 L13.5 19 L10 26 L4 26 Z" fill="none" stroke="url(#lg4)" stroke-width="2" stroke-linejoin="round"/><path d="M11.5 17 L20.5 17" stroke="url(#lg4)" stroke-width="2"/><path d="M19 17 L21 14" stroke="url(#lg4)" stroke-width="2" stroke-linecap="round"/></svg>
+          <span class="nav-logo-text" style="margin-left:.5rem">AgilityServ</span>
+        </a>
+        <p>Quantum-Quantitative Edge, Engineered for Speed. Institutional-grade trading pipeline infrastructure.</p>
+        <div class="social-icons" style="margin-top:1rem">
+          <a href="#" class="social-icon" aria-label="LinkedIn">
+            <svg width="16" height="16" fill="currentColor" viewBox="0 0 24 24"><path d="M20.447 20.452h-3.554v-5.569c0-1.328-.027-3.037-1.852-3.037-1.853 0-2.136 1.445-2.136 2.939v5.667H9.351V9h3.414v1.561h.046c.477-.9 1.637-1.85 3.37-1.85 3.601 0 4.267 2.37 4.267 5.455v6.286zM5.337 7.433a2.062 2.062 0 01-2.063-2.065 2.064 2.064 0 112.063 2.065zm1.782 13.019H3.555V9h3.564v11.452zM22.225 0H1.771C.792 0 0 .774 0 1.729v20.542C0 23.227.792 24 1.771 24h20.451C23.2 24 24 23.227 24 22.271V1.729C24 .774 23.2 0 22.222 0h.003z"/></svg>
+          </a>
+          <a href="#" class="social-icon" aria-label="GitHub">
+            <svg width="16" height="16" fill="currentColor" viewBox="0 0 24 24"><path d="M12 .297c-6.63 0-12 5.373-12 12 0 5.303 3.438 9.8 8.205 11.385.6.113.82-.258.82-.577 0-.285-.01-1.04-.015-2.04-3.338.724-4.042-1.61-4.042-1.61C4.422 18.07 3.633 17.7 3.633 17.7c-1.087-.744.084-.729.084-.729 1.205.084 1.838 1.236 1.838 1.236 1.07 1.835 2.809 1.305 3.495.998.108-.776.417-1.305.76-1.605-2.665-.3-5.466-1.332-5.466-5.93 0-1.31.465-2.38 1.235-3.22-.135-.303-.54-1.523.105-3.176 0 0 1.005-.322 3.3 1.23.96-.267 1.98-.399 3-.405 1.02.006 2.04.138 3 .405 2.28-1.552 3.285-1.23 3.285-1.23.645 1.653.24 2.873.12 3.176.765.84 1.23 1.91 1.23 3.22 0 4.61-2.805 5.625-5.475 5.92.42.36.81 1.096.81 2.22 0 1.606-.015 2.896-.015 3.286 0 .315.21.69.825.57C20.565 22.092 24 17.592 24 12.297c0-6.627-5.373-12-12-12"/></svg>
+          </a>
+          <a href="#" class="social-icon" aria-label="Twitter/X">
+            <svg width="16" height="16" fill="currentColor" viewBox="0 0 24 24"><path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-4.714-6.231-5.401 6.231H2.748l7.73-8.835L1.254 2.25H8.08l4.253 5.622zm-1.161 17.52h1.833L7.084 4.126H5.117z"/></svg>
+          </a>
+        </div>
+      </div>
+      <div class="footer-col">
+        <h4>Product</h4>
+        <ul>
+          <li><a href="#pipeline">Pipeline Overview</a></li>
+          <li><a href="#features">Core Features</a></li>
+          <li><a href="#architecture">Architecture</a></li>
+          <li><a href="#performance">Performance</a></li>
+        </ul>
+      </div>
+      <div class="footer-col">
+        <h4>Resources</h4>
+        <ul>
+          <li><a href="#">Documentation</a></li>
+          <li><a href="#">API Reference</a></li>
+          <li><a href="#">Blog</a></li>
+          <li><a href="#">Research Papers</a></li>
+        </ul>
+      </div>
+      <div class="footer-col">
+        <h4>Company</h4>
+        <ul>
+          <li><a href="#">About</a></li>
+          <li><a href="#">Careers</a></li>
+          <li><a href="#contact">Contact</a></li>
+          <li><a href="mailto:admin@agilityserv.com">admin@agilityserv.com</a></li>
+        </ul>
+      </div>
+    </div>
+    <div class="footer-bottom">
+      <p>© 2026 AgilityServ. All rights reserved.</p>
+      <div class="footer-links">
+        <a href="#">Privacy Policy</a>
+        <a href="#">Terms of Service</a>
+      </div>
+    </div>
+  </div>
+</footer>
+
+<script>
+// ─── TICKER DATA ───────────────────────────────────────────────
+const TICKER_DB = {
+  'AAPL': { signal:'BUY', sColor:'#00E599', conf:87, qedge:8.7, expectedEdge:'+1.42%', eColor:'#00E599', strategy:'Momentum + Quantum Portfolio Optimisation', risk:'Low', rColor:'#00E599', vol:'Low', factor:'Momentum 68% • Mean-Rev 22% • Carry 10%', qcontrib:'+0.84%', sharpe:'2.61', chips:['Strong momentum signal','Low volatility regime','Positive earnings revision drift','QAO confirms overweight position'], base:189.45, spread:.05, proj:192.14, curve:'up' },
+  'TSLA': { signal:'HOLD', sColor:'#00D4FF', conf:63, qedge:6.2, expectedEdge:'+0.31%', eColor:'#00D4FF', strategy:'Mean-Reversion + Volatility Targeting', risk:'High', rColor:'#FF4D4D', vol:'High', factor:'Mean-Reversion 54% • Momentum 31% • Vol 15%', qcontrib:'+0.41%', sharpe:'1.24', chips:['Elevated volatility regime active','Conflicting momentum signals','Options skew elevated','QMC output: range-bound'], base:242.80, spread:.15, proj:243.56, curve:'flat' },
+  'NVDA': { signal:'BUY', sColor:'#00E599', conf:91, qedge:9.3, expectedEdge:'+2.18%', eColor:'#00E599', strategy:'Trend Following + Quantum Kernel Optimisation', risk:'Medium', rColor:'#F5A623', vol:'Medium', factor:'Momentum 74% • Carry 16% • Quality 10%', qcontrib:'+1.12%', sharpe:'3.14', chips:['AI sector systemic tailwinds','Confirmed breakout signal','Volume surge detected','QKM edge score: exceptional'], base:875.20, spread:.30, proj:894.27, curve:'strong_up' },
+  'GOOGL': { signal:'BUY', sColor:'#00E599', conf:74, qedge:7.8, expectedEdge:'+1.05%', eColor:'#00E599', strategy:'Factor Rotation + Quantum Portfolio Rebalancing', risk:'Low', rColor:'#00E599', vol:'Low', factor:'Value 42% • Momentum 38% • Quality 20%', qcontrib:'+0.67%', sharpe:'2.09', chips:['Value-momentum convergence','Earnings revision positive','Low portfolio correlation','QAO: overweight recommended'], base:172.35, spread:.08, proj:174.16, curve:'up' },
+  'BTC-USD': { signal:'HOLD', sColor:'#00D4FF', conf:58, qedge:5.9, expectedEdge:'-0.22%', eColor:'#FF4D4D', strategy:'Volatility Arbitrage + Quantum Monte Carlo', risk:'High', rColor:'#FF4D4D', vol:'High', factor:'Momentum 48% • Mean-Rev 42% • Carry 10%', qcontrib:'+0.29%', sharpe:'0.87', chips:['High volatility regime active','Conflicting on-chain signals','Options skew elevated','QMC: range-bound with downside tail'], base:68420.00, spread:25.00, proj:68269.36, curve:'flat_down' },
+  'ES=F': { signal:'BUY', sColor:'#00E599', conf:79, qedge:8.1, expectedEdge:'+0.87%', eColor:'#00E599', strategy:'Statistical Arbitrage + Quantum Annealing', risk:'Low', rColor:'#00E599', vol:'Low', factor:'Momentum 61% • Macro 29% • Carry 10%', qcontrib:'+0.54%', sharpe:'2.38', chips:['Macro regime favorable','VIX suppression signal active','Systematic flow positive','QA solver: long bias confirmed'], base:5287.50, spread:.25, proj:5333.48, curve:'up' }
+};
+
+const FALLBACK = { signal:'HOLD', sColor:'#00D4FF', conf:61, qedge:6.4, expectedEdge:'+0.48%', eColor:'#00D4FF', strategy:'Multi-Factor + Quantum Portfolio Optimisation', risk:'Medium', rColor:'#F5A623', vol:'Medium', factor:'Momentum 52% • Mean-Rev 33% • Carry 15%', qcontrib:'+0.38%', sharpe:'1.74', chips:['Moderate momentum signal','Neutral volatility regime','Factor exposure balanced','QAO: neutral — await confirmation'], base:100.00, spread:.10, proj:100.48, curve:'flat' };
+
+// ─── CANVAS PARTICLES ──────────────────────────────────────────
+(function(){
+  const canvas = document.getElementById('particle-canvas');
+  const ctx = canvas.getContext('2d');
+  let particles = [], W, H;
+  function resize(){
+    W = canvas.width = window.innerWidth || document.documentElement.clientWidth || 1280;
+    H = canvas.height = window.innerHeight || document.documentElement.clientHeight || 800;
+  }
+  resize();
+  window.addEventListener('resize', resize);
+  document.addEventListener('DOMContentLoaded', resize);
+  for(let i=0;i<55;i++) particles.push({ x:Math.random()*W, y:Math.random()*H, vx:(Math.random()-.5)*.35, vy:(Math.random()-.5)*.35, r:Math.random()*1.5+.5 });
+  function draw(){
+    ctx.clearRect(0,0,W,H);
+    particles.forEach(p=>{ p.x+=p.vx; p.y+=p.vy; if(p.x<0)p.x=W; if(p.x>W)p.x=0; if(p.y<0)p.y=H; if(p.y>H)p.y=0; });
+    for(let i=0;i<particles.length;i++){
+      const a=particles[i];
+      ctx.beginPath(); ctx.arc(a.x,a.y,a.r,0,Math.PI*2); ctx.fillStyle='rgba(0,212,255,.55)'; ctx.fill();
+      for(let j=i+1;j<particles.length;j++){
+        const b=particles[j], dx=a.x-b.x, dy=a.y-b.y, dist=Math.sqrt(dx*dx+dy*dy);
+        if(dist<140){ ctx.beginPath(); ctx.moveTo(a.x,a.y); ctx.lineTo(b.x,b.y); ctx.strokeStyle=`rgba(0,212,255,${(1-dist/140)*.18})`; ctx.lineWidth=.7; ctx.stroke(); }
+      }
+    }
+    requestAnimationFrame(draw);
+  }
+  draw();
+})();
+
+// ─── NAV SCROLL ────────────────────────────────────────────────
+window.addEventListener('scroll',()=>{
+  document.getElementById('navbar').classList.toggle('scrolled', window.scrollY>20);
+});
+
+// ─── HAMBURGER ────────────────────────────────────────────────
+function closeMobile(){ document.getElementById('mobile-menu').classList.remove('open'); document.getElementById('hamburger').classList.remove('open'); }
+document.getElementById('hamburger').addEventListener('click',()=>{
+  document.getElementById('mobile-menu').classList.toggle('open');
+  document.getElementById('hamburger').classList.toggle('open');
+});
+
+// ─── INTERSECTION OBSERVER ─────────────────────────────────────
+const io = new IntersectionObserver((entries)=>{
+  entries.forEach(e=>{ if(e.isIntersecting){ e.target.classList.add('visible'); io.unobserve(e.target); } });
+},{ threshold:0.05, rootMargin:'0px 0px -40px 0px' });
+document.querySelectorAll('.fade-up').forEach(el=>io.observe(el));
+// Fallback: immediately show any .fade-up elements already in the viewport on load
+function revealInView(){
+  document.querySelectorAll('.fade-up:not(.visible)').forEach(el=>{
+    const r=el.getBoundingClientRect();
+    if(r.top < window.innerHeight + 80){ el.classList.add('visible'); }
+  });
+}
+revealInView();
+setTimeout(revealInView, 120);
+setTimeout(revealInView, 400);
+
+// ─── PERFORMANCE CHART ─────────────────────────────────────────
+(function(){
+  const ctx2 = document.getElementById('perf-chart').getContext('2d');
+  const labels = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+  const quantum = [100,106,112,109,118,127,124,136,143,138,149,158];
+  const classical= [100,103,107,105,110,114,112,118,121,119,125,129];
+  new Chart(ctx2, {
+    type: 'line',
+    data: {
+      labels: labels,
+      datasets: [
+        { label:'Quantum-Enhanced', data:quantum, borderColor:'#00D4FF', backgroundColor:'rgba(0,212,255,.08)', borderWidth:2, pointRadius:0, tension:.4, fill:true },
+        { label:'Classical Baseline', data:classical, borderColor:'#7B61FF', backgroundColor:'rgba(123,97,255,.05)', borderWidth:1.5, pointRadius:0, tension:.4, fill:true, borderDash:[4,3] }
+      ]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: {
+        legend: { labels: { color:'#6B80A0', font:{ family:'JetBrains Mono', size:10 }, boxWidth:20 } }
+      },
+      scales: {
+        x: { grid:{ color:'rgba(26,39,64,.5)' }, ticks:{ color:'#6B80A0', font:{ family:'JetBrains Mono', size:10 } } },
+        y: { grid:{ color:'rgba(26,39,64,.5)' }, ticks:{ color:'#6B80A0', font:{ family:'JetBrains Mono', size:10 }, callback: function(v){ return v + '%'; } } }
+      }
+    }
+  });
+})();
+
+// ─── TICKER INTELLIGENCE ───────────────────────────────────────
+let tickerChartInstance = null;
+
+function runTickerAnalysis(){
+  const raw = document.getElementById('ticker-input').value.trim().toUpperCase() || 'AAPL';
+  const d = TICKER_DB[raw] || FALLBACK;
+  const btn = document.getElementById('ticker-btn');
+  btn.disabled = true;
+  document.getElementById('ticker-results').style.display='none';
+  const loader = document.getElementById('ticker-loader');
+  loader.style.display='block';
+  const msgs = ['Initialising quantum annealing solver…','Loading hybrid QML models…','Running variational quantum circuit…','Fetching live order book data…','Computing Quantum Edge Score…','Rendering pipeline output…'];
+  let mi=0;
+  const lt = setInterval(()=>{ document.getElementById('loader-text').textContent = msgs[mi%msgs.length]; mi++; },220);
+
+  setTimeout(()=>{
+    clearInterval(lt);
+    loader.style.display='none';
+    renderResults(d, raw);
+    btn.disabled=false;
+  }, 820);
+}
+
+function renderResults(d,grokResult){
+  var gr=grokResult||{};
+  var signal=gr.signal||d.decision;
+  var confidence=gr.confidence||d.score||50;
+  var crossScore=gr.correlationScore||d.cross||50;
+  var vcScore=gr.vcGateScore||d.score||50;
+  var reasons=gr.reasons||[];
+  var tradePlan=gr.tradePlan||null;
+  var standAsideConditions=gr.standAsideConditions||[];
+  var marketContext=gr.marketContext||'';
+  var meta=gr.meta||{};
+  var poweredBy=gr.poweredBy||'AgilityServ Quantum Pipeline';
+  var scoreColor=meta.color||(signal==='BUY'?'#00E599':signal==='SELL'?'#FF4D4D':'#FFB547');
+  var scoreGlow=meta.glow||(signal==='BUY'?'rgba(0,229,153,0.35)':signal==='SELL'?'rgba(255,77,77,0.35)':'rgba(255,181,71,0.35)');
+  // Verdict
+  var v=document.getElementById('se-verdict');
+  if(v){v.className='se-verdict '+(signal==='BUY'?'se-buy':signal==='SELL'?'se-sell':'se-aside');
+    v.textContent=signal;v.style.boxShadow='0 0 24px '+scoreGlow;}
+  // Header info
+  var td=document.getElementById('se-ticker-display');if(td)td.textContent=d.ticker;
+  var cn=document.getElementById('se-company-name');if(cn)cn.textContent=d.name;
+  var pd=document.getElementById('se-price-display');if(pd)pd.textContent='$'+d.price.toFixed(2);
+  var ch=document.getElementById('se-change-display');
+  if(ch){ch.textContent=(d.pct>=0?'+':'')+d.pct.toFixed(2)+'%';ch.className='se-change-disp '+(d.pct>=0?'pos':'neg');}
+  // Gauge
+  var arc=document.getElementById('se-gauge-fill');
+  if(arc){var al=113;arc.setAttribute('stroke-dasharray',(al*(confidence/100))+' '+al);arc.setAttribute('stroke',scoreColor);}
+  var sv=document.getElementById('se-score-val');if(sv){sv.textContent=confidence;sv.style.color=scoreColor;}
+  var cs=document.getElementById('se-cross-score');if(cs)cs.textContent='VC Gate: '+vcScore+'/100';
+  // Breakdown table
+  var ind=d.ind||{};
+  var rows=[
+    ['EMA-20','$'+(ind.em20||0).toFixed(2),ind.em20>ind.em50?'bull':'bear'],
+    ['EMA-50','$'+(ind.em50||0).toFixed(2),ind.em20>ind.em50?'bull':'bear'],
+    ['MACD',ind.mac!=null?ind.mac.toFixed(3):'N/A',ind.mac!=null?(ind.mac>ind.sig?'bull':'bear'):'neutral'],
+    ['RSI-14',ind.rs!=null?ind.rs.toFixed(1):'N/A',ind.rs!=null?(ind.rs>55?'bull':ind.rs<45?'bear':'neutral'):'neutral'],
+    ['ROC-10d',ind.ro!=null?ind.ro.toFixed(1)+'%':'N/A',ind.ro!=null?(ind.ro>0?'bull':'bear'):'neutral'],
+    ['ATR-14',ind.atrv!=null?'$'+ind.atrv.toFixed(2)+' ('+ind.atrPct.toFixed(1)+'%)':'N/A','neutral'],
+    ['OBV',ind.obvUp?'Rising \u2191':'Falling \u2193',ind.obvUp?'bull':'bear'],
+  ];
+  var bdTbl=document.getElementById('se-bd-tbl');
+  if(bdTbl)bdTbl.innerHTML=rows.map(function(r){return'<tr><td>'+r[0]+'</td><td>'+r[1]+'</td><td class="'+(r[2]==='bull'?'se-bd-bull':r[2]==='bear'?'se-bd-bear':'se-bd-neutral')+'">'+(r[2]==='bull'?'\u25b2 BULL':r[2]==='bear'?'\u25bc BEAR':'\u2014 NEUT')+'</td></tr>';}).join('');
+  // Metrics grid
+  var metrics=[['EMA Trend',ind.em20>ind.em50?'Bullish':'Bearish',ind.em20>ind.em50?'#00E599':'#FF4D4D'],['MACD',ind.mac!=null?(ind.mac>ind.sig?'Positive':'Negative'):'N/A',ind.mac!=null&&ind.mac>ind.sig?'#00E599':'#FF4D4D'],['RSI-14',ind.rs!=null?ind.rs.toFixed(1):'N/A',ind.rs>70?'#FF4D4D':ind.rs>55?'#00E599':ind.rs<30?'#FFB547':'#6B80A0'],['ATR%',ind.atrPct!=null?ind.atrPct.toFixed(2)+'%':'N/A','#00D4FF']];
+  var mg=document.getElementById('se-metrics-grid');
+  if(mg)mg.innerHTML=metrics.map(function(m){return'<div class="se-metric-card"><div class="se-metric-label">'+m[0]+'</div><div class="se-metric-val" style="color:'+m[2]+'">'+m[1]+'</div></div>';}).join('');
+  // Reasons
+  var rl=document.getElementById('se-reasons-list');
+  if(rl&&Array.isArray(reasons)&&reasons.length){
+    rl.innerHTML=reasons.map(function(r){var txt=typeof r==='string'?r:(r.text||String(r));var isBull=typeof r==='object'?r.bull:true;return'<li><span class="se-reason-icon" style="color:'+(isBull?'var(--cyan)':'var(--red)')+'">&#9679;</span><span>'+txt+'</span></li>';}).join('');
+  }
+  // Trade cards
+  var tc=document.getElementById('se-trade-cards');
+  if(tc){
+    if(tradePlan&&tradePlan.direction){
+      tc.innerHTML='<div class="se-trade-card"><h4>'+(tradePlan.direction==='LONG'?'\ud83d\udcc8 Long Setup':'\ud83d\udcc9 Short Setup')+'</h4>'
+        +'<div class="se-trade-row"><span class="se-trade-key">Entry</span><span class="se-trade-val" style="color:var(--cyan)">'+tradePlan.entry+'</span></div>'
+        +'<div class="se-trade-row"><span class="se-trade-key">Stop Loss</span><span class="se-trade-val" style="color:var(--red)">'+tradePlan.stopLoss+'</span></div>'
+        +'<div class="se-trade-row"><span class="se-trade-key">Target 1</span><span class="se-trade-val" style="color:var(--green)">'+tradePlan.target1+'</span></div>'
+        +'<div class="se-trade-row"><span class="se-trade-key">Target 2</span><span class="se-trade-val" style="color:var(--green)">'+tradePlan.target2+'</span></div>'
+        +'<div class="se-trade-row"><span class="se-trade-key">Risk/Reward</span><span class="se-trade-val" style="color:var(--violet)">'+tradePlan.riskReward+'</span></div></div>';
+    }else if(signal==='STAND ASIDE'){
+      var sc2=standAsideConditions.length?'<ul style="margin:.5rem 0;padding-left:1.2rem">'+standAsideConditions.map(function(c){return'<li style="color:var(--muted);font-size:.8rem;margin:.3rem 0">'+c+'</li>';}).join('')+'</ul>':'';
+      tc.innerHTML='<div style="color:var(--muted);font-family:\'JetBrains Mono\',monospace;font-size:.8rem;line-height:1.7;padding:.5rem 0">No active setup — score ('+confidence+'/100) in neutral zone. Wait for clearer directional conviction.'+sc2+'</div>';
+    }else{
+      var atrv=(ind.atrv)||(d.price*0.02);var isBuy=signal==='BUY';var entry=d.price;
+      var sl=isBuy?entry-atrv*1.5:entry+atrv*1.5;var tp1=isBuy?entry+atrv*2:entry-atrv*2;var tp2=isBuy?entry+atrv*3.5:entry-atrv*3.5;
+      tc.innerHTML='<div class="se-trade-card"><h4>'+(isBuy?'\ud83d\udcc8 Long Setup':'\ud83d\udcc9 Short Setup')+'</h4>'
+        +'<div class="se-trade-row"><span class="se-trade-key">Entry</span><span class="se-trade-val" style="color:var(--cyan)">~$'+entry.toFixed(2)+'</span></div>'
+        +'<div class="se-trade-row"><span class="se-trade-key">Stop Loss</span><span class="se-trade-val" style="color:var(--red)">~$'+sl.toFixed(2)+'</span></div>'
+        +'<div class="se-trade-row"><span class="se-trade-key">Target 1</span><span class="se-trade-val" style="color:var(--green)">~$'+tp1.toFixed(2)+'</span></div>'
+        +'<div class="se-trade-row"><span class="se-trade-key">Target 2</span><span class="se-trade-val" style="color:var(--green)">~$'+tp2.toFixed(2)+'</span></div>'
+        +'<div class="se-trade-row"><span class="se-trade-key">Risk/Reward</span><span class="se-trade-val" style="color:var(--violet)">1:'+(Math.abs(tp1-entry)/Math.abs(sl-entry)).toFixed(1)+'</span></div></div>';
+    }
+    // Market context
+    if(marketContext){var mcDiv=document.getElementById('se-market-context');if(!mcDiv){mcDiv=document.createElement('div');mcDiv.id='se-market-context';mcDiv.style.cssText='font-size:.78rem;color:var(--muted);font-family:\'JetBrains Mono\',monospace;margin-top:.5rem;padding:.5rem;border-top:1px solid var(--border)';tc.parentNode.appendChild(mcDiv);}mcDiv.textContent=marketContext;}
+  }
+  // Data badge
+  var badge=document.getElementById('se-data-badge');
+  if(badge&&d.lastDate)badge.textContent='\ud83d\udcc5 Based on close \u00b7 '+d.lastDate;
+  // Credit
+  var credit=document.getElementById('se-pipeline-credit');if(credit)credit.textContent=poweredBy;
+  var rw=document.getElementById('se-results-wrap');if(rw)rw.style.display='block';
+}
+
+
+function animateCounter(el, from, to, suffix, duration){
+  let start = null;
+  function step(ts){ if(!start) start=ts; const p=Math.min((ts-start)/duration,1); el.textContent=Math.round(from+(to-from)*p)+suffix; if(p<1) requestAnimationFrame(step); }
+  requestAnimationFrame(step);
+}
+
+function renderOrderBook(base, spread){
+  const fmt = (v,b)=>{ if(b>=10000) return v.toFixed(0); if(b>=1000) return v.toFixed(2); return v.toFixed(2); };
+  const askBody = document.getElementById('ob-asks');
+  const bidBody = document.getElementById('ob-bids');
+  askBody.innerHTML=''; bidBody.innerHTML='';
+  let cumAsk=0, cumBid=0;
+  for(let i=4;i>=0;i--){
+    const price = base + spread + spread*i*1.2 + (Math.random()*.01*spread);
+    const size = Math.round(100+Math.random()*900);
+    cumAsk += size;
+    const tr=document.createElement('tr');
+    tr.innerHTML=`<td class="ob-ask">${fmt(price,base)}</td><td class="ob-ask">${size.toLocaleString()}</td><td class="ob-ask">${cumAsk.toLocaleString()}</td>`;
+    askBody.appendChild(tr);
+  }
+  for(let i=0;i<5;i++){
+    const price = base - spread - spread*i*1.2 - (Math.random()*.01*spread);
+    const size = Math.round(100+Math.random()*900);
+    cumBid += size;
+    const tr=document.createElement('tr');
+    tr.innerHTML=`<td class="ob-bid">${fmt(price,base)}</td><td class="ob-bid">${size.toLocaleString()}</td><td class="ob-bid">${cumBid.toLocaleString()}</td>`;
+    bidBody.appendChild(tr);
+  }
+}
+
+function renderTickerChart(base, proj, curveType, color){
+  const ctx = document.getElementById('ticker-chart').getContext('2d');
+  if(tickerChartInstance){ tickerChartInstance.destroy(); }
+  const days=['Now','Day 1','Day 2','Day 3','Day 4','Day 5'];
+  let data;
+  const diff = proj - base;
+  const pct = v => +((v-base)/base*100).toFixed(3);
+  if(curveType==='strong_up'){
+    data=[0, pct(base+diff*.15), pct(base+diff*.38), pct(base+diff*.6), pct(base+diff*.82), pct(proj)];
+  } else if(curveType==='up'){
+    data=[0, pct(base+diff*.1), pct(base+diff*.28), pct(base+diff*.55), pct(base+diff*.78), pct(proj)];
+  } else if(curveType==='flat'){
+    const d=proj-base; data=[0, pct(base+d*.3), pct(base+d*.15), pct(base+d*.4), pct(base+d*.6), pct(proj)];
+  } else {
+    const d=proj-base; data=[0, pct(base+d*.2), pct(base-Math.abs(d)*.1), pct(base+d*.35), pct(base+d*.55), pct(proj)];
+  }
+  var bgColor = color + '18';
+  tickerChartInstance = new Chart(ctx, {
+    type: 'line',
+    data: {
+      labels: days,
+      datasets: [{
+        label: 'Equity Curve',
+        data: data,
+        borderColor: color,
+        backgroundColor: bgColor,
+        borderWidth: 2.5,
+        pointRadius: 3,
+        pointBackgroundColor: color,
+        tension: .45,
+        fill: true
+      }]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: {
+        legend: { display: false },
+        tooltip: {
+          callbacks: {
+            label: function(c) {
+              var val = c.parsed.y;
+              return (val >= 0 ? '+' : '') + val.toFixed(3) + '%';
+            }
+          }
+        }
+      },
+      scales: {
+        x: {
+          grid: { color: 'rgba(26,39,64,.5)' },
+          ticks: { color: '#6B80A0', font: { family: 'JetBrains Mono', size: 10 } }
+        },
+        y: {
+          grid: { color: 'rgba(26,39,64,.5)' },
+          ticks: {
+            color: '#6B80A0',
+            font: { family: 'JetBrains Mono', size: 10 },
+            callback: function(v) {
+              return (v >= 0 ? '+' : '') + v.toFixed(2) + '%';
+            }
+          }
+        }
+      }
+    }
+  });
+}
+
+// Allow Enter key on ticker input
+document.getElementById('ticker-input').addEventListener('keydown',e=>{ if(e.key==='Enter') runTickerAnalysis(); });
+
+/* ─── QUANTUM SIGNAL ENGINE ─── */
+(function(){
+  var PROXIES=['https://api.allorigins.win/raw?url=','https://corsproxy.io/?url=','https://api.codetabs.com/v1/proxy?quest=','https://thingproxy.freeboard.io/fetch/'];
+var N8N_WEBHOOK='https://quantum-scraper-production.up.railway.app/signal';
+  var _cache={}; // in-memory cache (session-scoped)
+
+  function saveCache(t,d){
+    _cache[t]={d:d,ts:Date.now()};
+    var k=Object.keys(_cache);
+    if(k.length>5) delete _cache[k[0]];
+    // cache stored in-memory
+  }
+
+  function calcEma(data,p){
+    var k=2/(p+1),r=new Array(p-1).fill(null);
+    var e=data.slice(0,p).reduce(function(a,b){return a+b;},0)/p;
+    r.push(e);
+    for(var i=p;i<data.length;i++){e=data[i]*k+e*(1-k);r.push(e);}
+    return r;
+  }
+  function calcMacd(data){
+    var e12=calcEma(data,12),e26=calcEma(data,26);
+    var m=e12.map(function(v,i){return(v!=null&&e26[i]!=null)?v-e26[i]:null;});
+    var valid=m.filter(function(v){return v!=null;});
+    var sig=calcEma(valid,9);
+    var pad=new Array(m.length-sig.length).fill(null).concat(sig);
+    return{macd:m,signal:pad};
+  }
+  function calcRsi(data,p){
+    var r=new Array(p).fill(null),ag=0,al=0,d,i;
+    for(i=1;i<=p;i++){d=data[i]-data[i-1];if(d>0)ag+=d;else al-=d;}
+    ag/=p;al/=p;
+    r.push(100-100/(1+ag/(al||0.0001)));
+    for(i=p+1;i<data.length;i++){
+      d=data[i]-data[i-1];
+      var g=d>0?d:0,l=d<0?-d:0;
+      ag=(ag*(p-1)+g)/p;al=(al*(p-1)+l)/p;
+      r.push(100-100/(1+ag/(al||0.0001)));
+    }
+    return r;
+  }
+  function calcRoc(data,p){return data.map(function(v,i){return i<p?null:((v-data[i-p])/data[i-p])*100;});}
+  function calcBB(data,p,m){
+    var mid=data.map(function(_,i){
+      if(i<p-1)return null;
+      return data.slice(i-p+1,i+1).reduce(function(a,b){return a+b;},0)/p;
+    });
+    function band(midv,i,sign){
+      if(midv==null)return null;
+      var sl=data.slice(i-p+1,i+1);
+      var std=Math.sqrt(sl.reduce(function(s,v){return s+(v-midv)*(v-midv);},0)/p);
+      return midv+sign*m*std;
+    }
+    return{mid:mid,upper:mid.map(function(v,i){return band(v,i,1);}),lower:mid.map(function(v,i){return band(v,i,-1);})};
+  }
+  function calcAtr(hi,lo,cl,p){
+    var tr=hi.map(function(h,i){return i===0?h-lo[i]:Math.max(h-lo[i],Math.abs(h-cl[i-1]),Math.abs(lo[i]-cl[i-1]));});
+    var r=new Array(p-1).fill(null),a=tr.slice(0,p).reduce(function(x,y){return x+y;},0)/p;
+    r.push(a);
+    for(var i=p;i<tr.length;i++){a=(a*(p-1)+tr[i])/p;r.push(a);}
+    return r;
+  }
+  function calcObv(cl,vol){
+    var r=[vol[0]];
+    for(var i=1;i<cl.length;i++){
+      r.push(cl[i]>cl[i-1]?r[i-1]+vol[i]:cl[i]<cl[i-1]?r[i-1]-vol[i]:r[i-1]);
+    }
+    return r;
+  }
+
+  function computeScore(o){
+    var s=50,reasons=[],price=o.price,em20=o.em20,em50=o.em50,mac=o.mac,sig=o.sig,rs=o.rs,ro=o.ro,bbU=o.bbU,bbL=o.bbL,bbM=o.bbM,obvUp=o.obvUp;
+    if(price>em20&&em20>em50){s+=15;reasons.push({bull:true,text:'Price above EMA20 & EMA50 — bullish trend structure confirmed'});}
+    else if(price<em20&&em20<em50){s-=15;reasons.push({bull:false,text:'Price below EMA20 & EMA50 — bearish trend structure confirmed'});}
+    else if(price>em20){s+=5;reasons.push({bull:true,text:'Price above EMA20 — short-term bullish bias'});}
+    else{s-=5;reasons.push({bull:false,text:'Price below EMA20 — short-term bearish bias'});}
+    if(mac!=null&&sig!=null){
+      if(mac>sig&&mac>0){s+=15;reasons.push({bull:true,text:'MACD above signal and positive — strong bullish momentum'});}
+      else if(mac>sig){s+=8;reasons.push({bull:true,text:'MACD crossed above signal — momentum inflecting bullish'});}
+      else if(mac<sig&&mac<0){s-=15;reasons.push({bull:false,text:'MACD below signal and negative — strong bearish momentum'});}
+      else{s-=8;reasons.push({bull:false,text:'MACD crossed below signal — momentum turning bearish'});}
+    }
+    if(rs!=null){
+      if(rs>70){s-=10;reasons.push({bull:false,text:'RSI '+rs.toFixed(1)+' — overbought zone, elevated reversal risk'});}
+      else if(rs>55){s+=10;reasons.push({bull:true,text:'RSI '+rs.toFixed(1)+' — bullish momentum zone, trend intact'});}
+      else if(rs<30){s+=8;reasons.push({bull:true,text:'RSI '+rs.toFixed(1)+' — oversold, mean reversion potential'});}
+      else if(rs<45){s-=10;reasons.push({bull:false,text:'RSI '+rs.toFixed(1)+' — bearish momentum zone'});}
+    }
+    if(ro!=null){
+      if(ro>5){s+=10;reasons.push({bull:true,text:'10-day ROC +'+ro.toFixed(1)+'% — strong positive price momentum'});}
+      else if(ro>0){s+=4;reasons.push({bull:true,text:'10-day ROC +'+ro.toFixed(1)+'% — mild positive momentum'});}
+      else if(ro<-5){s-=10;reasons.push({bull:false,text:'10-day ROC '+ro.toFixed(1)+'% — significant negative momentum'});}
+      else{s-=4;reasons.push({bull:false,text:'10-day ROC '+ro.toFixed(1)+'% — mild negative momentum'});}
+    }
+    if(bbU!=null){
+      if(price>bbU){s+=5;reasons.push({bull:true,text:'Price breaking above upper Bollinger Band — momentum breakout'});}
+      else if(price<bbL){s-=8;reasons.push({bull:false,text:'Price below lower Bollinger Band — breakdown signal'});}
+      else if(price>bbM){s+=3;}
+    }
+    if(obvUp){s+=7;reasons.push({bull:true,text:'OBV rising — volume confirming bullish price action'});}
+    else{s-=7;reasons.push({bull:false,text:'OBV declining — volume diverging from price move'});}
+    s=Math.max(0,Math.min(100,Math.round(s)));
+    var cross=Math.min(100,Math.max(0,Math.round(s*0.85+6+Math.random()*9)));
+    return{score:s,crossAssetScore:cross,reasons:reasons.slice(0,5)};
+  }
+
+  function vcGate(score,em20,em50){
+    if(score>=65&&em20>em50)return'BUY';
+    if(score<=38&&em20<em50)return'SELL';
+    return'STAND ASIDE';
+  }
+
+  
+async function fetchTicker(ticker){
+  if(_cache[ticker]&&Date.now()-_cache[ticker].ts<14400000)return _cache[ticker].d;
+  var sym=ticker.toUpperCase().replace('-USD','').replace('-USDT','');
+  var cryptoList=['BTC','ETH','SOL','DOGE','ADA','XRP','BNB','AVAX','LINK','DOT'];
+  if(cryptoList.indexOf(sym)>-1||ticker.toUpperCase().endsWith('-USD')){
+    throw new Error('Crypto tickers are not supported. Enter a US-listed equity or ETF (e.g. NVDA, SPY, AAPL).');
+  }
+  // Try Stooq first (no CORS, no API key, daily close data)
+  var today=new Date();var d2=today.toISOString().slice(0,10).replace(/-/g,'');
+  var past=new Date(today);past.setMonth(past.getMonth()-6);var d1=past.toISOString().slice(0,10).replace(/-/g,'');
+  var stooqUrl='https://stooq.com/q/d/l/?s='+ticker.toLowerCase()+'.us&d1='+d1+'&d2='+d2+'&i=d';
+  var cl=[],hi=[],lo=[],vo=[],lastDate='N/A',price=0,pct=0,name=ticker;
+  var stooqOk=false;
+  try{
+    var sr=await fetch(stooqUrl,{signal:AbortSignal.timeout(10000)});
+    if(sr.ok){
+      var csv=await sr.text();
+      var lines=csv.trim().split('\n');
+      if(lines.length>5&&lines[0].toLowerCase().includes('date')&&!lines[1].toLowerCase().includes('no data')){
+        var hdr=lines[0].toLowerCase().split(',');
+        var ci=hdr.indexOf('close'),oi=hdr.indexOf('open'),hii=hdr.indexOf('high'),lii=hdr.indexOf('low'),vi=hdr.indexOf('volume'),di=hdr.indexOf('date');
+        for(var i=1;i<lines.length;i++){
+          var p=lines[i].split(',');if(p.length<5)continue;
+          var cv=parseFloat(p[ci>-1?ci:4]);if(isNaN(cv)||cv<=0)continue;
+          cl.push(cv);hi.push(parseFloat(p[hii>-1?hii:2])||cv);lo.push(parseFloat(p[lii>-1?lii:3])||cv);
+          vo.push(parseInt(p[vi>-1?vi:5])||0);if(di>-1)lastDate=p[di];
+        }
+        if(cl.length>=30){
+          price=cl[cl.length-1];var prev=cl.length>1?cl[cl.length-2]:price;
+          pct=prev?((price-prev)/prev*100):0;name=ticker;stooqOk=true;
+        }
+      }
+    }
+  }catch(e){}
+  // Fallback: Yahoo Finance via CORS proxies
+  if(!stooqOk){
+    var yahooUrl='https://query1.finance.yahoo.com/v8/finance/chart/'+ticker+'?interval=1d&range=6mo';
+    var gotYahoo=false;
+    for(var pi=0;pi<PROXIES.length;pi++){
+      try{
+        var yr=await fetch(PROXIES[pi]+encodeURIComponent(yahooUrl),{signal:AbortSignal.timeout(12000)});
+        if(!yr.ok)continue;var yj=await yr.json();
+        var res=yj&&yj.chart&&yj.chart.result&&yj.chart.result[0];
+        if(!res)continue;var q=res.indicators.quote[0];var meta=res.meta||{};
+        cl=[];hi=[];lo=[];vo=[];
+        for(var j=0;j<q.close.length;j++){if(q.close[j]==null)continue;cl.push(q.close[j]);hi.push(q.high[j]||q.close[j]);lo.push(q.low[j]||q.close[j]);vo.push(q.volume[j]||0);}
+        if(cl.length>=30){price=meta.regularMarketPrice||cl[cl.length-1];var prevC=meta.previousClose||cl[cl.length-2]||price;pct=((price-prevC)/prevC*100);name=meta.shortName||meta.symbol||ticker;lastDate=new Date(res.timestamp[res.timestamp.length-1]*1000).toISOString().slice(0,10);gotYahoo=true;break;}
+      }catch(e){}
+    }
+    if(!gotYahoo)throw new Error('Ticker not recognized \u2014 enter a valid US stock symbol (e.g. NVDA, TSLA, SPY)');
+  }
+  var n=cl.length;
+  var em20=calcEma(cl,20),em50=calcEma(cl,50);
+  var mc=calcMacd(cl),rs=calcRsi(cl,14),ro=calcRoc(cl,10),bb=calcBB(cl,20,2),at=calcAtr(hi,lo,cl,14),ov=calcObv(cl,vo);
+  var vols=vo.filter(function(v){return v>0;});var avgVol=vols.length?vols.reduce(function(a,b){return a+b;},0)/vols.length:1;
+  var volRatio=vo[n-1]&&avgVol?vo[n-1]/avgVol:1;
+  var yearHi=Math.max.apply(null,hi.slice(-252));var yearLo=Math.min.apply(null,lo.slice(-252));
+  var bbPos=bb.upper[n-1]&&bb.lower[n-1]?(price-bb.lower[n-1])/(bb.upper[n-1]-bb.lower[n-1]):0.5;
+  var obvTrend=ov[n-1]>ov[Math.max(0,n-6)]?'ACCUMULATION':'DISTRIBUTION';
+  var ind={em20:em20[n-1],em50:em50[n-1],mac:mc.macd[n-1],sig:mc.signal[n-1],
+    rs:rs[n-1],ro:ro[n-1],bbUpper:bb.upper[n-1],bbLower:bb.lower[n-1],bbMid:bb.mid[n-1],
+    atrv:at[n-1],atrPct:at[n-1]?at[n-1]/price*100:0,obvUp:obvTrend==='ACCUMULATION',
+    obvTrend:obvTrend,bbPosition:bbPos,volRatio:volRatio,high52:yearHi,low52:yearLo};
+  var sc=computeScore({price:price,em20:ind.em20,em50:ind.em50,mac:ind.mac,sig:ind.sig,
+    rs:ind.rs,ro:ind.ro,bbU:ind.bbUpper,bbL:ind.bbLower,bbM:ind.bbMid,obvUp:ind.obvUp});
+  var decision=vcGate(sc.score,ind.em20,ind.em50);
+  var data={ticker:ticker,name:name,price:price,pct:pct,ind:ind,score:sc.score,
+    cross:sc.crossAssetScore,reasons:sc.reasons,decision:decision,lastDate:lastDate};
+  saveCache(ticker,data);return data;
+}
+
+  /* ─── animate pipeline stages ─── */
+  async function animatePipeline(dataP){
+    var pipeline=document.getElementById('se-pipeline');
+    var resWrap=document.getElementById('se-results-wrap');
+    if(pipeline)pipeline.style.display='block';
+    if(resWrap)resWrap.style.display='none';
+    var stages=['se-n0','se-n1','se-n2','se-n3','se-n4'];
+    var statuses=['se-ss0','se-ss1','se-ss2','se-ss3','se-ss4'];
+    var runs=['INGESTING','COMPUTING','ANALYZING','SCORING','DECIDING'];
+    var dones=['INGESTED \u2713','COMPUTED \u2713','ANALYZED \u2713','SCORED \u2713','DECIDED \u2713'];
+    var fills=['se-cf0','se-cf1','se-cf2','se-cf3'];
+    // Reset
+    stages.forEach(function(id){var el=document.getElementById(id);if(el){el.className='se-stage-node';}});
+    statuses.forEach(function(id){var el=document.getElementById(id);if(el){el.textContent='WAITING';el.className='se-stage-status se-status-wait';}});
+    fills.forEach(function(id){var el=document.getElementById(id);if(el){el.style.width='0';}});
+    var data;
+    for(var i=0;i<5;i++){
+      var node=document.getElementById(stages[i]);
+      var stat=document.getElementById(statuses[i]);
+      if(node)node.className='se-stage-node se-node-active';
+      if(stat){stat.textContent=runs[i];stat.className='se-stage-status se-status-run';}
+      // Fetch data on first stage
+      if(i===0 && !data){
+        try{data=await dataP;}catch(e){throw e;}
+      }
+      await new Promise(function(r){setTimeout(r,420);});
+      if(node)node.className='se-stage-node se-node-done';
+      if(stat){stat.textContent=dones[i];stat.className='se-stage-status se-status-done';}
+      var fill=document.getElementById(fills[i]);
+      if(fill)fill.style.width='100%';
+    }
+    return data;
+  }
+
+  /* ─── call n8n → Grok-3 pipeline ─── */
+  async function runGroKPipeline(data){
+    try{
+      var ind=data.ind||{};
+      var payload={
+        ticker:data.ticker,price:data.price,change:data.price*(data.pct/100)||0,
+        changePct:data.pct||0,rsi:ind.rs||50,macd:ind.mac||0,macdSignal:ind.sig||0,
+        macdHist:(ind.mac||0)-(ind.sig||0),ema20:ind.em20||0,ema50:ind.em50||0,
+        bbUpper:ind.bbUpper||0,bbMiddle:ind.bbMid||0,bbLower:ind.bbLower||0,
+        bbPosition:ind.bbPosition||0.5,atr:ind.atrv||0,obvTrend:ind.obvTrend||'NEUTRAL',
+        volRatio:ind.volRatio||1,high52:ind.high52||0,low52:ind.low52||0,
+        lastDate:data.lastDate||'N/A',roc10:ind.ro||0
+      };
+      var response=await fetch(N8N_WEBHOOK,{
+        method:'POST',headers:{'Content-Type':'application/json'},
+        body:JSON.stringify(payload),signal:AbortSignal.timeout(20000)
+      });
+      if(!response.ok)throw new Error('HTTP '+response.status);
+      var result=await response.json();
+      if(!result||!result.signal)throw new Error('INVALID_RESPONSE');
+      return result;
+    }catch(err){
+      console.warn('n8n webhook unreachable \u2014 fallback:',err.message);
+      return clientSideFallback(data);
+    }
+  }
+
+  /* ─── client-side fallback when webhook is down ─── */
+  function clientSideFallback(data){
+    var sc=data.score||50;
+    var decision=data.decision||'STAND ASIDE';
+    var colorMap={
+      'BUY':{color:'#00E599',glow:'rgba(0,229,153,0.35)'},
+      'SELL':{color:'#FF4D4D',glow:'rgba(255,77,77,0.35)'},
+      'STAND ASIDE':{color:'#FFB547',glow:'rgba(255,181,71,0.35)'}
+    };
+    var reasons=(data.reasons||[]).map(function(r){
+      return typeof r==='string'?r:((r.bull?'Bullish: ':'Bearish: ')+r.text);
+    });
+    var tradePlan=null;
+    if(decision==='BUY'||decision==='SELL'){
+      var atrv=(data.ind&&data.ind.atrv)||(data.price*0.02);
+      var isBuy=decision==='BUY';var e=data.price;
+      var sl=isBuy?e-atrv*1.5:e+atrv*1.5;
+      var tp1=isBuy?e+atrv*2:e-atrv*2;
+      var tp2=isBuy?e+atrv*3.5:e-atrv*3.5;
+      tradePlan={direction:isBuy?'LONG':'SHORT',entry:'~$'+e.toFixed(2),
+        stopLoss:'~$'+sl.toFixed(2),target1:'~$'+tp1.toFixed(2),
+        target2:'~$'+tp2.toFixed(2),riskReward:'1:'+(Math.abs(tp1-e)/Math.abs(sl-e)).toFixed(1)};
+    }
+    return{signal:decision,confidence:sc,correlationScore:data.cross||50,vcGateScore:sc,
+      reasons:reasons.length?reasons:['Analysis complete \u2014 local pipeline scoring applied.'],
+      tradePlan:tradePlan,
+      standAsideConditions:decision==='STAND ASIDE'?['Wait for EMA cross confirmation or RSI extreme before entering.']:[],
+      marketContext:'Powered by AgilityServ local pipeline (offline mode).',
+      meta:colorMap[decision]||colorMap['STAND ASIDE'],
+      poweredBy:'AgilityServ Quantum Pipeline (offline mode)'};
+  }
+
+  /* ─── seRun: called by RUN PIPELINE button ─── */
+  window.seRun=async function(){
+    var inp=document.getElementById('se-input');
+    var btn=document.getElementById('se-btn');
+    var ticker=(inp?inp.value:'').trim().toUpperCase();
+    if(!ticker){if(inp)inp.focus();return;}
+    var errBox=document.getElementById('se-error-box');
+    var errMsg=document.getElementById('se-error-msg');
+    if(errBox)errBox.style.display='none';
+    if(btn){btn.disabled=true;btn.textContent='RUNNING\u2026';}
+    try{
+      var dataP=fetchTicker(ticker);
+      var data=await animatePipeline(dataP);
+      var grokResult=await runGroKPipeline(data);
+      renderResults(data,grokResult);
+    }catch(e){
+      var pipeline=document.getElementById('se-pipeline');
+      var resWrap=document.getElementById('se-results-wrap');
+      if(pipeline)pipeline.style.display='none';
+      if(resWrap)resWrap.style.display='none';
+      if(errBox)errBox.style.display='block';
+      if(errMsg)errMsg.textContent=e.message||'Analysis failed. Please try again.';
+    }finally{
+      if(btn){btn.disabled=false;btn.textContent='RUN PIPELINE \u25ba';}
+    }
+  };
+
+  /* ─── seChip: ticker chip click ─── */
+  window.seChip=function(t){
+    var inp=document.getElementById('se-input');
+    if(inp){inp.value=t;}
+    window.seRun();
+  };
+
+  /* ─── Enter key on se-input ─── */
+  var seInp=document.getElementById('se-input');
+  if(seInp){seInp.addEventListener('keydown',function(e){if(e.key==='Enter')window.seRun();});}
+
+
+})();
+
+// Auto-run with AAPL on load for demo feel
+window.addEventListener('load',()=>{ setTimeout(()=>{ document.getElementById('ticker-input').value='AAPL'; runTickerAnalysis(); },1200); });
+</script>
+</body>
+</html>
