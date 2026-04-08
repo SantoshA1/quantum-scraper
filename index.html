@@ -1528,6 +1528,7 @@ document.getElementById('ticker-input').addEventListener('keydown',e=>{ if(e.key
   var PROXIES=['https://api.allorigins.win/raw?url=','https://corsproxy.io/?url=','https://api.codetabs.com/v1/proxy?quest=','https://thingproxy.freeboard.io/fetch/'];
 var N8N_WEBHOOK='https://tradenextgen.app.n8n.cloud/webhook/grok3-signal';
 var SIGNAL_FEED='https://tradenextgen.app.n8n.cloud/webhook/signal-feed';
+var SIGNAL_ENGINE='https://tradenextgen.app.n8n.cloud/webhook/website-signal';
   var _cache={}; // in-memory cache (session-scoped)
 
   function saveCache(t,d){
@@ -1788,12 +1789,67 @@ async function fetchTicker(ticker){
     };
   }
 
-  /* ─── 3. Grok-3 fallback (unchanged) ─── */
+  /* ─── 3. Server-side Signal Engine (n8n Stooq fetch, no client indicators needed) ─── */
+  async function fetchSignalEngine(ticker){
+    try{
+      var r=await fetch(SIGNAL_ENGINE,{
+        method:'POST',headers:{'Content-Type':'application/json'},
+        body:JSON.stringify({ticker:ticker,mode:'full_analysis'}),
+        signal:AbortSignal.timeout(18000)
+      });
+      if(!r.ok) return null;
+      var d=await r.json();
+      if(!d||!d.signal||!d.price) return null;
+      // Normalise to site format
+      var sig=d.signal||'STAND ASIDE';
+      // Map LEAN LONG/SHORT → BUY/SELL for display
+      if(sig==='LEAN LONG'||sig==='STRONG BUY') sig='BUY';
+      else if(sig==='LEAN SHORT'||sig==='STRONG SELL') sig='SELL';
+      else if(sig==='NEUTRAL'||sig==='LEAN LONG'||sig==='LEAN SHORT') sig='STAND ASIDE';
+      var colorMap={'BUY':{color:'#00E599',glow:'rgba(0,229,153,0.35)'},
+        'SELL':{color:'#FF4D4D',glow:'rgba(255,77,77,0.35)'},
+        'STAND ASIDE':{color:'#FFB547',glow:'rgba(255,181,71,0.35)'}};
+      var reasons=Array.isArray(d.reasons)?d.reasons:
+        (typeof d.reasons==='string'?d.reasons.split('|').map(function(s){return s.trim();}).filter(Boolean):[
+          'RSI: '+d.rsi+' — '+(d.rsi<45?'bearish':'bullish')+' momentum zone',
+          'EMA20: $'+d.ema20+' vs price: $'+d.price+' — '+(d.price>d.ema20?'above (bullish)':'below (bearish)'),
+          'MACD: '+d.macd+' signal: '+d.macdSignal+' — histogram '+(d.macd>d.macdSignal?'positive':'negative')
+        ]);
+      var tradePlan=null;
+      if(sig==='BUY'||sig==='SELL'){
+        var atr=d.atr||(d.price*0.02),isBuy=sig==='BUY',e=d.price;
+        var sl=isBuy?e-atr*1.5:e+atr*1.5;
+        var tp1=isBuy?e+atr*2:e-atr*2;
+        var tp2=isBuy?e+atr*3.5:e-atr*3.5;
+        tradePlan={direction:isBuy?'LONG':'SHORT',
+          entry:'$'+e.toFixed(2),stopLoss:'$'+sl.toFixed(2),
+          target1:'$'+tp1.toFixed(2),target2:'$'+tp2.toFixed(2),
+          riskReward:'1:'+(Math.abs(tp1-e)/Math.abs(sl-e)).toFixed(1)};
+      }
+      return{signal:sig,confidence:d.confidence||0,
+        correlationScore:d.correlationScore||d.confidence||0,
+        vcGateScore:Math.round((d.confidence||0)/12),
+        quantumEdgeScore:d.confidence||0,
+        reasons:reasons.slice(0,4),tradePlan:tradePlan,
+        marketContext:'AgilityServ Server-Side Engine — Live Stooq Data • '+new Date().toLocaleTimeString(),
+        meta:colorMap[sig]||colorMap['STAND ASIDE'],
+        analyzedBy:'AgilityServ Signal Engine',
+        rawData:{price:d.price,ema20:d.ema20,ema50:d.ema50,rsi:d.rsi,
+          macd:d.macd,atr:d.atr,bbUpper:d.bbUpper,bbLower:d.bbLower}};
+    }catch(e){
+      return null;
+    }
+  }
+
+  /* ─── 4. Grok-3 AI fallback ─── */
   async function runGroKPipeline(data){
-    // Try real pipeline signal first
+    // Tier 1: Real pipeline signal
     var live=await fetchPipelineSignal(data.ticker);
     if(live) return normalisePipelineSignal(live);
-    // Fall back to Grok-3 analysis
+    // Tier 2: Server-side Signal Engine (fetches own data, no client indicators needed)
+    var engineResult=await fetchSignalEngine(data.ticker);
+    if(engineResult) return engineResult;
+    // Tier 3: Grok-3 AI analysis
     try{
       var ind=data.ind||{};
       var payload={
