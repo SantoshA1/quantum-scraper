@@ -1,0 +1,104 @@
+{
+  "name": "Quantum Polygon Backtester",
+  "nodes": [
+    {
+      "parameters": {},
+      "id": "bt-trigger",
+      "name": "Manual Trigger",
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [
+        208,
+        304
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// \u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\n// QUANTUM BACKTESTER \u2014 Node 1: Config Loader\n// Reads parameters from Workflow Static Data.\n// To configure: set these keys in the workflow's Static Data before running:\n//   backtest_startDate       e.g. \"2026-02-01\"\n//   backtest_endDate         e.g. \"2026-04-04\"\n//   backtest_tickers         e.g. \"TSLA,MSFT,NVDA,AMD\"  (comma-sep, max 14)\n//   backtest_slippageBps     e.g. 3   (basis points per side, default 3)\n//   backtest_commPerShare    e.g. 0.005 (USD per share each way, default 0.005)\n//   backtest_positionUSD     e.g. 5000 (USD per trade, default 5000)\n//   backtest_maxHoldDays     e.g. 5   (max bars in trade, default 5)\n// \u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\nconst state   = $getWorkflowStaticData('global');\nconst POLYGON = state.POLYGON_API_KEY  || 'REDACTED_POLYGON_KEY';\nconst GROK    = state.GROK_API_KEY     || 'REDACTED_XAI_API_KEY';\n\nconst cfg = {\n  startDate:       state.backtest_startDate   || '2026-02-01',\n  endDate:         state.backtest_endDate     || '2026-04-04',\n  tickers:        (state.backtest_tickers     || 'TSLA,NVDA,AMD,MSFT,RDDT,IONQ,BA,CVX,SMCI,HPE').split(',').map(t => t.trim().toUpperCase()),\n  slippageBps:     Number(state.backtest_slippageBps   || 3),\n  commPerShare:    Number(state.backtest_commPerShare   || 0.005),\n  positionUSD:     Number(state.backtest_positionUSD   || 5000),\n  maxHoldDays:     Number(state.backtest_maxHoldDays   || 5),\n  biasEntry:   Number(state.backtest_biasEntry   || 62),\n  biasExit:    Number(state.backtest_biasExit    || 45),\n  minVolRatio: Number(state.backtest_minVolRatio || 0.5),\n  maxAtrPct:   Number(state.backtest_maxAtrPct   || 8.0),\n  POLYGON,\n  GROK,\n};\n\nconsole.log('[BACKTEST-CONFIG] Running backtest:',\n  cfg.startDate, '\u2192', cfg.endDate,\n  '|', cfg.tickers.length, 'tickers',\n  '| slippage', cfg.slippageBps, 'bps',\n  '| comm $', cfg.commPerShare, '/share'\n);\n\n// Emit one item per ticker so downstream nodes run in parallel\nreturn cfg.tickers.map(ticker => ({ json: { ...cfg, ticker } }));\n"
+      },
+      "id": "bt-config",
+      "name": "Backtest Config",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        432,
+        304
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// QUANTUM BACKTESTER ENGINE v6\n// Fixes: bias=55, NEUTRAL regime allowed, better config reading\n// runOnceForAllItems mode\nconst configItems = $input.all();\nconst results = [];\n\n// \u2500\u2500 Helpers \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\nfunction ema(arr, p) {\n  if (!arr || !arr.length) return 0;\n  const k = 2 / (p + 1); let e = Number(arr[0]) || 0;\n  for (let i = 1; i < arr.length; i++) e = (Number(arr[i]) || e) * k + e * (1 - k);\n  return e;\n}\nfunction mean(arr) { return arr.length ? arr.reduce((s,v) => s+v, 0) / arr.length : 0; }\nfunction safeNum(v, fb) { const n = Number(v); return isFinite(n) ? n : (fb || 0); }\n\nfunction mkBase(ticker, startDate, endDate) {\n  return { ticker, execution:'STAND ASIDE', signal:'NEUTRAL', bias_score:'50',\n    regime:'NEUTRAL', timeframe:'D', price:'0', volume_ratio:'1',\n    strat_total_trades:0, strat_net_pct:'0', strat_win_rate:'0',\n    strat_profit_factor:'0', strat_max_dd:'0',\n    backtest_period: startDate+' to '+endDate, bars_used:0, _backtest_mode:true };\n}\n\nfor (const configItem of configItems) {\n  const cfg = configItem.json || {};\n  const ticker = String(cfg.ticker || '');\n  const POLYGON = String(cfg.POLYGON || 'REDACTED_POLYGON_KEY');\n  const startDate = String(cfg.startDate || '2026-01-06');\n  const endDate = String(cfg.endDate || '2026-04-04');\n\n  // v6 configurable parameters\n  const BIAS_ENTRY = safeNum(cfg.backtest_biasEntry, 55);\n  const BIAS_EXIT  = safeNum(cfg.backtest_biasExit, 40);\n  const MIN_VOL_RATIO = safeNum(cfg.backtest_minVolRatio, 0.3);\n  const MAX_ATR_PCT = safeNum(cfg.backtest_maxAtrPct, 8.0);\n  const slippageBps = safeNum(cfg.backtest_slippageBps, 3);\n  const commPerShare = safeNum(cfg.backtest_commPerShare, 0.005);\n  const positionUSD = safeNum(cfg.backtest_positionUSD, 5000);\n  const maxHoldDays = safeNum(cfg.backtest_maxHoldDays, 5);\n\n  if (!ticker) { \n    results.push({ json: mkBase('', startDate, endDate) }); \n    continue; \n  }\n\n  // \u2500\u2500 1. Fetch daily bars \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\n  let bars = [];\n  try {\n    const raw = await this.helpers.httpRequest({\n      method: 'GET',\n      url: 'https://api.polygon.io/v2/aggs/ticker/' + ticker + '/range/1/day/' + startDate + '/' + endDate,\n      qs: { adjusted:'true', sort:'asc', limit:5000, apiKey:POLYGON }, \n      json:true\n    });\n    bars = Array.isArray(raw && raw.results) ? raw.results : [];\n  } catch (e) {\n    results.push({ json: Object.assign(mkBase(ticker, startDate, endDate), { _error:'bars:'+String(e.message).slice(0,50) }) });\n    continue;\n  }\n\n  if (bars.length < 25) {\n    results.push({ json: Object.assign(mkBase(ticker, startDate, endDate), { _skip:'bars:'+bars.length, bars_used:bars.length }) });\n    continue;\n  }\n\n  // \u2500\u2500 2. Simulate with improved entry/exit/sizing \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\n  const tradePnls = [];\n  let pos = null;\n\n  for (let i = 22; i < bars.length; i++) {\n    const bar = bars[i];\n    if (!bar || typeof bar.c !== 'number' || bar.c <= 0) continue;\n\n    const closes = bars.slice(i-19, i+1).map(b => (b && b.c > 0) ? b.c : 0).filter(v => v > 0);\n    if (closes.length < 20) continue;\n\n    const e5 = ema(closes.slice(-5), 5);\n    const e20 = ema(closes, 20);\n    const delta = e20 > 0 ? (e5 - e20) / e20 : 0;\n    const bias = Math.round(Math.min(100, Math.max(0, 50 + delta * 500)));\n\n    // Regime: TRENDING or NEUTRAL allowed (v6 change)\n    const regime = Math.abs(delta) > 0.01 ? 'TRENDING' : 'NEUTRAL';\n\n    // ATR (14-bar)\n    const trBars = bars.slice(Math.max(0, i-14), i+1);\n    const trs = trBars.slice(1).map((b,k) => {\n      const prev = trBars[k];\n      return (b && prev && b.h && b.l && prev.c) ? Math.max(b.h-b.l, Math.abs(b.h-prev.c), Math.abs(b.l-prev.c)) : 0;\n    }).filter(v => v > 0);\n    const atrVal = trs.length ? mean(trs) : bar.c * 0.02;\n    const atrPct = bar.c > 0 ? (atrVal / bar.c) * 100 : 2;\n\n    // Volume confirmation\n    const volBars = bars.slice(Math.max(0, i-19), i+1);\n    const avgVol = mean(volBars.map(b => safeNum(b && b.v)));\n    const volRatio = avgVol > 0 ? safeNum(bar.v) / avgVol : 1;\n\n    // \u2500\u2500 Exit open position \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\n    if (pos) {\n      const hold = i - pos.ei;\n      const isBull = pos.side === 'LONG';\n      const exitByTime = hold >= maxHoldDays;\n      const exitByReversal = isBull ? bias <= BIAS_EXIT : bias >= (100 - BIAS_EXIT);\n      if (exitByTime || exitByReversal) {\n        const slip = bar.c * slippageBps / 10000;\n        const fill = isBull ? bar.c - slip : bar.c + slip;\n        const comm = pos.sh * commPerShare * 2;\n        const rawPnl = isBull ? (fill - pos.fill) * pos.sh : (pos.fill - fill) * pos.sh;\n        tradePnls.push(safeNum(rawPnl - comm));\n        pos = null;\n      }\n    }\n\n    // \u2500\u2500 Entry conditions \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\n    if (!pos) {\n      if (atrPct > MAX_ATR_PCT) continue;\n      if (volRatio < MIN_VOL_RATIO) continue;\n      if (bias < BIAS_ENTRY && bias > (100 - BIAS_ENTRY)) continue;\n\n      const isBullEntry = bias >= BIAS_ENTRY;\n      const isBearEntry = bias <= (100 - BIAS_ENTRY);\n      if (!isBullEntry && !isBearEntry) continue;\n\n      const targetRiskPct = 2.0;\n      const sizeMult = Math.min(1.0, targetRiskPct / Math.max(atrPct, 0.5));\n      const adjUSD = positionUSD * sizeMult;\n      const slip = bar.c * slippageBps / 10000;\n      const fill = isBullEntry ? bar.c + slip : bar.c - slip;\n      const sh = Math.max(1, Math.floor(adjUSD / (fill || 1)));\n      pos = { side: isBullEntry ? 'LONG' : 'SHORT', ei: i, fill, sh };\n    }\n  }\n\n  // \u2500\u2500 3. Performance statistics \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\n  const n = tradePnls.length;\n  let strat_net_pct = '0', strat_win_rate = '0', strat_profit_factor = '0', strat_max_dd = '0';\n  if (n > 0) {\n    const wins = tradePnls.filter(v => v > 0);\n    const gw = wins.reduce((s,v) => s+v, 0);\n    const losses = tradePnls.filter(v => v <= 0);\n    const gl = Math.abs(losses.reduce((s,v) => s+v, 0));\n    const total = tradePnls.reduce((s,v) => s+v, 0);\n    strat_net_pct = (total / positionUSD * 100).toFixed(2);\n    strat_win_rate = (wins.length / n * 100).toFixed(1);\n    strat_profit_factor = gl > 0 ? Math.min(10, gw / gl).toFixed(2) : (gw > 0 ? '10' : '0');\n    let pk = 0, run = 0, dd = 0;\n    for (const v of tradePnls) { \n      run += v; \n      if (run > pk) pk = run; \n      if (run - pk < dd) dd = run - pk; \n    }\n    strat_max_dd = (Math.abs(dd) / positionUSD * 100).toFixed(2);\n  }\n\n  // \u2500\u2500 4. Current live signal \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\n  const lc = bars.slice(-25).map(b => (b && b.c > 0) ? b.c : 0).filter(v => v > 0);\n  const lD = ema(lc, 20) > 0 ? (ema(lc.slice(-5),5) - ema(lc,20)) / ema(lc,20) : 0;\n  const lBias = Math.round(Math.min(100, Math.max(0, 50 + lD * 500)));\n  const lastBar = bars[bars.length-1];\n  const lastC = lastBar && lastBar.c > 0 ? lastBar.c : 0;\n  const lastATRPct = 2; // simplified for live signal\n  const lRegime = Math.abs(lD) > 0.01 ? 'TRENDING' : 'NEUTRAL';\n  const lAvgVol = mean(bars.slice(-20).map(b => safeNum(b&&b.v)));\n  const lVolR = lAvgVol > 0 && lastBar && lastBar.v ? safeNum(lastBar.v)/lAvgVol : 1;\n\n  let execution = 'STAND ASIDE', signal = 'NEUTRAL';\n  if (lBias >= BIAS_ENTRY && lastATRPct <= MAX_ATR_PCT) {\n    execution = 'BUY'; signal = 'BULLISH';\n  } else if (lBias <= (100 - BIAS_ENTRY) && lastATRPct <= MAX_ATR_PCT) {\n    execution = 'SELL'; signal = 'BEARISH';\n  }\n\n  results.push({ json: {\n    ticker, execution, signal,\n    bias_score: String(lBias),\n    regime: lRegime,\n    timeframe: 'D',\n    price: String(lastC),\n    volume_ratio: String(parseFloat(lVolR.toFixed(2))),\n    strat_total_trades: n,\n    strat_net_pct,\n    strat_win_rate,\n    strat_profit_factor,\n    strat_max_dd,\n    backtest_period: startDate + ' to ' + endDate,\n    bars_used: bars.length,\n    atr_pct: String(lastATRPct.toFixed(2)),\n    _backtest_mode: true\n  }});\n}\nreturn results;"
+      },
+      "id": "bt-engine",
+      "name": "Backtest Engine",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        640,
+        304
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// QUANTUM BACKTESTER AGGREGATOR v2\n// Fixes: PF capped at 10 (no 99), min-trade filter (>=5), median stats,\n//        honest per-ticker table, aligned with VC Gate field names\n\nconst results = $input.all().map(i => i.json);\nconst NL = '\\n';\n\n// Filter out tickers with insufficient data (< 5 trades)\nconst tradeable   = results.filter(r => parseInt(r.strat_total_trades || 0) >= 5);\nconst skipped     = results.filter(r => parseInt(r.strat_total_trades || 0) < 5);\nconst period      = results[0]?.backtest_period || '\u2014';\nconst totalTrades = tradeable.reduce((s, r) => s + parseInt(r.strat_total_trades || 0), 0);\n\n// Stats on valid tickers only\nfunction avg(arr) { return arr.length ? arr.reduce((s,v)=>s+v,0)/arr.length : 0; }\nfunction med(arr) {\n  if (!arr.length) return 0;\n  const s = [...arr].sort((a,b)=>a-b);\n  const m = Math.floor(s.length/2);\n  return s.length%2 ? s[m] : (s[m-1]+s[m])/2;\n}\n\nconst nets  = tradeable.map(r => parseFloat(r.strat_net_pct  || 0));\nconst wrs   = tradeable.map(r => parseFloat(r.strat_win_rate  || 0));\nconst pfs   = tradeable.map(r => parseFloat(r.strat_profit_factor || 0)).filter(v => v > 0);\nconst dds   = tradeable.map(r => parseFloat(r.strat_max_dd    || 0));\n\nconst avgNet  = avg(nets).toFixed(2);\nconst medNet  = med(nets).toFixed(2);\nconst avgWR   = avg(wrs).toFixed(1);\nconst medPF   = med(pfs).toFixed(2);  // median PF more robust than mean\nconst avgDD   = avg(dds).toFixed(2);\n\n// Sort by PF descending\nconst sorted  = tradeable.slice().sort((a,b) => parseFloat(b.strat_profit_factor||0) - parseFloat(a.strat_profit_factor||0));\nconst top3    = sorted.slice(0,3).map(r => '  ' + r.ticker + ': PF ' + r.strat_profit_factor + ' | WR ' + r.strat_win_rate + '% | Net ' + r.strat_net_pct + '%').join(NL);\nconst bottom3 = sorted.slice(-3).map(r => '  ' + r.ticker + ': PF ' + r.strat_profit_factor + ' | Net ' + r.strat_net_pct + '%').join(NL);\n\n// Live signals from TRENDING tickers with PF >= 1.0\nconst actionable = tradeable.filter(r => r.execution !== 'STAND ASIDE' && parseFloat(r.strat_profit_factor||0) >= 1.0);\nconst signalLines = actionable.map(r => '  ' + (r.execution==='BUY'?'\ud83d\udcc8':'\ud83d\udcc9') + ' ' + r.ticker + ' ' + r.execution + ' bias=' + r.bias_score + ' PF=' + r.strat_profit_factor + ' ATR=' + r.atr_pct + '%').join(NL);\n\n// Skipped tickers (too volatile / insufficient data)\nconst skipNote = skipped.map(r => r.ticker + '(' + (r._skip||r._error||'0T') + ')').join(', ');\n\nlet msg = '<b>\ud83d\udcca Backtest v5 \u2014 Improved Engine</b>' + NL;\nmsg += 'Period: ' + period + NL;\nmsg += 'Tradeable tickers: ' + tradeable.length + ' | Total trades: ' + totalTrades + NL;\nif (skipNote) msg += 'Skipped: ' + skipNote + NL;\nmsg += NL;\nmsg += '<b>Portfolio stats (tradeable only):</b>' + NL;\nmsg += '  Avg Net: ' + avgNet + '% | Median: ' + medNet + '%' + NL;\nmsg += '  Avg WR: ' + avgWR + '% | Median PF: ' + medPF + NL;\nmsg += '  Avg MaxDD: ' + avgDD + '%' + NL + NL;\nif (top3) { msg += '<b>Top (PF):</b>' + NL + top3 + NL + NL; }\nif (bottom3) { msg += '<b>Bottom (PF):</b>' + NL + bottom3 + NL + NL; }\nif (signalLines) {\n  msg += '<b>Actionable signals (PF\u22651.0 + TRENDING):</b>' + NL + signalLines + NL + NL;\n} else {\n  msg += '<b>Actionable signals:</b> None \u2014 neutral market or no tickers pass filters' + NL + NL;\n}\nmsg += '<i>v5 fixes: bias\u226565, TRENDING-only, ATR sizing, PF capped at 10, min 5 trades.</i>';\n\nconst BOT  = 'REDACTED_TELEGRAM_BOT_TOKEN';\nconst CHAT = 'REDACTED_CHAT_ID';\ntry {\n  await this.helpers.httpRequest({\n    method: 'POST', url: 'https://api.telegram.org/bot'+BOT+'/sendMessage',\n    headers: {'Content-Type':'application/json'},\n    body: JSON.stringify({ chat_id: CHAT, text: msg, parse_mode: 'HTML' })\n  });\n  console.log('[AGG v2] Telegram sent');\n} catch(e) { console.log('[AGG v2] TG error:', e.message); }\n\nreturn results.map(r => ({ json: r }));\n"
+      },
+      "id": "bt-agg",
+      "name": "Aggregate + Summary",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        864,
+        304
+      ]
+    }
+  ],
+  "connections": {
+    "Manual Trigger": {
+      "main": [
+        [
+          {
+            "node": "Backtest Config",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Backtest Config": {
+      "main": [
+        [
+          {
+            "node": "Backtest Engine",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Backtest Engine": {
+      "main": [
+        [
+          {
+            "node": "Aggregate + Summary",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "callerPolicy": "workflowsFromSameOwner",
+    "availableInMCP": false,
+    "binaryMode": "separate"
+  },
+  "meta": {
+    "n8n_workflow_id": "dk6SRZAXZHWLOOUs",
+    "instance": "tradenextgen.app.n8n.cloud",
+    "exported_at": "2026-04-13T16:35:00Z",
+    "active_at_export": false,
+    "node_count": 4,
+    "secrets_redacted": true
+  }
+}

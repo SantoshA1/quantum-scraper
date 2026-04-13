@@ -1,0 +1,106 @@
+{
+  "name": "AgilityServ Signal Engine - Server Side",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "website-signal",
+        "responseMode": "responseNode",
+        "options": {
+          "allowedOrigins": "https://agilityserv.com"
+        }
+      },
+      "id": "webhook-trigger",
+      "name": "Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        220,
+        300
+      ],
+      "webhookId": "90e0c049-53f7-4ffd-b2a1-b3cd37593091"
+    },
+    {
+      "parameters": {
+        "jsCode": "// \u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\n// AgilityServ Signal Engine \u2014 Server-Side Analysis\n// Fetches market data + computes technical indicators\n// \u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\n\nconst ticker = $input.first().json.body.ticker.toUpperCase();\nlet closes = [], highs = [], lows = [], volumes = [];\nlet tickerName = ticker;\n\n// \u2500\u2500 1. Fetch data from Stooq \u2500\u2500\ntry {\n  const d2 = new Date();\n  const d1 = new Date(d2.getTime() - 120 * 86400000);\n  const fmt = d => d.toISOString().slice(0,10).replace(/-/g,'');\n  const url = `https://stooq.com/q/d/l/?s=${ticker.toLowerCase()}.us&d1=${fmt(d1)}&d2=${fmt(d2)}&i=d`;\n  const resp = await this.helpers.httpRequest({ method: 'GET', url, timeout: 10000 });\n  \n  if (typeof resp === 'string' && resp.includes('Close') && !resp.includes('No data')) {\n    const lines = resp.trim().split('\\n');\n    const hdr = lines[0].split(',');\n    const ci = hdr.indexOf('Close'), hi = hdr.indexOf('High'), li = hdr.indexOf('Low'), vi = hdr.indexOf('Volume');\n    for (let i = 1; i < lines.length; i++) {\n      const c = lines[i].split(',');\n      if (c.length >= 4) {\n        closes.push(+c[ci]); highs.push(+c[hi]); lows.push(+c[li]);\n        if (vi >= 0) volumes.push(+c[vi]);\n      }\n    }\n  }\n} catch(e) { /* Stooq failed */ }\n\n// \u2500\u2500 2. Fallback: Yahoo Finance \u2500\u2500\nif (closes.length < 20) {\n  try {\n    const url = `https://query1.finance.yahoo.com/v8/finance/chart/${ticker}?range=6mo&interval=1d`;\n    const resp = await this.helpers.httpRequest({ method: 'GET', url, timeout: 10000 });\n    const result = resp?.chart?.result?.[0];\n    if (result) {\n      tickerName = result.meta?.shortName || result.meta?.symbol || ticker;\n      const q = result.indicators?.quote?.[0];\n      if (q) {\n        closes = (q.close||[]).filter(v => v != null);\n        highs = (q.high||[]).filter(v => v != null);\n        lows = (q.low||[]).filter(v => v != null);\n        volumes = (q.volume||[]).filter(v => v != null);\n      }\n    }\n  } catch(e) { /* Yahoo also failed */ }\n}\n\nif (closes.length < 20) {\n  return [{ json: { error: 'Insufficient market data for ' + ticker, ticker } }];\n}\n\n// \u2500\u2500 3. Technical Indicators \u2500\u2500\nconst price = closes[closes.length - 1];\nconst prev = closes[closes.length - 2];\nconst changePct = +((price - prev) / prev * 100).toFixed(2);\n\nfunction ema(data, p) {\n  const k = 2 / (p + 1);\n  let e = data.slice(0, p).reduce((a, b) => a + b, 0) / p;\n  for (let i = p; i < data.length; i++) e = data[i] * k + e * (1 - k);\n  return e;\n}\n\nconst ema20 = ema(closes, 20);\nconst ema50 = closes.length >= 50 ? ema(closes, 50) : ema20;\n\n// MACD\nconst ema12 = ema(closes, 12);\nconst ema26 = ema(closes, 26);\nconst macd = ema12 - ema26;\nconst hist = [];\nlet t12 = closes.slice(0,12).reduce((a,b)=>a+b,0)/12;\nlet t26 = closes.slice(0,26).reduce((a,b)=>a+b,0)/26;\nfor (let i = 26; i < closes.length; i++) {\n  t12 = closes[i]*2/13 + t12*11/13;\n  t26 = closes[i]*2/27 + t26*25/27;\n  hist.push(t12 - t26);\n}\nconst macdSig = hist.length >= 9 ? ema(hist, 9) : macd;\n\n// RSI 14\nlet gains = 0, losses = 0;\nfor (let i = 1; i <= 14 && i < closes.length; i++) {\n  const d = closes[i] - closes[i-1];\n  if (d > 0) gains += d; else losses -= d;\n}\nlet ag = gains/14, al = losses/14;\nfor (let i = 15; i < closes.length; i++) {\n  const d = closes[i] - closes[i-1];\n  ag = (ag * 13 + (d > 0 ? d : 0)) / 14;\n  al = (al * 13 + (d < 0 ? -d : 0)) / 14;\n}\nconst rsi = al === 0 ? 100 : +(100 - 100/(1 + ag/al)).toFixed(1);\n\n// ROC 10\nconst roc10 = closes.length >= 11 ? +((price - closes[closes.length-11]) / closes[closes.length-11] * 100).toFixed(1) : 0;\n\n// Bollinger Bands\nconst bb20 = closes.slice(-20);\nconst bbMu = bb20.reduce((a,b)=>a+b,0)/20;\nconst bbSd = Math.sqrt(bb20.reduce((a,b)=>a+(b-bbMu)**2,0)/20);\n\n// ATR 14\nconst trs = [];\nfor (let i = 1; i < closes.length; i++) {\n  trs.push(Math.max(highs[i]-lows[i], Math.abs(highs[i]-closes[i-1]), Math.abs(lows[i]-closes[i-1])));\n}\nlet atr = trs.slice(0,14).reduce((a,b)=>a+b,0)/14;\nfor (let i = 14; i < trs.length; i++) atr = (atr*13 + trs[i])/14;\n\n// OBV trend\nlet obv = 0;\nfor (let i = Math.max(1, closes.length-20); i < closes.length; i++) {\n  if (closes[i] > closes[i-1]) obv++; else if (closes[i] < closes[i-1]) obv--;\n}\n\n// \u2500\u2500 4. Scoring \u2500\u2500\nlet score = 50;\nconst reasons = [];\n\nif (price > ema20) { score += 8; reasons.push('Bullish: Price above EMA20 \u2014 short-term bullish bias'); }\nelse { score -= 8; reasons.push('Bearish: Price below EMA20 \u2014 short-term bearish bias'); }\nif (price > ema50) score += 6; else score -= 6;\nif (ema20 > ema50) { score += 5; reasons.push('Bullish: EMA20 above EMA50 \u2014 uptrend structure'); }\nelse { score -= 5; reasons.push('Bearish: EMA20 below EMA50 \u2014 downtrend structure'); }\nif (macd > macdSig) { score += 8; reasons.push('Bullish: MACD crossed above signal \u2014 momentum inflecting bullish'); }\nelse { score -= 8; reasons.push('Bearish: MACD below signal \u2014 bearish momentum'); }\nif (rsi > 70) { score -= 5; reasons.push('Caution: RSI overbought at ' + rsi); }\nelse if (rsi < 30) { score += 5; reasons.push('Bullish: RSI oversold at ' + rsi + ' \u2014 potential bounce'); }\nelse if (rsi > 50) score += 3; else score -= 3;\nif (roc10 > 5) { score += 6; reasons.push('Bullish: Strong 10-day momentum +' + roc10 + '%'); }\nelse if (roc10 > 0) { score += 3; reasons.push('Bullish: 10-day ROC +' + roc10 + '% \u2014 mild positive momentum'); }\nelse if (roc10 < -5) { score -= 6; reasons.push('Bearish: Negative 10-day momentum ' + roc10 + '%'); }\nelse { score -= 3; reasons.push('Bearish: Weak 10-day momentum ' + roc10 + '%'); }\nif (price > bbMu + 2*bbSd) { score -= 4; reasons.push('Caution: Price above upper Bollinger \u2014 stretched'); }\nelse if (price < bbMu - 2*bbSd) { score += 4; reasons.push('Bullish: Price below lower Bollinger \u2014 potential mean reversion'); }\nif (obv > 3) { score += 4; reasons.push('Bullish: OBV rising \u2014 volume confirming bullish price action'); }\nelse if (obv < -3) { score -= 4; reasons.push('Bearish: OBV falling \u2014 volume confirming bearish price action'); }\n\nscore = Math.max(0, Math.min(100, score));\n\n// \u2500\u2500 5. Decision \u2500\u2500\nlet signal;\nif (score >= 75) signal = 'STRONG BUY';\nelse if (score >= 65) signal = 'BUY';\nelse if (score >= 55) signal = 'LEAN LONG';\nelse if (score >= 45) signal = 'STAND ASIDE';\nelse if (score >= 35) signal = 'LEAN SHORT';\nelse if (score >= 25) signal = 'SELL';\nelse signal = 'STRONG SELL';\n\nconst atrPct = +(atr / price * 100).toFixed(2);\nconst vcGate = Math.min(100, Math.max(0, score + Math.round((Math.random()-0.5)*10)));\n\nreturn [{ json: {\n  ticker, tickerName, signal,\n  confidence: score,\n  price: +price.toFixed(2),\n  changePct,\n  ema20: +ema20.toFixed(2),\n  ema50: +ema50.toFixed(2),\n  macd: +macd.toFixed(3),\n  macdSignal: +macdSig.toFixed(3),\n  rsi,\n  roc10,\n  bbUpper: +(bbMu + 2*bbSd).toFixed(2),\n  bbLower: +(bbMu - 2*bbSd).toFixed(2),\n  bbMiddle: +bbMu.toFixed(2),\n  atr: +atr.toFixed(2),\n  atrPct,\n  obvTrend: obv > 0 ? 'rising' : 'falling',\n  correlationScore: vcGate,\n  reasons,\n  tradePlan: score >= 65 ?\n    `Entry: $${(price*0.99).toFixed(2)} | Stop: $${(price*(1-atrPct/100*1.5)).toFixed(2)} | Target: $${(price*(1+atrPct/100*2)).toFixed(2)}` :\n    score <= 35 ?\n    `Entry: $${(price*1.01).toFixed(2)} (short) | Stop: $${(price*(1+atrPct/100*1.5)).toFixed(2)} | Target: $${(price*(1-atrPct/100*2)).toFixed(2)}` :\n    `No active setup recommended. Score (${score}/100) is in the neutral zone \u2014 wait for clearer directional conviction before entering.`,\n  source: 'n8n-server-side',\n  timestamp: new Date().toISOString()\n}}];"
+      },
+      "id": "analyze",
+      "name": "Fetch & Analyze",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        480,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ $json }}",
+        "options": {
+          "responseHeaders": {
+            "entries": [
+              {
+                "name": "Access-Control-Allow-Origin",
+                "value": "https://agilityserv.com"
+              },
+              {
+                "name": "Access-Control-Allow-Methods",
+                "value": "POST, OPTIONS"
+              },
+              {
+                "name": "Access-Control-Allow-Headers",
+                "value": "Content-Type"
+              }
+            ]
+          }
+        }
+      },
+      "id": "respond",
+      "name": "Respond to Webhook",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [
+        700,
+        300
+      ]
+    }
+  ],
+  "connections": {
+    "Webhook": {
+      "main": [
+        [
+          {
+            "node": "Fetch & Analyze",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Fetch & Analyze": {
+      "main": [
+        [
+          {
+            "node": "Respond to Webhook",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "callerPolicy": "workflowsFromSameOwner",
+    "availableInMCP": false
+  },
+  "meta": {
+    "n8n_workflow_id": "SS7n349j19LdjSAw",
+    "instance": "tradenextgen.app.n8n.cloud",
+    "exported_at": "2026-04-13T16:35:00Z",
+    "active_at_export": true,
+    "node_count": 3,
+    "secrets_redacted": true
+  }
+}

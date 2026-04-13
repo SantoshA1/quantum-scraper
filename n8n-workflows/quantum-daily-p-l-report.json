@@ -1,0 +1,132 @@
+{
+  "name": "Quantum Daily P&L Report",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "cronExpression",
+              "expression": "0 21 * * 1-5"
+            }
+          ]
+        }
+      },
+      "name": "Schedule Trigger",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        256,
+        304
+      ],
+      "id": "7bbc52d1-8a40-45c8-b165-f7e21d8b3f0f"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Quantum Daily P&L Report v3.1 \u2014 Fix stop-loss check: queries all open orders + OCO legs.1 \u2014 Fix stop-loss check: queries all open orders + OCO legs\n// Pulls Alpaca positions, orders, account data.\n// Outputs TWO message fields:\n//   subscriberMessage \u2014 clean professional (no debug lines)\n//   personalMessage   \u2014 full debug (includes warnings, scanner status)\n\n// Initialize Alpaca keys in this workflow's static data if not set\nconst _pnlState = $getWorkflowStaticData('global');\nif (!_pnlState._alpaca_key) {\n  _pnlState._alpaca_key = 'REDACTED_ALPACA_KEY_ID';\n  _pnlState._alpaca_secret = 'REDACTED_ALPACA_SECRET';\n}\nconst ALPACA_KEY    = _pnlState._alpaca_key;\nconst ALPACA_SECRET = _pnlState._alpaca_secret;\nconst ALPACA_BASE   = 'https://paper-api.alpaca.markets';\nconst NL = String.fromCharCode(10);\n\nconst _self = this;\nasync function alpaca(path) {\n  try {\n    return await _self.helpers.httpRequest({\n      method: 'GET',\n      url: ALPACA_BASE + path,\n      headers: { 'APCA-API-KEY-ID': ALPACA_KEY, 'APCA-API-SECRET-KEY': ALPACA_SECRET },\n      json: true,\n    });\n  } catch (err) {\n    console.log('[P&L] Error: ' + path + ' \u2014 ' + (err.message || err));\n    return null;\n  }\n}\n\n// Fetch data\nconst account   = await alpaca('/v2/account');\nconst positions = await alpaca('/v2/positions') || [];\nconst todayStr  = new Date().toISOString().split('T')[0];\nconst allOrders = await alpaca('/v2/orders?status=all&limit=500&after=' + todayStr + 'T00:00:00Z') || [];\n// v3.1: Fetch ALL open orders (including those from prior days) with nested legs for stop-loss check\n// v3.1: Fetch ALL open orders (including those from prior days) with nested legs for stop-loss check\nconst allOpenOrders = await alpaca('/v2/orders?status=open&limit=500&nested=true') || [];\n// v3.1: Fetch ALL open orders (including those from prior days) with nested legs for stop-loss check\n\n// Date\nconst dateStr = new Date().toLocaleDateString('en-US', {\n  timeZone: 'America/New_York',\n  month: 'long',\n  day: 'numeric',\n  year: 'numeric',\n});\n\nif (!account) {\n  const errMsg = '\\uD83D\\uDCCA <b>QUANTUM DAILY P&amp;L REPORT \\u2014 ' + dateStr + '</b>' + NL + NL + 'Error: Could not connect to Alpaca.';\n  return [{ json: { subscriberMessage: errMsg, personalMessage: errMsg } }];\n}\n\n// Account P&L\nconst equity       = parseFloat(account.equity) || 0;\nconst lastEquity   = parseFloat(account.last_equity) || 0;\nconst totalPnL     = equity - lastEquity;\nconst totalPnLPct  = lastEquity > 0 ? (totalPnL / lastEquity * 100) : 0;\n\n// Unrealized from positions\nlet unrealizedPnL = 0;\nconst posData = [];\nfor (const p of positions) {\n  const upl    = parseFloat(p.unrealized_pl) || 0;\n  const uplPct = (parseFloat(p.unrealized_plpc) || 0) * 100;\n  unrealizedPnL += upl;\n  posData.push({ symbol: p.symbol, uplPct });\n}\n\n// Realized = Total - Unrealized\nconst realizedPnL = totalPnL - unrealizedPnL;\n\n// Signals today \u2014 count unique tickers from filled bracket entry orders\nconst filledEntries = allOrders.filter(o =>\n  o.status === 'filled' && o.type === 'market' &&\n  (o.order_class === 'bracket' || o.order_class === '' || !o.order_class)\n);\nconst buyTickers  = [...new Set(filledEntries.filter(o => o.side === 'buy').map(o => o.symbol))];\nconst sellTickers = [...new Set(filledEntries.filter(o => o.side === 'sell').map(o => o.symbol))];\nconst totalSignals = buyTickers.length + sellTickers.length;\n\n// Top 3 performers\nconst sorted = [...posData].sort((a, b) => b.uplPct - a.uplPct);\nconst top3   = sorted.slice(0, 3).filter(p => p.uplPct > 0);\n\n// Worst performer\nconst worst = sorted.length > 0 ? sorted[sorted.length - 1] : null;\n\n// v3.1: GTC bracket check \u2014 queries ALL open orders (not just today) + checks OCO legs\nlet allBracketed = true;\nconst unprotectedTickers = [];\nfor (const p of positions) {\n  const sym = p.symbol;\n  const side = parseFloat(p.qty) >= 0 ? 'long' : 'short';\n  const exitSide = side === 'long' ? 'sell' : 'buy';\n  \n  let hasStop = false;\n  for (const o of allOpenOrders) {\n    if (o.symbol !== sym) continue;\n    // Check top-level stop orders\n    if (o.side === exitSide && (o.type === 'stop' || o.type === 'stop_limit' || o.type === 'trailing_stop')) {\n      hasStop = true;\n      break;\n    }\n    // Check OCO/bracket legs\n    const legs = o.legs || [];\n    for (const leg of legs) {\n      if (leg.symbol === sym && leg.side === exitSide && (leg.type === 'stop' || leg.type === 'stop_limit')) {\n        hasStop = true;\n        break;\n      }\n    }\n    if (hasStop) break;\n  }\n  \n  if (!hasStop) {\n    allBracketed = false;\n    unprotectedTickers.push(sym);\n  }\n}\n\n// Status\nlet status = 'Healthy';\nlet icon   = '\\u2705';\nif (totalPnL < -500)  { status = 'Under Pressure'; icon = '\\u26A0\\uFE0F'; }\nif (totalPnL < -1000) { status = 'Risk Alert';     icon = '\\uD83D\\uDED1'; }\n\n// Formatters\nfunction fmtD(val) {\n  return (val >= 0 ? '+' : '-') + '$' + Math.abs(val).toFixed(2).replace(/\\B(?=(\\d{3})+(?!\\d))/g, ',');\n}\nfunction fmtP(val) {\n  return (val >= 0 ? '+' : '') + val.toFixed(2) + '%';\n}\n\n// --- Build SHARED core message (used by both channels) ---\nlet core = '\\uD83D\\uDCCA <b>QUANTUM DAILY P&amp;L REPORT \\u2014 ' + dateStr + '</b>' + NL + NL;\n\nif (totalSignals === 0 && positions.length === 0) {\n  core += 'No activity today. No open positions.' + NL;\n  core += 'Status: All clear ' + icon;\n  return [{ json: { subscriberMessage: core, personalMessage: core } }];\n}\n\ncore += 'Total Signals: ' + totalSignals + ' (' + buyTickers.length + ' BUY, ' + sellTickers.length + ' SELL)' + NL;\ncore += 'Realized P&amp;L: ' + fmtD(realizedPnL) + NL;\ncore += 'Unrealized P&amp;L: ' + fmtD(unrealizedPnL) + NL;\ncore += 'Total P&amp;L: ' + fmtD(totalPnL) + ' (' + fmtP(totalPnLPct) + ')' + NL + NL;\ncore += 'Open Positions: ' + positions.length + NL;\n\nif (top3.length > 0) {\n  core += 'Top Performers: ' + top3.map(p => p.symbol + ' ' + fmtP(p.uplPct)).join(', ') + NL;\n}\nif (worst && worst.uplPct < -1) {\n  core += 'Worst: ' + worst.symbol + ' ' + fmtP(worst.uplPct) + NL;\n}\n\ncore += 'Status: ' + status + ' ' + icon + NL;\n\n// --- Subscriber message: clean professional, no debug lines ---\nconst subscriberMessage = core;\n\n// --- Personal message: full debug with scanner status + warnings ---\nlet personal = core;\nconst bracketMsg = allBracketed\n  ? 'All ' + positions.length + ' positions protected with stop-loss orders.'\n  : 'Warning: ' + unprotectedTickers.length + ' position(s) missing stop-loss: ' + unprotectedTickers.join(', ');\npersonal += NL + bracketMsg;\n\nconst personalMessage = personal;\n\nreturn [{ json: { subscriberMessage, personalMessage } }];\n"
+      },
+      "name": "Build P&L Report",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        480,
+        304
+      ],
+      "id": "8f75be86-a171-4e85-b41f-49ad4b474065"
+    },
+    {
+      "parameters": {
+        "chatId": "REDACTED_CHANNEL_ID",
+        "text": "={{ $json.subscriberMessage }}",
+        "additionalFields": {
+          "appendAttribution": false,
+          "parse_mode": "HTML"
+        }
+      },
+      "name": "Send to Channel",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [
+        704,
+        208
+      ],
+      "id": "231c8f56-8e1e-4249-9bf3-c03ef7b6ee85",
+      "webhookId": "75a18dbc-3846-412a-931e-58f5fcdbdabf",
+      "credentials": {
+        "telegramApi": {
+          "id": "GiUsUl7vX5HyzagN",
+          "name": "Telegram account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "chatId": "REDACTED_CHAT_ID",
+        "text": "={{ $json.personalMessage }}",
+        "additionalFields": {
+          "appendAttribution": false,
+          "parse_mode": "HTML"
+        }
+      },
+      "name": "Send to Personal",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [
+        704,
+        400
+      ],
+      "id": "a89d95cd-c925-4fda-bd42-b1db0c917e08",
+      "webhookId": "fe09a2f5-78f9-4219-b410-897fc161ade9",
+      "credentials": {
+        "telegramApi": {
+          "id": "GiUsUl7vX5HyzagN",
+          "name": "Telegram account"
+        }
+      }
+    }
+  ],
+  "connections": {
+    "Schedule Trigger": {
+      "main": [
+        [
+          {
+            "node": "Build P&L Report",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build P&L Report": {
+      "main": [
+        [
+          {
+            "node": "Send to Channel",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Send to Personal",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "saveManualExecutions": true,
+    "callerPolicy": "workflowsFromSameOwner",
+    "availableInMCP": false,
+    "binaryMode": "separate"
+  },
+  "meta": {
+    "n8n_workflow_id": "C7UU7yAs2DgaRhqi",
+    "instance": "tradenextgen.app.n8n.cloud",
+    "exported_at": "2026-04-13T16:35:00Z",
+    "active_at_export": true,
+    "node_count": 4,
+    "secrets_redacted": true
+  }
+}

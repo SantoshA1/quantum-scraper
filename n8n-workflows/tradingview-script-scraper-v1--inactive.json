@@ -1,0 +1,319 @@
+{
+  "name": "TradingView Script Scraper v1",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "hours"
+            }
+          ]
+        }
+      },
+      "id": "ae7c3335-f390-4e77-95a9-06c17196779d",
+      "name": "Schedule Trigger",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        3168,
+        864
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Build list of 40 script URLs to fetch\nconst popularScripts = [{\"title\": \"Breakout Lines + TP/SL\", \"url\": \"https://www.tradingview.com/script/X6Oq0kuQ-Breakout-Lines-TP-SL/\", \"author\": \"Uncle_the_shooter\"}, {\"title\": \"Volume Candle Highlighter\", \"url\": \"https://www.tradingview.com/script/hWX3j9OS-Volume-Candle-Highlighter/\", \"author\": \"Dougie_dee\"}, {\"title\": \"Whale System FINAL EDGE\", \"url\": \"https://www.tradingview.com/script/0r3AyXv0/\", \"author\": \"Jarass1080\"}, {\"title\": \"Educational structure model\", \"url\": \"https://www.tradingview.com/script/uNztgH66-Educational-structure-model-Clever/\", \"author\": \"TheCleverTraders\"}, {\"title\": \"Multi TF Volume Profile\", \"url\": \"https://www.tradingview.com/script/BaUQIMNv-Multi-Timeframe-Volume-Profile-tool-by-OnlyWicks/\", \"author\": \"ZirkChart\"}, {\"title\": \"Adaptive Trend Channel\", \"url\": \"https://www.tradingview.com/script/Yhg7agJ9-Adaptive-Trend-Channel/\", \"author\": \"Julien_Exe\"}, {\"title\": \"Elliott Wave Detector PRO\", \"url\": \"https://www.tradingview.com/script/ll4E7z1x-Elliott-Wave-Detector-PRO-TGTBTB/\", \"author\": \"CryptoForMoney\"}, {\"title\": \"Nexus Structure Detector\", \"url\": \"https://www.tradingview.com/script/NfUKEFCa-Nexus-Structure-Detector-JOAT/\", \"author\": \"officialjackofalltrades\"}, {\"title\": \"Monte Carlo CT\", \"url\": \"https://www.tradingview.com/script/9q1VcIPG-Monte-Carlo-CT-SS/\", \"author\": \"Steversteves\"}, {\"title\": \"NIFTY BREADTH TOP 20\", \"url\": \"https://www.tradingview.com/script/xHZaJPSm-NIFTY-BREADTH-TOP-20-MOVERS/\", \"author\": \"kingshukghosh71\"}, {\"title\": \"Mister Prob x Judas\", \"url\": \"https://www.tradingview.com/script/fRkQzZYS-Mister-Prob-x-Judas/\", \"author\": \"atherholt9178489\"}, {\"title\": \"ORB ASU\", \"url\": \"https://www.tradingview.com/script/2riXJkvc-ORB-ASU/\", \"author\": \"asumanixd\"}, {\"title\": \"Monthly High Low Close\", \"url\": \"https://www.tradingview.com/script/2cG9903c-Monthly-High-Low-Close-Levels/\", \"author\": \"ParkCityGuy\"}, {\"title\": \"AG Pro MACD Drift Filter\", \"url\": \"https://www.tradingview.com/script/JDl35PsE-AG-Pro-MACD-Drift-Filter-AGPro-Series/\", \"author\": \"AGProLabs\"}, {\"title\": \"YUSUF G-Channel Elite V20\", \"url\": \"https://www.tradingview.com/script/7FeCjUBs/\", \"author\": \"erginy604\"}, {\"title\": \"Futures Trading Sessions\", \"url\": \"https://www.tradingview.com/script/w1KQVXkm-Futures-Trading-Sessions-Ranges-v1-0/\", \"author\": \"IAmTheLiquidity2\"}, {\"title\": \"QuantFlow Precision Momentum\", \"url\": \"https://www.tradingview.com/script/mrAEyHeS-QuantFlow-Precision-Momentum-Oscillator/\", \"author\": \"Anonycryptous\"}, {\"title\": \"Multi TF Fractal Map\", \"url\": \"https://www.tradingview.com/script/icfUYGZ5-Multi-Timeframe-Fractal-Map-Herman/\", \"author\": \"helmans13\"}, {\"title\": \"FVG Touch Extension\", \"url\": \"https://www.tradingview.com/script/UPTFWzeR-FVG-Touch-Extension-TAG/\", \"author\": \"TheAlphaGroup\"}, {\"title\": \"The Silver Boss v1.0\", \"url\": \"https://www.tradingview.com/script/uOPEJPdn-The-Silver-Boss-v1-0/\", \"author\": \"Breugem88\"}];\nconst editorsPicks = [{\"title\": \"TASC 2026.04 Synthetic Oscillator\", \"url\": \"https://www.tradingview.com/script/we9AMcvE-TASC-2026-04-A-Synthetic-Oscillator/\", \"author\": \"PineCodersTASC\"}, {\"title\": \"Volume Spread Analysis IQ\", \"url\": \"https://www.tradingview.com/script/9MpC4ifP-Volume-Spread-Analysis-IQ-TradingIQ/\", \"author\": \"Trading-IQ\"}, {\"title\": \"Market Microstructure Analytics\", \"url\": \"https://www.tradingview.com/script/34R4Mh5W-Market-Microstructure-Analytics/\", \"author\": \"EdgeTools\"}, {\"title\": \"Smart Trader Episode 03\", \"url\": \"https://www.tradingview.com/script/BZgubzrI-Smart-Trader-Episode-03-by-Ata-Sabanci-Candles-and-Tradelines/\", \"author\": \"ata_sabanci\"}, {\"title\": \"FVG Profile Rolling POC\", \"url\": \"https://www.tradingview.com/script/axtmVrUD-Fair-Value-Gap-Profile-Rolling-POC-BigBeluga/\", \"author\": \"BigBeluga\"}, {\"title\": \"PineScript Notepad++ UDL\", \"url\": \"https://www.tradingview.com/script/w5tYwibf-PineScript-integration-with-Notepad-UDL/\", \"author\": \"XPEHOPE3\"}, {\"title\": \"ML Pivot Points KNN\", \"url\": \"https://www.tradingview.com/script/PwVoxMSo-Machine-Learning-Pivot-Points-KNN-SS/\", \"author\": \"Steversteves\"}, {\"title\": \"Market Structure Volume Profiles\", \"url\": \"https://www.tradingview.com/script/shy8kACw-Market-Structure-Volume-Profiles-Kioseff-Trading/\", \"author\": \"KioseffTrading\"}, {\"title\": \"Liquidity Thermal Map\", \"url\": \"https://www.tradingview.com/script/G30eUYdH-Liquidity-Thermal-Map-BigBeluga/\", \"author\": \"BigBeluga\"}, {\"title\": \"VIX Curve Pro\", \"url\": \"https://www.tradingview.com/script/DRX2SbYV-VIX-Curve-Pro-Real-Time-Term-Structure-with-Statistics/\", \"author\": \"HenriqueCentieiro\"}, {\"title\": \"Stop Loss Cascades\", \"url\": \"https://www.tradingview.com/script/CJX3k6l2-Stop-Loss-Cascades-Breakouts-Kioseff-Trading/\", \"author\": \"KioseffTrading\"}, {\"title\": \"Swing Profile\", \"url\": \"https://www.tradingview.com/script/gFlv7t7R-Swing-Profile-BigBeluga/\", \"author\": \"BigBeluga\"}, {\"title\": \"Gann o Maticus\", \"url\": \"https://www.tradingview.com/script/UVBy6VlF-MAD-Gann-o-Maticus/\", \"author\": \"djmad\"}, {\"title\": \"Breakout Volume Delta\", \"url\": \"https://www.tradingview.com/script/BsWaPtEz-Breakout-Volume-Delta-Flux-Charts/\", \"author\": \"fluxchart\"}, {\"title\": \"HTF Floating Candles\", \"url\": \"https://www.tradingview.com/script/ykVjs2dW-HTF-Floating-Candles-w-Volume-Footprint-theUltimator5/\", \"author\": \"TheUltimator5\"}, {\"title\": \"Earnings Snapshot\", \"url\": \"https://www.tradingview.com/script/lu0MTsuD-Earnings-Snapshot-Trendoscope/\", \"author\": \"Trendoscope\"}, {\"title\": \"Market Structure Dashboard\", \"url\": \"https://www.tradingview.com/script/vXui7vrm-Market-Structure-Dashboard-Flux-Charts/\", \"author\": \"fluxchart\"}, {\"title\": \"Smart NR2-NR20 Inside Bar\", \"url\": \"https://www.tradingview.com/script/a8pEQinU-Smart-NR2-NR20-and-Inside-Bar-Zeiierman/\", \"author\": \"Zeiierman\"}, {\"title\": \"TASC 2026.03 One Percent A Week\", \"url\": \"https://www.tradingview.com/script/nVECqIQx-TASC-2026-03-One-Percent-A-Week/\", \"author\": \"PineCodersTASC\"}, {\"title\": \"Concentric Candles Cycloids\", \"url\": \"https://www.tradingview.com/script/xZFb6Isb-Smart-Trader-Concentric-Candles-Aristotelian-Cycloids/\", \"author\": \"ata_sabanci\"}];\nconst results = [];\nlet idx = 1;\nfor (const s of popularScripts) {\n  results.push({json: {index: idx++, title: s.title, author: s.author, script_url: s.url, category: 'most_popular'}});\n}\nfor (const s of editorsPicks) {\n  results.push({json: {index: idx++, title: s.title, author: s.author, script_url: s.url, category: 'editors_picks'}});\n}\nreturn results;"
+      },
+      "id": "deaafc7b-52a6-42c2-be59-158cc68be9a0",
+      "name": "Build Script List",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        3424,
+        864
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Parse HTML responses and merge with original metadata\n// Script list embedded here for metadata lookup by position\nconst scriptList = [{\"index\": 1, \"title\": \"Breakout Lines + TP/SL\", \"author\": \"Uncle_the_shooter\", \"url\": \"https://www.tradingview.com/script/X6Oq0kuQ-Breakout-Lines-TP-SL/\", \"category\": \"most_popular\"}, {\"index\": 2, \"title\": \"Volume Candle Highlighter\", \"author\": \"Dougie_dee\", \"url\": \"https://www.tradingview.com/script/hWX3j9OS-Volume-Candle-Highlighter/\", \"category\": \"most_popular\"}, {\"index\": 3, \"title\": \"Whale System FINAL EDGE\", \"author\": \"Jarass1080\", \"url\": \"https://www.tradingview.com/script/0r3AyXv0/\", \"category\": \"most_popular\"}, {\"index\": 4, \"title\": \"Educational structure model\", \"author\": \"TheCleverTraders\", \"url\": \"https://www.tradingview.com/script/uNztgH66-Educational-structure-model-Clever/\", \"category\": \"most_popular\"}, {\"index\": 5, \"title\": \"Multi TF Volume Profile\", \"author\": \"ZirkChart\", \"url\": \"https://www.tradingview.com/script/BaUQIMNv-Multi-Timeframe-Volume-Profile-tool-by-OnlyWicks/\", \"category\": \"most_popular\"}, {\"index\": 6, \"title\": \"Adaptive Trend Channel\", \"author\": \"Julien_Exe\", \"url\": \"https://www.tradingview.com/script/Yhg7agJ9-Adaptive-Trend-Channel/\", \"category\": \"most_popular\"}, {\"index\": 7, \"title\": \"Elliott Wave Detector PRO\", \"author\": \"CryptoForMoney\", \"url\": \"https://www.tradingview.com/script/ll4E7z1x-Elliott-Wave-Detector-PRO-TGTBTB/\", \"category\": \"most_popular\"}, {\"index\": 8, \"title\": \"Nexus Structure Detector\", \"author\": \"officialjackofalltrades\", \"url\": \"https://www.tradingview.com/script/NfUKEFCa-Nexus-Structure-Detector-JOAT/\", \"category\": \"most_popular\"}, {\"index\": 9, \"title\": \"Monte Carlo CT\", \"author\": \"Steversteves\", \"url\": \"https://www.tradingview.com/script/9q1VcIPG-Monte-Carlo-CT-SS/\", \"category\": \"most_popular\"}, {\"index\": 10, \"title\": \"NIFTY BREADTH TOP 20\", \"author\": \"kingshukghosh71\", \"url\": \"https://www.tradingview.com/script/xHZaJPSm-NIFTY-BREADTH-TOP-20-MOVERS/\", \"category\": \"most_popular\"}, {\"index\": 11, \"title\": \"Mister Prob x Judas\", \"author\": \"atherholt9178489\", \"url\": \"https://www.tradingview.com/script/fRkQzZYS-Mister-Prob-x-Judas/\", \"category\": \"most_popular\"}, {\"index\": 12, \"title\": \"ORB ASU\", \"author\": \"asumanixd\", \"url\": \"https://www.tradingview.com/script/2riXJkvc-ORB-ASU/\", \"category\": \"most_popular\"}, {\"index\": 13, \"title\": \"Monthly High Low Close\", \"author\": \"ParkCityGuy\", \"url\": \"https://www.tradingview.com/script/2cG9903c-Monthly-High-Low-Close-Levels/\", \"category\": \"most_popular\"}, {\"index\": 14, \"title\": \"AG Pro MACD Drift Filter\", \"author\": \"AGProLabs\", \"url\": \"https://www.tradingview.com/script/JDl35PsE-AG-Pro-MACD-Drift-Filter-AGPro-Series/\", \"category\": \"most_popular\"}, {\"index\": 15, \"title\": \"YUSUF G-Channel Elite V20\", \"author\": \"erginy604\", \"url\": \"https://www.tradingview.com/script/7FeCjUBs/\", \"category\": \"most_popular\"}, {\"index\": 16, \"title\": \"Futures Trading Sessions\", \"author\": \"IAmTheLiquidity2\", \"url\": \"https://www.tradingview.com/script/w1KQVXkm-Futures-Trading-Sessions-Ranges-v1-0/\", \"category\": \"most_popular\"}, {\"index\": 17, \"title\": \"QuantFlow Precision Momentum\", \"author\": \"Anonycryptous\", \"url\": \"https://www.tradingview.com/script/mrAEyHeS-QuantFlow-Precision-Momentum-Oscillator/\", \"category\": \"most_popular\"}, {\"index\": 18, \"title\": \"Multi TF Fractal Map\", \"author\": \"helmans13\", \"url\": \"https://www.tradingview.com/script/icfUYGZ5-Multi-Timeframe-Fractal-Map-Herman/\", \"category\": \"most_popular\"}, {\"index\": 19, \"title\": \"FVG Touch Extension\", \"author\": \"TheAlphaGroup\", \"url\": \"https://www.tradingview.com/script/UPTFWzeR-FVG-Touch-Extension-TAG/\", \"category\": \"most_popular\"}, {\"index\": 20, \"title\": \"The Silver Boss v1.0\", \"author\": \"Breugem88\", \"url\": \"https://www.tradingview.com/script/uOPEJPdn-The-Silver-Boss-v1-0/\", \"category\": \"most_popular\"}, {\"index\": 21, \"title\": \"TASC 2026.04 Synthetic Oscillator\", \"author\": \"PineCodersTASC\", \"url\": \"https://www.tradingview.com/script/we9AMcvE-TASC-2026-04-A-Synthetic-Oscillator/\", \"category\": \"editors_picks\"}, {\"index\": 22, \"title\": \"Volume Spread Analysis IQ\", \"author\": \"Trading-IQ\", \"url\": \"https://www.tradingview.com/script/9MpC4ifP-Volume-Spread-Analysis-IQ-TradingIQ/\", \"category\": \"editors_picks\"}, {\"index\": 23, \"title\": \"Market Microstructure Analytics\", \"author\": \"EdgeTools\", \"url\": \"https://www.tradingview.com/script/34R4Mh5W-Market-Microstructure-Analytics/\", \"category\": \"editors_picks\"}, {\"index\": 24, \"title\": \"Smart Trader Episode 03\", \"author\": \"ata_sabanci\", \"url\": \"https://www.tradingview.com/script/BZgubzrI-Smart-Trader-Episode-03-by-Ata-Sabanci-Candles-and-Tradelines/\", \"category\": \"editors_picks\"}, {\"index\": 25, \"title\": \"FVG Profile Rolling POC\", \"author\": \"BigBeluga\", \"url\": \"https://www.tradingview.com/script/axtmVrUD-Fair-Value-Gap-Profile-Rolling-POC-BigBeluga/\", \"category\": \"editors_picks\"}, {\"index\": 26, \"title\": \"PineScript Notepad++ UDL\", \"author\": \"XPEHOPE3\", \"url\": \"https://www.tradingview.com/script/w5tYwibf-PineScript-integration-with-Notepad-UDL/\", \"category\": \"editors_picks\"}, {\"index\": 27, \"title\": \"ML Pivot Points KNN\", \"author\": \"Steversteves\", \"url\": \"https://www.tradingview.com/script/PwVoxMSo-Machine-Learning-Pivot-Points-KNN-SS/\", \"category\": \"editors_picks\"}, {\"index\": 28, \"title\": \"Market Structure Volume Profiles\", \"author\": \"KioseffTrading\", \"url\": \"https://www.tradingview.com/script/shy8kACw-Market-Structure-Volume-Profiles-Kioseff-Trading/\", \"category\": \"editors_picks\"}, {\"index\": 29, \"title\": \"Liquidity Thermal Map\", \"author\": \"BigBeluga\", \"url\": \"https://www.tradingview.com/script/G30eUYdH-Liquidity-Thermal-Map-BigBeluga/\", \"category\": \"editors_picks\"}, {\"index\": 30, \"title\": \"VIX Curve Pro\", \"author\": \"HenriqueCentieiro\", \"url\": \"https://www.tradingview.com/script/DRX2SbYV-VIX-Curve-Pro-Real-Time-Term-Structure-with-Statistics/\", \"category\": \"editors_picks\"}, {\"index\": 31, \"title\": \"Stop Loss Cascades\", \"author\": \"KioseffTrading\", \"url\": \"https://www.tradingview.com/script/CJX3k6l2-Stop-Loss-Cascades-Breakouts-Kioseff-Trading/\", \"category\": \"editors_picks\"}, {\"index\": 32, \"title\": \"Swing Profile\", \"author\": \"BigBeluga\", \"url\": \"https://www.tradingview.com/script/gFlv7t7R-Swing-Profile-BigBeluga/\", \"category\": \"editors_picks\"}, {\"index\": 33, \"title\": \"Gann o Maticus\", \"author\": \"djmad\", \"url\": \"https://www.tradingview.com/script/UVBy6VlF-MAD-Gann-o-Maticus/\", \"category\": \"editors_picks\"}, {\"index\": 34, \"title\": \"Breakout Volume Delta\", \"author\": \"fluxchart\", \"url\": \"https://www.tradingview.com/script/BsWaPtEz-Breakout-Volume-Delta-Flux-Charts/\", \"category\": \"editors_picks\"}, {\"index\": 35, \"title\": \"HTF Floating Candles\", \"author\": \"TheUltimator5\", \"url\": \"https://www.tradingview.com/script/ykVjs2dW-HTF-Floating-Candles-w-Volume-Footprint-theUltimator5/\", \"category\": \"editors_picks\"}, {\"index\": 36, \"title\": \"Earnings Snapshot\", \"author\": \"Trendoscope\", \"url\": \"https://www.tradingview.com/script/lu0MTsuD-Earnings-Snapshot-Trendoscope/\", \"category\": \"editors_picks\"}, {\"index\": 37, \"title\": \"Market Structure Dashboard\", \"author\": \"fluxchart\", \"url\": \"https://www.tradingview.com/script/vXui7vrm-Market-Structure-Dashboard-Flux-Charts/\", \"category\": \"editors_picks\"}, {\"index\": 38, \"title\": \"Smart NR2-NR20 Inside Bar\", \"author\": \"Zeiierman\", \"url\": \"https://www.tradingview.com/script/a8pEQinU-Smart-NR2-NR20-and-Inside-Bar-Zeiierman/\", \"category\": \"editors_picks\"}, {\"index\": 39, \"title\": \"TASC 2026.03 One Percent A Week\", \"author\": \"PineCodersTASC\", \"url\": \"https://www.tradingview.com/script/nVECqIQx-TASC-2026-03-One-Percent-A-Week/\", \"category\": \"editors_picks\"}, {\"index\": 40, \"title\": \"Concentric Candles Cycloids\", \"author\": \"ata_sabanci\", \"url\": \"https://www.tradingview.com/script/xZFb6Isb-Smart-Trader-Concentric-Candles-Aristotelian-Cycloids/\", \"category\": \"editors_picks\"}];\n\nconst items = $input.all();\nconst results = [];\n\nfor (let i = 0; i < items.length; i++) {\n  const html = typeof items[i].json === 'string' ? items[i].json : (items[i].json.data || '');\n  const meta = scriptList[i] || {index: i+1, title: 'Unknown', author: 'Unknown', url: '', category: ''};\n  \n  let enrichedTitle = meta.title;\n  let description = '';\n  let pineCode = 'REQUIRES_BROWSER_EXTRACTION';\n  \n  if (typeof html === 'string' && html.length > 100) {\n    const titleMatch = html.match(/<title[^>]*>([^<]+)<\\/title>/i);\n    if (titleMatch) {\n      const clean = titleMatch[1]\n        .replace(/ \u2014 Indicator by .+$/, '')\n        .replace(/ \u2014 Strategy by .+$/, '')\n        .replace(/ \u2014 Library by .+$/, '')\n        .trim();\n      if (clean.length > 3) enrichedTitle = clean;\n    }\n    \n    const descMatch = html.match(/property=\"og:description\"\\s+content=\"([^\"]+)\"/i)\n      || html.match(/name=\"description\"\\s+content=\"([^\"]+)\"/i);\n    if (descMatch) description = descMatch[1];\n    \n    const bodyText = html.replace(/<[^>]+>/g, ' ').replace(/\\s+/g, ' ');\n    const ovIdx = bodyText.indexOf('OVERVIEW');\n    if (ovIdx > -1) {\n      description = bodyText.substring(ovIdx, ovIdx + 1500).trim();\n    }\n    \n    if (bodyText.includes('//@version=')) {\n      const start = bodyText.indexOf('//@version=');\n      let code = bodyText.substring(start, start + 10000);\n      const ends = ['Open-source script', 'Invite-only script', 'Related Scripts', 'Related publications'];\n      for (const m of ends) {\n        const ei = code.indexOf(m);\n        if (ei > 50) code = code.substring(0, ei).trim();\n      }\n      if (code.length > 50) pineCode = code;\n    }\n  } else {\n    description = 'FETCH_ERROR: empty or invalid response';\n  }\n  \n  results.push({\n    json: {\n      index: meta.index,\n      title: enrichedTitle,\n      author: meta.author,\n      description: description.substring(0, 1000),\n      pine_code: pineCode.substring(0, 5000),\n      screenshot_url: meta.url + '#chart-preview',\n      script_url: meta.url,\n      category: meta.category,\n      scraped_at: new Date().toISOString()\n    }\n  });\n}\n\nreturn results;"
+      },
+      "id": "27bf0f4f-74d2-43e0-9029-cbddc859da49",
+      "name": "Parse HTML Results",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        3952,
+        864
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "appendOrUpdate",
+        "documentId": {
+          "__rl": true,
+          "value": "16QmkJdHUptjAxLkVpJ5bghVSKRup3KtjKyaHQtz6BoQ",
+          "mode": "id"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "Sheet1",
+          "mode": "name"
+        },
+        "columns": {
+          "mappingMode": "autoMapInputData",
+          "value": {},
+          "matchingColumns": [
+            "script_url"
+          ],
+          "schema": [
+            {
+              "id": "index",
+              "displayName": "index",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "title",
+              "displayName": "title",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "author",
+              "displayName": "author",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "description",
+              "displayName": "description",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "pine_code",
+              "displayName": "pine_code",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "screenshot_url",
+              "displayName": "screenshot_url",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "script_url",
+              "displayName": "script_url",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "category",
+              "displayName": "category",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "scraped_at",
+              "displayName": "scraped_at",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {}
+      },
+      "id": "461d0452-bbf1-41fb-98d6-12bb9af59d25",
+      "name": "Save to Script Discovery Log",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [
+        4208,
+        768
+      ],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "gT3auKKLeI5MUoOt",
+          "name": "Google Sheets OAuth2 API"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const allItems = $input.all();\nconst validScripts = allItems.filter(item => {\n  const code = item.json.pine_code || '';\n  return code.length > 50 && !code.startsWith('REQUIRES_BROWSER') && !code.startsWith('FETCH_ERROR') && (code.includes('//@version') || code.includes('indicator(') || code.includes('strategy('));\n});\nvalidScripts.sort((a, b) => {\n  const catA = a.json.category === 'editors_picks' ? 0 : 1;\n  const catB = b.json.category === 'editors_picks' ? 0 : 1;\n  if (catA !== catB) return catA - catB;\n  return (b.json.description || '').length - (a.json.description || '').length;\n});\nconst top3 = validScripts.slice(0, 3);\nif (top3.length === 0) {\n  return [{ json: { backtester_status: 'NO_VALID_SCRIPTS_FOUND', message: 'Pine code requires browser extraction. ' + allItems.length + ' scripts cataloged with metadata.', scripts_with_descriptions: allItems.filter(i => (i.json.description || '').length > 50).length, scripts_total: allItems.length, timestamp: new Date().toISOString() } }];\n}\nreturn top3.map((item, idx) => ({ json: { backtester_rank: idx + 1, title: item.json.title, author: item.json.author, pine_code: item.json.pine_code, script_url: item.json.script_url, category: item.json.category, backtest_config: { symbol: 'TSLA', timeframe: '5', initial_capital: 25000 }, queued_at: new Date().toISOString() } }));"
+      },
+      "id": "e1624e76-ad95-4b39-9936-cdf0134245dc",
+      "name": "Feed to Backtester",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        4208,
+        976
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const items = $input.all();\nconsole.log('=== BACKTESTER QUEUE @ ' + new Date().toISOString() + ' ===');\nitems.forEach(item => {\n  const d = item.json;\n  if (d.backtester_status) {\n    console.log('STATUS:', d.backtester_status);\n    console.log('Scripts cataloged:', d.scripts_total, '| With descriptions:', d.scripts_with_descriptions);\n  } else {\n    console.log('#' + d.backtester_rank + ':', d.title, 'by', d.author, '[' + d.category + ']');\n  }\n});\nreturn items;"
+      },
+      "id": "bce69d7e-3690-4ceb-9b72-9a490037690d",
+      "name": "Backtester Log",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        4464,
+        976
+      ]
+    },
+    {
+      "parameters": {
+        "content": "## TradingView Script Scraper v1\n\n**Schedule:** Daily at 2:00 AM ET (6:00 UTC)\n\n**Flow:**\n1. Build Script List \u2192 40 URLs (20 Popular + 20 Editors' Picks)\n2. Fetch Script Pages \u2192 HTTP Request, batch=1, 500ms delay\n3. Parse HTML Results \u2192 Extract title, author, description\n4. Save to Google Sheets \u2192 Upsert (dedup by script_url)\n5. Feed Top 3 to Backtester (parallel branch)\n\n**Deduplication:** Uses appendOrUpdate with script_url as the matching key.\nExisting scripts get updated; new scripts get appended. No duplicates.",
+        "height": 480,
+        "width": 520,
+        "color": 3
+      },
+      "id": "6c735f4b-e748-4421-893c-ac3e78169433",
+      "name": "Setup Notes",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        2736,
+        704
+      ]
+    },
+    {
+      "parameters": {
+        "workflowId": {
+          "__rl": true,
+          "value": "MWQd7v57XBAfZXhS",
+          "mode": "list",
+          "cachedResultUrl": "/workflow/MWQd7v57XBAfZXhS",
+          "cachedResultName": "Hybrid Discovery Engine v1 (LLM-based)"
+        },
+        "workflowInputs": {
+          "mappingMode": "defineBelow",
+          "value": {},
+          "matchingColumns": [],
+          "schema": [],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": true
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.3,
+      "position": [
+        3936,
+        1152
+      ],
+      "id": "ecc1f4a7-74b2-4414-8490-fdbb8ffc521e",
+      "name": "Call Discovery Engine"
+    }
+  ],
+  "connections": {
+    "Schedule Trigger": {
+      "main": [
+        [
+          {
+            "node": "Build Script List",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build Script List": {
+      "main": [
+        [
+          {
+            "node": "Parse HTML Results",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parse HTML Results": {
+      "main": [
+        [
+          {
+            "node": "Save to Script Discovery Log",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Feed to Backtester",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Call Discovery Engine",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Feed to Backtester": {
+      "main": [
+        [
+          {
+            "node": "Backtester Log",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate"
+  },
+  "meta": {
+    "n8n_workflow_id": "zAwugbKrJHg1ofiU",
+    "instance": "tradenextgen.app.n8n.cloud",
+    "exported_at": "2026-04-13T16:35:00Z",
+    "active_at_export": false,
+    "node_count": 8,
+    "secrets_redacted": true
+  }
+}

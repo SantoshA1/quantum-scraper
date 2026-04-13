@@ -1,0 +1,141 @@
+{
+  "name": "Dead-Man's Switch \u2014 Broad Scanner Monitor",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "triggerAtHour": 14,
+              "triggerAtMinute": 15
+            }
+          ]
+        }
+      },
+      "name": "10:15 AM ET Check",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        0,
+        0
+      ],
+      "id": "c9f15999-dc52-4f2b-a5a1-d66054c9fb0a"
+    },
+    {
+      "parameters": {
+        "jsCode": "const NL = String.fromCharCode(10);\nconst N8N_KEY = 'REDACTED_JWT_TOKEN';\nconst BROAD_SCANNER_ID = '975pZZEtxeUbzI22';\n\nconst today = new Date().toISOString().substring(0, 10);\n\n// Fetch recent Broad Scanner executions\nconst resp = await this.helpers.httpRequest({\n  method: 'GET',\n  url: 'https://tradenextgen.app.n8n.cloud/api/v1/executions?workflowId=' + BROAD_SCANNER_ID + '&limit=20',\n  headers: { 'X-N8N-API-KEY': N8N_KEY },\n  json: true\n});\n\nlet successToday = 0;\nlet errorsToday = 0;\nlet lastSuccess = 'never';\n\nfor (const e of (resp.data || [])) {\n  if (!e.startedAt || !e.startedAt.startsWith(today)) continue;\n  if (e.status === 'success') {\n    successToday++;\n    if (lastSuccess === 'never') lastSuccess = e.startedAt.substring(11, 19) + ' UTC';\n  } else {\n    errorsToday++;\n  }\n}\n\nconst healthy = successToday >= 3;\n\nif (healthy) {\n  // Silent success \u2014 do nothing\n  return [];\n}\n\n// ALERT \u2014 scanner is down\nconst lines = [\n  String.fromCharCode(128680) + ' <b>QUANTUM DEAD-MAN ALERT</b>',\n  '',\n  'Broad Scanner (Real-Time Agent) has <b>NOT</b> successfully evaluated any tickers since market open.',\n  '',\n  'Successes today: ' + successToday,\n  'Errors today: ' + errorsToday,\n  'Last successful run: ' + lastSuccess,\n  '',\n  '<i>Check n8n immediately.</i>'\n];\n\nreturn [{ json: { message: lines.join(NL) } }];"
+      },
+      "name": "Check Agent Health",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        256,
+        0
+      ],
+      "id": "f0d23054-8f4a-4438-969b-7a907ff1098b"
+    },
+    {
+      "parameters": {
+        "chatId": "REDACTED_CHAT_ID",
+        "text": "={{ $json.message }}",
+        "additionalFields": {
+          "parse_mode": "HTML"
+        }
+      },
+      "name": "Send Telegram Alert",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [
+        512,
+        0
+      ],
+      "id": "cd145747-44b9-49d2-b953-7d8787f2d0e1",
+      "webhookId": "b3e695ca-f224-4f3f-8458-c4e0ecb10f26",
+      "credentials": {
+        "telegramApi": {
+          "id": "GiUsUl7vX5HyzagN",
+          "name": "Telegram account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "content": "## Dead-Man's Switch\n\nRuns at 10:15 AM ET daily.\nMonitors: Broad Scanner (975pZZEtxeUbzI22)\nSilent if healthy (3+ successful runs).\nAlerts Telegram if scanner is down."
+      },
+      "name": "Switch Notes",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        -208,
+        -208
+      ],
+      "id": "def9690b-91ae-472b-94d7-488e6f3bbb9f"
+    },
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "dead-mans-switch-test",
+        "options": {}
+      },
+      "name": "Manual Test",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        0,
+        208
+      ],
+      "webhookId": "dead-mans-switch-test",
+      "id": "7e976f03-28b6-4f4e-82e4-898b525deb67"
+    }
+  ],
+  "connections": {
+    "10:15 AM ET Check": {
+      "main": [
+        [
+          {
+            "node": "Check Agent Health",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Check Agent Health": {
+      "main": [
+        [
+          {
+            "node": "Send Telegram Alert",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Manual Test": {
+      "main": [
+        [
+          {
+            "node": "Check Agent Health",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "callerPolicy": "workflowsFromSameOwner",
+    "availableInMCP": false,
+    "executionOrder": "v1",
+    "binaryMode": "separate",
+    "saveManualExecutions": true
+  },
+  "meta": {
+    "n8n_workflow_id": "uqv5Qs4vcb78EbM3",
+    "instance": "tradenextgen.app.n8n.cloud",
+    "exported_at": "2026-04-13T16:35:00Z",
+    "active_at_export": true,
+    "node_count": 5,
+    "secrets_redacted": true
+  }
+}

@@ -1,0 +1,112 @@
+{
+  "name": "Broad Scanner (Real-Time Agent)",
+  "nodes": [
+    {
+      "name": "Every 5 Minutes",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        0,
+        0
+      ],
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "minutes",
+              "minutesInterval": 5
+            }
+          ]
+        }
+      },
+      "id": "dc5449ea-5623-4282-8f13-bdca2efb4765"
+    },
+    {
+      "name": "Scan All Tickers",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        250,
+        0
+      ],
+      "parameters": {
+        "jsCode": "const ALPACA_KEY = 'REDACTED_ALPACA_KEY_ID';\nconst ALPACA_SECRET = 'REDACTED_ALPACA_SECRET';\nconst SHEET_ID = '1gMSYFW6ZsJpIkyXQQZOxczfr1ryLC3pb1TI3C_-2v-E';\nconst state = $getWorkflowStaticData('global');\nif (!state.signalsSent) state.signalsSent = {};\nif (!state.lastDate) state.lastDate = '';\nif (!state.scanCount) state.scanCount = 0;\n\nconst MOMENTUM_THRESHOLD = 1.0;\nconst VOLUME_MIN = 0.3;\nconst MIN_RR = 2.0;\nconst PROFILE_IMBALANCE = 1.8;\n\nconst now = new Date();\nconst etHour = parseInt(now.toLocaleTimeString('en-US',{timeZone:'America/New_York',hour12:false,hour:'2-digit'}));\nconst etMin = parseInt(now.toLocaleTimeString('en-US',{timeZone:'America/New_York',hour12:false,minute:'2-digit'}));\nconst today = now.toLocaleDateString('en-US',{timeZone:'America/New_York'});\n\nif (state.lastDate !== today) { state.signalsSent = {}; state.lastDate = today; state.scanCount = 0; }\n\nconst inSession = (etHour > 9 || (etHour === 9 && etMin >= 45)) && (etHour < 15 || (etHour === 15 && etMin <= 45));\nif (!inSession) return [];\n\nstate.scanCount++;\n\n// Step 1: Load tickers from Google Sheet\nconst sheetUrl = 'https://sheets.googleapis.com/v4/spreadsheets/' + SHEET_ID + '/values/Sheet1!A:A?key=AIzaSyBxxxxxxxxxxx';\nlet tickers = [];\ntry {\n  // Use Alpaca-compatible ticker list \u2014 read from sheet via public CSV export\n  const csvUrl = 'https://docs.google.com/spreadsheets/d/' + SHEET_ID + '/export?format=csv&gid=0';\n  const csvResp = await this.helpers.httpRequest({ method: 'GET', url: csvUrl, encoding: 'utf-8' });\n  const lines = (typeof csvResp === 'string' ? csvResp : '').split(String.fromCharCode(10));\n  for (const line of lines) {\n    const t = line.trim().replace(/\"/g, '').replace(/\\r/g, '');\n    if (t && t.length > 0 && t.length <= 6 && /^[A-Z]+$/.test(t)) {\n      tickers.push(t);\n    }\n  }\n} catch(e) {\n  // Fallback to hardcoded core tickers\n  tickers = ['TSLA','NVDA','AMD','GILD','MSFT','SPY','QQQ','NBIS','CRWV','META','AAPL','GOOGL','AMZN','PLTR','ARM','AVGO','SMCI','APP'];\n}\n\nif (tickers.length === 0) return [];\n\n// Step 2: Fetch snapshots in batches of 100\nconst allSnapshots = {};\nconst batchSize = 100;\nfor (let i = 0; i < tickers.length; i += batchSize) {\n  const batch = tickers.slice(i, i + batchSize);\n  const snapUrl = 'https://data.alpaca.markets/v2/stocks/snapshots?symbols=' + batch.join(',') + '&feed=iex';\n  try {\n    const resp = await this.helpers.httpRequest({\n      method: 'GET', url: snapUrl,\n      headers: { 'APCA-API-KEY-ID': ALPACA_KEY, 'APCA-API-SECRET-KEY': ALPACA_SECRET },\n      json: true\n    });\n    Object.assign(allSnapshots, resp);\n  } catch(e) {}\n}\n\n// Get SPY/QQQ for context\nconst spySnap = allSnapshots['SPY'];\nconst qqqSnap = allSnapshots['QQQ'];\nlet spyChange = 0, qqqChange = 0;\ntry { spyChange = (spySnap.latestTrade.p - spySnap.prevDailyBar.c) / spySnap.prevDailyBar.c * 100; } catch(e) {}\ntry { qqqChange = (qqqSnap.latestTrade.p - qqqSnap.prevDailyBar.c) / qqqSnap.prevDailyBar.c * 100; } catch(e) {}\nconst vix = Math.abs(spyChange) > 2 ? 30 : Math.abs(spyChange) > 1 ? 27 : 24;\n\nconst signals = [];\n\nfor (const ticker of tickers) {\n  if (state.signalsSent[ticker]) continue;\n  const snap = allSnapshots[ticker];\n  if (!snap || !snap.latestTrade || !snap.dailyBar || !snap.prevDailyBar) continue;\n\n  const price = snap.latestTrade.p;\n  const prevClose = snap.prevDailyBar.c;\n  const dayHigh = snap.dailyBar.h;\n  const dayLow = snap.dailyBar.l;\n  const volume = snap.dailyBar.v;\n  const prevVol = snap.prevDailyBar.v;\n\n  const changePct = (price - prevClose) / prevClose * 100;\n  const volRatio = prevVol > 0 ? volume / prevVol : 0;\n  const atr = Math.max(dayHigh - dayLow, price * 0.005);\n\n  let signal = null, reason = '';\n\n  if (changePct <= -MOMENTUM_THRESHOLD && volRatio >= VOLUME_MIN) {\n    signal = 'SELL';\n    reason = 'MOMENTUM SHORT: ' + changePct.toFixed(1) + '% | vol ' + volRatio.toFixed(1) + 'x';\n  } else if (changePct >= MOMENTUM_THRESHOLD && volRatio >= VOLUME_MIN && vix < 30) {\n    signal = 'BUY';\n    reason = 'MOMENTUM LONG: +' + changePct.toFixed(1) + '% | vol ' + volRatio.toFixed(1) + 'x';\n  } else if (volRatio >= PROFILE_IMBALANCE && changePct < -0.8) {\n    signal = 'SELL';\n    reason = 'STRUCTURE BREAK: vol ' + volRatio.toFixed(1) + 'x | ' + changePct.toFixed(1) + '%';\n  }\n\n  if (!signal) continue;\n\n  const vixSM = vix >= 30 ? 1.5 : vix >= 25 ? 1.3 : vix >= 18 ? 1.15 : 1.0;\n  const slDist = atr * 1.5 * vixSM;\n  const tpDist = Math.max(atr * 3.0, slDist * MIN_RR);\n  if (tpDist / slDist < MIN_RR) continue;\n  const rr = (tpDist / slDist).toFixed(1);\n  const conf = Math.min(100, Math.round(Math.abs(changePct) * 25 + volRatio * 15));\n  if (conf < 30) continue;\n\n  const stopP = signal === 'SELL' ? (price + slDist).toFixed(2) : (price - slDist).toFixed(2);\n  const targP = signal === 'SELL' ? (price - tpDist).toFixed(2) : (price + tpDist).toFixed(2);\n  const vixSize = vix >= 30 ? '0.3' : vix >= 25 ? '0.5' : vix >= 18 ? '0.7' : '1.0';\n\n  state.signalsSent[ticker] = { signal, price, time: now.toISOString() };\n\n  signals.push({ json: {\n    ticker, price: price.toFixed(2), execution: signal,\n    signal: signal === 'SELL' ? 'BEARISH' : 'BULLISH',\n    bias_score: conf.toString(), regime: Math.abs(changePct) > 2 ? 'TRENDING' : 'NEUTRAL',\n    adx: '25', rsi: '50', macd_hist: '0', atr: atr.toFixed(2),\n    volume_ratio: volRatio.toFixed(2), vix: vix.toString(), timeframe: '5',\n    alert_type: 'BROAD_SCANNER',\n    spy_price: (spySnap?.latestTrade?.p || 0).toFixed(2),\n    spy_change_pct: spyChange.toFixed(2),\n    spy_status: spyChange < -0.5 ? 'WEAK' : spyChange > 0.5 ? 'HEALTHY' : 'NEUTRAL',\n    qqq_price: '', qqq_change_pct: qqqChange.toFixed(2),\n    qqq_status: qqqChange < -0.5 ? 'WEAK' : 'NEUTRAL',\n    xly_status: 'N/A', cross_asset_status: spyChange < -1 ? 'WEAKENING' : 'NEUTRAL',\n    tv_recommendation: 'N/A', sma50: '0', ema200: '0', sma200: 'N/A',\n    bb_upper: '0', bb_lower: '0', stoch_k: '0', stoch_d: '0',\n    cci: '0', momentum: '0', pivot_classic: '0', psar: '0',\n    daily_trend: changePct < -1 ? 'BEAR' : changePct > 1 ? 'BULL' : 'MIXED',\n    bull_score: signal === 'BUY' ? conf.toString() : '0',\n    bear_score: signal === 'SELL' ? conf.toString() : '0',\n    comment: 'BROAD SCANNER v1: ' + reason + ' | R:R=' + rr + ' | Stop=$' + stopP + ' | Target=$' + targP + ' | Scan #' + state.scanCount + ' (' + tickers.length + ' tickers)',\n    strat_net_pct: '0', strat_win_rate: '0', strat_wins: '0', strat_losses: '0',\n    strat_profit_factor: '0', strat_max_dd: '0', strat_avg_trade: '0', strat_total_trades: '0',\n    daily_dd_pct: '0', daily_dd_halt: 'false', weekly_dd_pct: '0',\n    vix_size_mult: vixSize, eff_position_size: '5', vix_stop_mult: vixSM.toString(),\n    momentum_engine: 'true', momentum_type: 'broad_scanner',\n    gap_pct: changePct.toFixed(2), momentum_rr: rr\n  }});\n}\n\nreturn signals;"
+      },
+      "id": "5d85a6fc-17f3-479f-8ee5-8c454599a5ba"
+    },
+    {
+      "name": "Push to Pipeline",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        500,
+        0
+      ],
+      "parameters": {
+        "method": "POST",
+        "url": "https://tradenextgen.app.n8n.cloud/webhook/tradingview-signal",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify($json) }}",
+        "options": {
+          "batching": {
+            "batch": {
+              "batchSize": 1,
+              "batchInterval": 2000
+            }
+          }
+        }
+      },
+      "id": "291e8d73-cfa9-4cbf-8af7-39f20e8d5ce0"
+    },
+    {
+      "name": "Scanner Notes",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        -200,
+        -200
+      ],
+      "parameters": {
+        "content": "## Broad Scanner (Real-Time Agent)\n\nLoads 100+ tickers from Google Sheet:\nhttps://docs.google.com/spreadsheets/d/1gMSYFW6ZsJpIkyXQQZOxczfr1ryLC3pb1TI3C_-2v-E\n\nRuns every 5 min during market hours (9:45-3:45 ET).\nBatches Alpaca snapshots in groups of 100.\nMax 1 signal per ticker per day.\nPushes to AI Super Score pipeline via webhook.\n\nSignal types:\n- MOMENTUM SHORT: -1%+ with volume\n- MOMENTUM LONG: +1%+ with volume (VIX<30)\n- STRUCTURE BREAK: 1.8x+ volume with -0.8%+"
+      },
+      "id": "86ba7675-58f3-49ae-bd77-c05d332cf49b"
+    }
+  ],
+  "connections": {
+    "Every 5 Minutes": {
+      "main": [
+        [
+          {
+            "node": "Scan All Tickers",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Scan All Tickers": {
+      "main": [
+        [
+          {
+            "node": "Push to Pipeline",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "callerPolicy": "workflowsFromSameOwner",
+    "availableInMCP": false
+  },
+  "meta": {
+    "n8n_workflow_id": "34CmWbVKCjDlSuM0",
+    "instance": "tradenextgen.app.n8n.cloud",
+    "exported_at": "2026-04-13T16:35:00Z",
+    "active_at_export": false,
+    "node_count": 4,
+    "secrets_redacted": true
+  }
+}

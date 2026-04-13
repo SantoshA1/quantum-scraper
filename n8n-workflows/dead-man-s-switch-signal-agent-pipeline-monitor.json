@@ -1,0 +1,114 @@
+{
+  "name": "Dead-Man's Switch \u2014 Signal Agent & Pipeline Monitor",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "triggerAtHour": 14,
+              "triggerAtMinute": 15
+            }
+          ]
+        }
+      },
+      "name": "10:15 AM ET Check",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        0,
+        0
+      ],
+      "id": "ea1a82f4-2ead-4752-b2b7-fb200ac63525"
+    },
+    {
+      "parameters": {
+        "jsCode": "const NL = String.fromCharCode(10);\nconst N8N_KEY = 'REDACTED_JWT_TOKEN';\nconst SIGNAL_AGENT_ID = 'qq1mZLLsuUtot0ID';\nconst SUPER_SCORE_ID = 'vaqfCaELhOEWnkdo';\n\nconst today = new Date().toISOString().substring(0, 10);\n\n// Fetch recent Signal Agent executions\nconst saResp = await this.helpers.httpRequest({\n  method: 'GET',\n  url: 'https://tradenextgen.app.n8n.cloud/api/v1/executions?workflowId=' + SIGNAL_AGENT_ID + '&limit=20',\n  headers: { 'X-N8N-API-KEY': N8N_KEY },\n  json: true\n});\n\nlet saSuccessToday = 0;\nlet saErrorsToday = 0;\nlet saSignalsFound = 0;\nlet saLastSuccess = 'never';\n\nfor (const e of (saResp.data || [])) {\n  if (!e.startedAt || !e.startedAt.startsWith(today)) continue;\n  if (e.status === 'success') {\n    saSuccessToday++;\n    if (saLastSuccess === 'never') saLastSuccess = e.startedAt.substring(11, 16) + ' UTC';\n  } else {\n    saErrorsToday++;\n  }\n}\n\n// Fetch recent AI Super Score executions\nconst ssResp = await this.helpers.httpRequest({\n  method: 'GET',\n  url: 'https://tradenextgen.app.n8n.cloud/api/v1/executions?workflowId=' + SUPER_SCORE_ID + '&limit=20',\n  headers: { 'X-N8N-API-KEY': N8N_KEY },\n  json: true\n});\n\nlet ssToday = 0;\nlet ssFullRoute = 0;\n\nfor (const e of (ssResp.data || [])) {\n  if (!e.startedAt || !e.startedAt.startsWith(today)) continue;\n  ssToday++;\n}\n\n// Check Railway scraper health\nlet railwayOk = false;\nlet railwayStatus = 'unknown';\ntry {\n  const rResp = await this.helpers.httpRequest({\n    method: 'GET',\n    url: 'https://quantum-scraper-production.up.railway.app/health',\n    json: true,\n    timeout: 10000\n  });\n  railwayOk = rResp.status === 'ok';\n  railwayStatus = rResp.lastStatus || 'idle';\n} catch(e) {\n  railwayStatus = 'unreachable';\n}\n\n// Determine health\nconst agentHealthy = saSuccessToday >= 3 && saErrorsToday < saSuccessToday;\nconst pipelineHealthy = ssToday > 0;\nconst allHealthy = agentHealthy && pipelineHealthy && railwayOk;\n\nconst lines = [];\nif (allHealthy) {\n  lines.push('<b>' + String.fromCharCode(9989) + ' Quantum Morning Health \u2014 All Systems GO</b>');\n  lines.push('');\n  lines.push('Signal Agent: ' + saSuccessToday + ' successful runs, ' + saErrorsToday + ' errors');\n  lines.push('AI Super Score: ' + ssToday + ' executions received');\n  lines.push('Railway Scraper: ' + railwayStatus);\n  lines.push('');\n  lines.push('<i>All systems operational. Monitoring active.</i>');\n} else {\n  lines.push('<b>' + String.fromCharCode(9888) + String.fromCharCode(65039) + ' QUANTUM ALERT \u2014 System Issue Detected</b>');\n  lines.push('');\n  if (!agentHealthy) {\n    lines.push(String.fromCharCode(128308) + ' <b>Signal Agent DOWN</b>');\n    lines.push('  Successes today: ' + saSuccessToday);\n    lines.push('  Errors today: ' + saErrorsToday);\n    lines.push('  Last success: ' + saLastSuccess);\n    if (saErrorsToday > 0 && saSuccessToday === 0) {\n      lines.push('  <b>Agent has not evaluated any tickers since market open!</b>');\n    }\n    lines.push('');\n  }\n  if (!pipelineHealthy) {\n    lines.push(String.fromCharCode(128308) + ' <b>AI Super Score Pipeline: 0 executions today</b>');\n    lines.push('');\n  }\n  if (!railwayOk) {\n    lines.push(String.fromCharCode(128308) + ' <b>Railway Scraper: ' + railwayStatus + '</b>');\n    lines.push('');\n  }\n  lines.push('<i>Check n8n immediately: https://tradenextgen.app.n8n.cloud</i>');\n}\n\nreturn [{ json: {\n  message: lines.join(NL),\n  healthy: allHealthy,\n  agent_successes: saSuccessToday,\n  agent_errors: saErrorsToday,\n  pipeline_runs: ssToday,\n  railway_ok: railwayOk\n}}];"
+      },
+      "name": "Check Agent Health",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        256,
+        0
+      ],
+      "id": "74fccc13-9579-4085-9a92-deaf01e20d59"
+    },
+    {
+      "parameters": {
+        "chatId": "REDACTED_CHAT_ID",
+        "text": "={{ $json.message }}",
+        "additionalFields": {
+          "parse_mode": "HTML"
+        }
+      },
+      "name": "Send Telegram Alert",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [
+        512,
+        0
+      ],
+      "id": "c52d84c5-f6e6-459c-9769-c47c76602aec",
+      "webhookId": "f2e2606b-e142-4992-819d-2d812cc05ff8",
+      "credentials": {
+        "telegramApi": {
+          "id": "GiUsUl7vX5HyzagN",
+          "name": "Telegram account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "content": "## Dead-Man's Switch\n\nRuns at 10:15 AM ET daily.\nChecks if Signal Agent is healthy.\nSends Telegram alert if anything is wrong.\n\nAlso confirms all-green when healthy."
+      },
+      "name": "Switch Notes",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        -208,
+        -208
+      ],
+      "id": "3e5bb83b-f3a7-498c-ad73-5aedcd099c97"
+    }
+  ],
+  "connections": {
+    "10:15 AM ET Check": {
+      "main": [
+        [
+          {
+            "node": "Check Agent Health",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Check Agent Health": {
+      "main": [
+        [
+          {
+            "node": "Send Telegram Alert",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "callerPolicy": "workflowsFromSameOwner",
+    "availableInMCP": false,
+    "executionOrder": "v1",
+    "binaryMode": "separate",
+    "saveManualExecutions": true
+  },
+  "meta": {
+    "n8n_workflow_id": "gmoB1UWSGCkm0xah",
+    "instance": "tradenextgen.app.n8n.cloud",
+    "exported_at": "2026-04-13T16:35:00Z",
+    "active_at_export": true,
+    "node_count": 4,
+    "secrets_redacted": true
+  }
+}

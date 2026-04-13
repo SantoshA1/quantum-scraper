@@ -1,0 +1,101 @@
+{
+  "name": "Quantum Daily Summary Report",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "triggerAtHour": 9,
+              "triggerAtMinute": 30
+            }
+          ]
+        }
+      },
+      "name": "9:30 AM Weekdays",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        0,
+        0
+      ],
+      "id": "946445ce-c4c8-4fd4-8c2c-8730f078ce5a"
+    },
+    {
+      "parameters": {
+        "jsCode": "const NL = String.fromCharCode(10);\n\n// \u2500\u2500 Credentials (hardcoded \u2014 workflow static data was not set) \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\nconst N8N_KEY       = 'REDACTED_JWT_TOKEN';\nconst BROAD_SCANNER_ID = '975pZZEtxeUbzI22';\nconst ALPACA_KEY    = 'REDACTED_ALPACA_KEY_ID';\nconst ALPACA_SECRET = 'REDACTED_ALPACA_SECRET';\n\n// \u2500\u2500 Dates \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\nconst today     = new Date();\nconst dateStr   = today.toLocaleDateString('en-US', {\n  timeZone: 'America/New_York', month: 'long', day: 'numeric', year: 'numeric'\n});\nconst todayISO    = today.toISOString().substring(0, 10);\nconst yesterday   = new Date(today.getTime() - 86400000).toISOString().substring(0, 10);\nconst afterTS     = yesterday + 'T00:00:00Z';\n\n// \u2500\u2500 1. Fetch yesterday Broad Scanner executions (no status filter \u2014 filter in code) \u2500\u2500\nlet successRuns = 0, errorRuns = 0;\ntry {\n  const resp = await this.helpers.httpRequest({\n    method: 'GET',\n    url:  'https://tradenextgen.app.n8n.cloud/api/v1/executions',\n    qs:   { workflowId: BROAD_SCANNER_ID, limit: 200 },\n    headers: { 'X-N8N-API-KEY': N8N_KEY },\n    json: true,\n  });\n  for (const e of (resp.data || [])) {\n    const d = (e.startedAt || '').substring(0, 10);\n    if (d !== yesterday) continue;\n    if (e.status === 'success') successRuns++;\n    else if (e.status === 'error') errorRuns++;\n  }\n} catch (e) {\n  console.log('[BUILD REPORT] n8n API error:', e.message);\n}\n\n// \u2500\u2500 2. Fetch Alpaca snapshots for pre-market movers \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\nconst tickers = ['TSLA','NVDA','AMD','GILD','MSFT','SPY','QQQ','NBIS','CRWV',\n                 'META','AAPL','GOOGL','PLTR','AVGO','ARM','SMCI','APP','AMZN','NFLX','UBER'];\nlet movers = [], totalSignals = 0, buyCount = 0, sellCount = 0;\n\ntry {\n  const snaps = await this.helpers.httpRequest({\n    method: 'GET',\n    url:  'https://data.alpaca.markets/v2/stocks/snapshots',\n    qs:   { symbols: tickers.join(','), feed: 'sip' },\n    headers: { 'APCA-API-KEY-ID': ALPACA_KEY, 'APCA-API-SECRET-KEY': ALPACA_SECRET },\n    json: true,\n  });\n  for (const [ticker, snap] of Object.entries(snaps || {})) {\n    if (!snap || !snap.latestTrade || !snap.prevDailyBar) continue;\n    const changePct = (snap.latestTrade.p - snap.prevDailyBar.c) / snap.prevDailyBar.c * 100;\n    movers.push({ ticker, changePct });\n    if (Math.abs(changePct) >= 0.7) {\n      totalSignals++;\n      changePct < 0 ? sellCount++ : buyCount++;\n    }\n  }\n  movers.sort((a, b) => Math.abs(b.changePct) - Math.abs(a.changePct));\n} catch (e) {\n  console.log('[BUILD REPORT] Alpaca snapshot error:', e.message);\n}\n\nconst top3 = movers.slice(0, 3)\n  .map(m => m.ticker + ' ' + (m.changePct >= 0 ? '+' : '') + m.changePct.toFixed(1) + '%')\n  .join(', ');\n\n// \u2500\u2500 3. Build message \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\nconst healthy    = successRuns > 0;\nconst statusIcon = healthy ? String.fromCharCode(9989) : String.fromCharCode(9888);\nconst statusText = healthy ? 'Healthy ' + statusIcon : 'Issues detected ' + statusIcon;\n\nconst lines = [\n  String.fromCharCode(128202) + ' <b>QUANTUM DAILY SUMMARY</b> ' + String.fromCharCode(8212) + ' ' + dateStr,\n  '',\n  '<b>Scanned:</b> 103 tickers',\n  '<b>Signals generated:</b> ' + totalSignals + ' (' + sellCount + ' SELL, ' + buyCount + ' BUY)',\n  '<b>Top movers:</b> ' + (top3 || 'Market not open yet'),\n  '',\n  '<b>Status:</b> ' + statusText,\n  'Broad Scanner ran ' + successRuns + ' times yesterday (' + errorRuns + ' errors)',\n];\n\nreturn [{ json: { message: lines.join(NL) } }];\n"
+      },
+      "name": "Build Report",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        256,
+        0
+      ],
+      "id": "514c0dea-a013-4691-a5b0-10af146edcdd"
+    },
+    {
+      "parameters": {
+        "chatId": "REDACTED_CHAT_ID",
+        "text": "={{ $json.message }}",
+        "additionalFields": {
+          "parse_mode": "HTML"
+        }
+      },
+      "name": "Send to Telegram",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [
+        512,
+        0
+      ],
+      "id": "70bf608f-7744-45d4-a1df-de7c9c1121f7",
+      "webhookId": "6db620a6-0539-4356-bdb0-b7a404ba6385",
+      "credentials": {
+        "telegramApi": {
+          "id": "GiUsUl7vX5HyzagN",
+          "name": "Telegram account"
+        }
+      }
+    }
+  ],
+  "connections": {
+    "9:30 AM Weekdays": {
+      "main": [
+        [
+          {
+            "node": "Build Report",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build Report": {
+      "main": [
+        [
+          {
+            "node": "Send to Telegram",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "callerPolicy": "workflowsFromSameOwner",
+    "availableInMCP": false,
+    "executionOrder": "v1",
+    "binaryMode": "separate",
+    "saveManualExecutions": true
+  },
+  "meta": {
+    "n8n_workflow_id": "zVyA33wjmJrZJDs3",
+    "instance": "tradenextgen.app.n8n.cloud",
+    "exported_at": "2026-04-13T16:35:00Z",
+    "active_at_export": true,
+    "node_count": 3,
+    "secrets_redacted": true
+  }
+}

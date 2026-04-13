@@ -1,0 +1,107 @@
+{
+  "name": "Website Signal Engine v1",
+  "nodes": [
+    {
+      "id": "wh",
+      "name": "Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        250,
+        300
+      ],
+      "parameters": {
+        "path": "qs-engine",
+        "httpMethod": "POST",
+        "responseMode": "responseNode",
+        "options": {}
+      }
+    },
+    {
+      "id": "aio",
+      "name": "Signal Engine",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        550,
+        300
+      ],
+      "parameters": {
+        "jsCode": "\n// AgilityServ Website Signal Engine \u2014 All-in-One Node\nconst body = $input.first().json.body || $input.first().json;\nconst ticker = (body.ticker || '').toUpperCase().trim();\nif (!ticker) throw new Error('INVALID_TICKER');\n\nconst API_KEY = 'REDACTED_XAI_API_KEY';\n\nconst p = {\n  ticker,\n  price: parseFloat(body.price) || 0,\n  changePct: parseFloat(body.changePct) || 0,\n  rsi: parseFloat(body.rsi) || 50,\n  macd: parseFloat(body.macd) || 0,\n  macdSignal: parseFloat(body.macdSignal) || 0,\n  macdHist: parseFloat(body.macdHist) || 0,\n  ema20: parseFloat(body.ema20) || 0,\n  ema50: parseFloat(body.ema50) || 0,\n  bbUpper: parseFloat(body.bbUpper) || 0,\n  bbMiddle: parseFloat(body.bbMiddle) || 0,\n  bbLower: parseFloat(body.bbLower) || 0,\n  bbPosition: parseFloat(body.bbPosition) || 0.5,\n  atr: parseFloat(body.atr) || 0,\n  obvTrend: body.obvTrend || 'NEUTRAL',\n  volRatio: parseFloat(body.volRatio) || 1,\n  high52: parseFloat(body.high52) || 0,\n  low52: parseFloat(body.low52) || 0,\n  lastDate: body.lastDate || 'N/A',\n  roc10: parseFloat(body.roc10) || 0\n};\np.emaCross = p.ema20 > p.ema50 ? 'BULLISH' : 'BEARISH';\np.distH = p.high52 > 0 ? (((p.price - p.high52) / p.high52) * 100).toFixed(1) : 'N/A';\np.distL = p.low52 > 0 ? (((p.price - p.low52) / p.low52) * 100).toFixed(1) : 'N/A';\n\nconst userMsg = \"Analyze \" + p.ticker + \" (data: \" + p.lastDate + \")\\n\" +\n  \"PRICE: $\" + p.price + \" | Change: \" + p.changePct + \"% | ROC-10d: \" + p.roc10 + \"%\\n\" +\n  \"TREND: EMA20=$\" + p.ema20 + \" EMA50=$\" + p.ema50 + \" Cross=\" + p.emaCross + \"\\n\" +\n  \"MACD: \" + p.macd + \" Signal=\" + p.macdSignal + \" Hist=\" + p.macdHist + \"\\n\" +\n  \"MOMENTUM: RSI=\" + p.rsi + \"\\n\" +\n  \"VOLATILITY: BB Upper=$\" + p.bbUpper + \" Mid=$\" + p.bbMiddle + \" Lower=$\" + p.bbLower + \" Pos=\" + p.bbPosition + \" ATR=$\" + p.atr + \"\\n\" +\n  \"VOLUME: OBV=\" + p.obvTrend + \" VolRatio=\" + p.volRatio + \"x\\n\" +\n  \"RANGE: 52W High=$\" + p.high52 + \" (\" + p.distH + \"% from high) Low=$\" + p.low52 + \" (+\" + p.distL + \"% from low)\\n\\n\" +\n  'Return ONLY valid JSON (no markdown):\\n{\"signal\":\"BUY\" or \"SELL\" or \"STAND ASIDE\",\"confidence\":0-100,\"correlationScore\":0-100,\"vcGateScore\":0-100,\"reasons\":[\"reason with data\",\"reason\",\"reason\",\"reason\"],\"tradePlan\":{\"direction\":\"LONG\" or \"SHORT\",\"entry\":\"$X\",\"stopLoss\":\"$X\",\"target1\":\"$X\",\"target2\":\"$X\",\"riskReward\":\"1:X\"},\"standAsideConditions\":[\"if STAND ASIDE\"],\"marketContext\":\"1 sentence\"}';\n\nlet grokRaw;\ntry {\n  const gResp = await this.helpers.httpRequest({\n    method: 'POST',\n    url: 'https://api.x.ai/v1/chat/completions',\n    headers: {\n      'Content-Type': 'application/json',\n      'Authorization': 'Bearer ' + API_KEY\n    },\n    body: JSON.stringify({\n      model: 'grok-3',\n      temperature: 0.2,\n      max_tokens: 900,\n      messages: [\n        { role: 'system', content: 'You are the VC Gate Decision Engine for the AgilityServ Quantum Trading Pipeline. Output ONLY valid JSON \u2014 no markdown, no explanation outside JSON.' },\n        { role: 'user', content: userMsg }\n      ]\n    })\n  });\n  grokRaw = (gResp.choices && gResp.choices[0] && gResp.choices[0].message && gResp.choices[0].message.content) || '';\n} catch (err) {\n  grokRaw = '';\n}\n\nlet parsed;\ntry {\n  const cleaned = grokRaw.replace(/```json\\n?|\\n?```/g, '').trim();\n  parsed = JSON.parse(cleaned);\n} catch(e) {\n  parsed = {\n    signal: 'STAND ASIDE', confidence: 50, correlationScore: 50, vcGateScore: 50,\n    reasons: ['Analysis inconclusive at current levels.','Wait for EMA cross confirmation.','RSI neutral \u2014 no extreme to trade from.','Volume not confirming directional move.'],\n    tradePlan: null, standAsideConditions: ['Wait for EMA20/EMA50 cross confirmation.'],\n    marketContext: 'Mixed signals \u2014 no clear edge identified.'\n  };\n}\nconst colorMap = {\n  'BUY': { color: '#00E599', glow: 'rgba(0,229,153,0.35)' },\n  'SELL': { color: '#FF4D4D', glow: 'rgba(255,77,77,0.35)' },\n  'STAND ASIDE': { color: '#FFB547', glow: 'rgba(255,181,71,0.35)' }\n};\nparsed.meta = colorMap[parsed.signal] || colorMap['STAND ASIDE'];\nparsed.poweredBy = 'Grok-3 \\u00b7 AgilityServ Quantum Pipeline';\n\n// Pass JSON as string in responseBody field\nreturn [{ json: { responseBody: JSON.stringify(parsed) } }];\n"
+      }
+    },
+    {
+      "id": "rsp",
+      "name": "Respond",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [
+        850,
+        300
+      ],
+      "parameters": {
+        "respondWith": "text",
+        "responseBody": "={{ $json.responseBody }}",
+        "options": {
+          "responseCode": 200,
+          "responseHeaders": {
+            "entries": [
+              {
+                "name": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "name": "Access-Control-Allow-Origin",
+                "value": "*"
+              },
+              {
+                "name": "Access-Control-Allow-Methods",
+                "value": "POST, OPTIONS"
+              },
+              {
+                "name": "Access-Control-Allow-Headers",
+                "value": "Content-Type"
+              }
+            ]
+          }
+        }
+      }
+    }
+  ],
+  "connections": {
+    "Webhook": {
+      "main": [
+        [
+          {
+            "node": "Signal Engine",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Signal Engine": {
+      "main": [
+        [
+          {
+            "node": "Respond",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate"
+  },
+  "meta": {
+    "n8n_workflow_id": "QJOlpH7qIVpgqlm3",
+    "instance": "tradenextgen.app.n8n.cloud",
+    "exported_at": "2026-04-13T16:35:00Z",
+    "active_at_export": true,
+    "node_count": 3,
+    "secrets_redacted": true
+  }
+}

@@ -1,0 +1,244 @@
+{
+  "name": "Website Signal - Grok-3 Analysis",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "grok3-signal",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "a1b2c3d4-e5f6-7890-aaaa-000000000001",
+      "name": "Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        200,
+        300
+      ],
+      "webhookId": "e5a2c730-e1c2-480e-a978-a31ef64c40cc"
+    },
+    {
+      "parameters": {
+        "language": "javaScript",
+        "jsCode": "// ===================================================\n// BUILD GROK-3 REQUEST FROM INCOMING WEBHOOK PAYLOAD\n// AgilityServ Quantum Pipeline \u2014 Website Signal Node\n// ===================================================\n\nconst raw = $input.item.json;\n// Support both { body: {...} } and flat payloads\nconst body = raw.body && typeof raw.body === 'object' ? raw.body : raw;\n\n// --- Extract all indicator fields with safe defaults ---\nconst ticker      = (body.ticker       || 'UNKNOWN').toString().toUpperCase();\nconst price       = body.price         ?? body.close ?? null;\nconst change      = body.change        ?? 0;\nconst changePct   = body.changePercent ?? body.changePct ?? 0;\nconst volume      = body.volume        ?? null;\nconst rsi         = body.rsi14         ?? body.rsi   ?? null;\nconst macdLine    = body.macdLine      ?? body.macd  ?? null;\nconst macdSig     = body.macdSignal    ?? null;\nconst macdHist    = body.macdHistogram ?? body.macdHist ?? null;\nconst ema20       = body.ema20         ?? null;\nconst ema50       = body.ema50         ?? null;\nconst sma200      = body.sma200        ?? null;\nconst atr         = body.atr14         ?? body.atr   ?? null;\nconst bbUpper     = body.bollingerUpper ?? body.bbUpper ?? null;\nconst bbLower     = body.bollingerLower ?? body.bbLower ?? null;\nconst bbMid       = body.bollingerMid  ?? body.bbMid  ?? null;\nconst vwap        = body.vwap          ?? null;\n\nconst fmt = (v, decimals = 2) =>\n  v !== null && v !== undefined ? Number(v).toFixed(decimals) : 'N/A';\n\nconst sign = (v) => (Number(v) >= 0 ? '+' : '');\n\n// --- Build the clean user message sent to Grok ---\nconst userMessage =\n`Analyze ${ticker} and generate a trading signal.\n\n== MARKET DATA ==\nTicker:           ${ticker}\nPrice:            $${fmt(price)} (${sign(change)}${fmt(change)} / ${sign(changePct)}${fmt(changePct)}%)\nVolume:           ${volume !== null ? Number(volume).toLocaleString() : 'N/A'}\n\n== TECHNICAL INDICATORS ==\nRSI(14):          ${fmt(rsi)}\nMACD Line:        ${fmt(macdLine)}\nMACD Signal:      ${fmt(macdSig)}\nMACD Histogram:   ${fmt(macdHist)}\nEMA(20):          $${fmt(ema20)}\nEMA(50):          $${fmt(ema50)}\nSMA(200):         $${fmt(sma200)}\nATR(14):          ${fmt(atr)}\nBollinger Upper:  $${fmt(bbUpper)}\nBollinger Mid:    $${fmt(bbMid)}\nBollinger Lower:  $${fmt(bbLower)}\nVWAP:             $${fmt(vwap)}\n\nReturn ONLY the JSON object \u2014 no markdown, no explanation text outside the JSON.`;\n\n// --- System prompt: AgilityServ Quantum Pipeline ---\nconst systemPrompt =\n`You are the core signal engine of AgilityServ's institutional-grade quantum trading pipeline.\nYou analyze real-time price and technical indicator data to generate high-conviction, risk-adjusted trading signals.\n\nYour analysis framework \u2014 evaluate all six layers in order:\n\n1. MOMENTUM LAYER\n   - RSI(14): Oversold < 35 (potential BUY setup), Overbought > 65 (potential SELL setup)\n   - RSI 35-65: neutral zone \u2014 direction depends on other factors\n   - MACD histogram positive and expanding = bullish momentum; negative and expanding = bearish\n   - MACD Line crossing Signal Line: golden cross = bullish, death cross = bearish\n   - If RSI < 25 or RSI > 75: extreme \u2014 DO NOT enter, return STAND ASIDE regardless\n\n2. TREND ALIGNMENT\n   - Price vs EMA20: above = short-term bullish, below = short-term bearish\n   - Price vs EMA50: above = medium-term bullish, below = medium-term bearish\n   - Price vs SMA200: above = long-term uptrend, below = long-term downtrend\n   - Golden cross (EMA20 > EMA50 > SMA200 & price above all): strongest BUY context\n   - Death cross (EMA20 < EMA50 < SMA200 & price below all): strongest SELL context\n   - Mixed alignment reduces conviction \u2014 lower VC Gate score\n\n3. VOLATILITY & STRUCTURE\n   - ATR: defines stop-loss sizing (stop = price \u00b1 1.5\u00d7 ATR)\n   - Bollinger Band: price near upper band = overbought warning; near lower band = oversold warning\n   - Price inside Bollinger Bands, trending toward upper from mid = bullish momentum context\n   - Bollinger squeeze (bands contracting) = breakout pending \u2014 be cautious\n\n4. INSTITUTIONAL ANCHOR (VWAP)\n   - Price above VWAP = institutions net buyers \u2014 supports BUY signals\n   - Price below VWAP = institutions net sellers \u2014 supports SELL signals\n   - VWAP confluence with MA alignment amplifies conviction\n\n5. VC GATE SCORING (0\u201310, institutional conviction gating)\n   - Each aligned indicator adds to the gate score:\n     +2: RSI in correct zone (not extreme)\n     +2: MACD aligned with direction\n     +2: All 3 MAs aligned (EMA20 > EMA50 > SMA200 for BUY)\n     +2: Price vs VWAP confirms direction\n     +2: Bollinger position confirms direction\n   - VC Gate Score \u2265 7: emit BUY or SELL signal\n   - VC Gate Score 5\u20136: weak setup \u2014 emit STAND ASIDE\n   - VC Gate Score < 5: conflicting signals \u2014 emit STAND ASIDE\n\n6. QUANTUM EDGE SCORE (0\u2013100)\n   - Proprietary confluence score: measures signal quality, timing, and risk/reward\n   - High edge (> 70): multiple indicators in perfect alignment\n   - Low edge (< 40): choppy or conflicting environment\n\nSignal Construction Rules:\n- BUY: VC Gate \u2265 7, bullish indicators majority, RSI 40\u201362, positive MACD histogram, price above VWAP\n- SELL: VC Gate \u2265 7, bearish indicators majority, RSI 38\u201360, negative MACD histogram, price below VWAP\n- STAND ASIDE: any extreme RSI (< 25 or > 75), VC Gate < 7, or 3+ contradicting signals\n- confidence: 0\u2013100. Never exceed 88 (no certainty in markets). Scale with VC Gate score and confluence.\n- Trade Plan: entry = current price. target1 = entry \u00b1 1.5\u00d7 ATR. target2 = entry \u00b1 3\u00d7 ATR. stop = entry \u2213 1.5\u00d7 ATR.\n\nRespond with ONLY this JSON structure. No markdown. No text before or after:\n{\n  \"signal\": \"BUY\" | \"SELL\" | \"STAND ASIDE\",\n  \"confidence\": <integer 0-100>,\n  \"correlationScore\": <integer 0-100>,\n  \"vcGateScore\": <number 0-10 with one decimal>,\n  \"quantumEdgeScore\": <integer 0-100>,\n  \"reasons\": [\"<concise reason 1>\", \"<concise reason 2>\", \"<concise reason 3>\"],\n  \"tradePlan\": {\n    \"entry\": <number>,\n    \"target1\": <number>,\n    \"target2\": <number>,\n    \"stop\": <number>,\n    \"riskReward\": \"1:<ratio to one decimal>\",\n    \"timeframe\": \"intraday\" | \"swing\" | \"position\"\n  },\n  \"analyzedBy\": \"Grok-3\"\n}`;\n\n// --- Assemble the final Grok API request body ---\nconst requestBody = {\n  model: 'grok-3',\n  messages: [\n    { role: 'system',  content: systemPrompt },\n    { role: 'user',    content: userMessage  }\n  ],\n  temperature: 0.3,\n  max_tokens: 900\n};\n\nreturn [{\n  json: {\n    requestBody,\n    ticker,\n    price\n  }\n}];"
+      },
+      "id": "a1b2c3d4-e5f6-7890-aaaa-000000000002",
+      "name": "Build Grok Request",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        450,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.x.ai/v1/chat/completions",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "Bearer REDACTED_XAI_API_KEY"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ $json.requestBody }}",
+        "options": {
+          "timeout": 30000,
+          "response": {
+            "response": {
+              "fullResponse": false,
+              "responseFormat": "json"
+            }
+          }
+        }
+      },
+      "id": "a1b2c3d4-e5f6-7890-aaaa-000000000003",
+      "name": "Call Grok-3 API",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        700,
+        300
+      ],
+      "onError": "continueErrorOutput"
+    },
+    {
+      "parameters": {
+        "language": "javaScript",
+        "jsCode": "// ============================================\n// PARSE GROK-3 RESPONSE \u2192 FRONTEND-READY JSON\n// ============================================\ntry {\n  const grokResp = $input.item.json;\n\n  // Extract raw text from the choices array\n  const raw = grokResp?.choices?.[0]?.message?.content || '';\n\n  // Strip markdown code fences if Grok wrapped its response\n  const cleaned = raw\n    .replace(/^```json\\s*/i, '')\n    .replace(/^```\\s*/i, '')\n    .replace(/\\s*```$/i, '')\n    .trim();\n\n  const parsed = JSON.parse(cleaned);\n\n  // Validate signal enum\n  const validSignals = ['BUY', 'SELL', 'STAND ASIDE'];\n  const signal = validSignals.includes(parsed.signal) ? parsed.signal : 'STAND ASIDE';\n\n  // Clamp numeric fields\n  const clamp = (v, lo, hi) => {\n    const n = Number(v);\n    return isNaN(n) ? lo : Math.min(hi, Math.max(lo, n));\n  };\n\n  const result = {\n    signal,\n    confidence:        clamp(parsed.confidence,        0, 100),\n    correlationScore:  clamp(parsed.correlationScore,  0, 100),\n    vcGateScore:       clamp(parsed.vcGateScore,        0,  10),\n    quantumEdgeScore:  clamp(parsed.quantumEdgeScore,   0, 100),\n    reasons:           Array.isArray(parsed.reasons) ? parsed.reasons.slice(0, 5) : ['Grok-3 analysis complete'],\n    tradePlan:         parsed.tradePlan   || {},\n    analyzedBy:        'Grok-3',\n    timestamp:         new Date().toISOString(),\n    _status:           'ok'\n  };\n\n  return [{ json: result }];\n\n} catch (err) {\n  // Safe parse-error fallback \u2014 still returns valid shape for frontend\n  return [{\n    json: {\n      signal:           'STAND ASIDE',\n      confidence:        0,\n      correlationScore:  0,\n      vcGateScore:       0,\n      quantumEdgeScore:  0,\n      reasons:           ['Grok-3 response could not be parsed \u2014 safe default applied'],\n      tradePlan:         {},\n      analyzedBy:        'Grok-3',\n      timestamp:         new Date().toISOString(),\n      _status:           'parse_error',\n      _error:            err.message\n    }\n  }];\n}"
+      },
+      "id": "a1b2c3d4-e5f6-7890-aaaa-000000000004",
+      "name": "Parse Grok Response",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        960,
+        220
+      ]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ $json }}",
+        "options": {
+          "responseCode": 200,
+          "responseHeaders": {
+            "entries": [
+              {
+                "name": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "name": "Access-Control-Allow-Origin",
+                "value": "*"
+              },
+              {
+                "name": "X-Powered-By",
+                "value": "AgilityServ Quantum Pipeline"
+              }
+            ]
+          }
+        }
+      },
+      "id": "a1b2c3d4-e5f6-7890-aaaa-000000000005",
+      "name": "Respond \u2014 Success",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [
+        1220,
+        220
+      ]
+    },
+    {
+      "parameters": {
+        "language": "javaScript",
+        "jsCode": "// ================================================\n// API ERROR HANDLER \u2014 returns safe STAND ASIDE\n// so the frontend can trigger clientSideFallback()\n// ================================================\nconst errData = $input.item.json?.error || {};\nconst msg = errData?.message || errData?.description || 'Grok-3 API unavailable';\n\nreturn [{\n  json: {\n    signal:           'STAND ASIDE',\n    confidence:        0,\n    correlationScore:  0,\n    vcGateScore:       0,\n    quantumEdgeScore:  0,\n    reasons: [\n      'Grok-3 API temporarily unavailable',\n      'Client-side fallback mode activated',\n      msg.toString().substring(0, 120)\n    ],\n    tradePlan:    {},\n    analyzedBy:   'Grok-3 (offline)',\n    timestamp:    new Date().toISOString(),\n    _status:      'api_error'\n  }\n}];"
+      },
+      "id": "a1b2c3d4-e5f6-7890-aaaa-000000000006",
+      "name": "Build Error Response",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        960,
+        420
+      ]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ $json }}",
+        "options": {
+          "responseCode": 200,
+          "responseHeaders": {
+            "entries": [
+              {
+                "name": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "name": "Access-Control-Allow-Origin",
+                "value": "*"
+              }
+            ]
+          }
+        }
+      },
+      "id": "a1b2c3d4-e5f6-7890-aaaa-000000000007",
+      "name": "Respond \u2014 Error",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [
+        1220,
+        420
+      ]
+    }
+  ],
+  "connections": {
+    "Webhook": {
+      "main": [
+        [
+          {
+            "node": "Build Grok Request",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build Grok Request": {
+      "main": [
+        [
+          {
+            "node": "Call Grok-3 API",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Call Grok-3 API": {
+      "main": [
+        [
+          {
+            "node": "Parse Grok Response",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Build Error Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parse Grok Response": {
+      "main": [
+        [
+          {
+            "node": "Respond \u2014 Success",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build Error Response": {
+      "main": [
+        [
+          {
+            "node": "Respond \u2014 Error",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "saveManualExecutions": true,
+    "callerPolicy": "workflowsFromSameOwner",
+    "availableInMCP": false
+  },
+  "meta": {
+    "n8n_workflow_id": "BsEAuc9QfWeLwrYD",
+    "instance": "tradenextgen.app.n8n.cloud",
+    "exported_at": "2026-04-13T16:35:00Z",
+    "active_at_export": true,
+    "node_count": 7,
+    "secrets_redacted": true
+  }
+}

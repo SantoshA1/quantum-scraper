@@ -1,0 +1,564 @@
+{
+  "name": "Hybrid Discovery Engine v1 (LLM-based)",
+  "nodes": [
+    {
+      "parameters": {
+        "content": "## Hybrid Discovery Engine v1 (LLM-based)\n\n**Trigger:** Called by TradingView Script Scraper v1\n\n**Flow:**\n1. Receive scraped scripts via Execute Workflow Trigger\n2. Filter to scripts with valid Pine code\n3. Send each to Perplexity for quant analysis\n4. Merge LLM responses with original metadata\n5. Parse, extract scores, rank top 5\n6. Send Telegram summary + save to Google Sheets\n7. Queue top 3 for Discovery Queue\n\n**Sheet:** New Indicator Candidates\n**Dedup:** appendOrUpdate by script_url",
+        "height": 716,
+        "width": 588,
+        "color": 4
+      },
+      "id": "efe8095b-8466-461b-ae7a-9d5917c0c293",
+      "name": "Engine Notes",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        304,
+        32
+      ]
+    },
+    {
+      "parameters": {
+        "inputSource": "passthrough"
+      },
+      "id": "2e558ecb-0353-441c-a10e-1c6db8e47980",
+      "name": "Called by Scraper",
+      "type": "n8n-nodes-base.executeWorkflowTrigger",
+      "typeVersion": 1.1,
+      "position": [
+        560,
+        400
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const raw = $input.all();\nconst NL = String.fromCharCode(10);\nlet scripts = [];\nfor (const item of raw) {\n  const d = item.json;\n  if (d.body && Array.isArray(d.body)) {\n    for (const s of d.body) { scripts.push({ json: s }); }\n  } else if (d.pine_code) { scripts.push(item); }\n}\nconst valid = scripts.filter(item => {\n  const code = item.json.pine_code || '';\n  return code.length > 50 && !code.startsWith('REQUIRES_BROWSER') && !code.startsWith('PROTECTED') && (code.includes('//@version') || code.includes('indicator(') || code.includes('strategy('));\n});\nif (valid.length === 0) {\n  return [{ json: { _no_scripts: true, message: 'No valid Pine scripts. ' + scripts.length + ' received.', total_scraped: scripts.length, timestamp: new Date().toISOString() } }];\n}\nconst SYSTEM_PROMPT = ['You are a quant strategist. Analyze this Pine Script.', 'Respond in JSON only: {\"strategy_summary\":\"...\",\"risk_profile\":\"...\",\"overall_score\":1-10,', '\"estimates\":{\"net_return_pct\":0,\"win_rate_pct\":0,\"profit_factor\":0,\"max_drawdown_pct\":0,\"sharpe_ratio\":0,\"num_trades\":0},', '\"analysis\":\"2-3 sentences\"}. Return ONLY JSON.'].join(NL);\nreturn valid.map(item => {\n  const d = item.json;\n  const title = d.title || 'Unknown';\n  const author = d.author || 'Unknown';\n  const desc = (d.description || '').substring(0, 500);\n  const code = (d.pine_code || '').substring(0, 6000);\n  const userPrompt = ['Title: ' + title, 'Author: ' + author, 'Desc: ' + desc, 'Pine Code:', code].join(NL);\n  return { json: { title, author, description: d.description || '', pine_code: d.pine_code || '', script_url: d.script_url || '', category: d.category || '', screenshot_url: d.screenshot_url || '', api_body: JSON.stringify({ model: 'sonar', messages: [{ role: 'system', content: SYSTEM_PROMPT }, { role: 'user', content: userPrompt }], temperature: 0.1 }) } };\n});"
+      },
+      "id": "2742d6b6-159d-4b28-8b12-c27142abba89",
+      "name": "Filter & Build Prompts",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        800,
+        400
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "pine-check",
+              "leftValue": "={{ $json.pine_code }}",
+              "rightValue": "//@version",
+              "operator": {
+                "type": "string",
+                "operation": "contains"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "44bceafd-61f5-4c02-a6ab-8e8499c5b03f",
+      "name": "Has Pine Scripts?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        1040,
+        400
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.perplexity.ai/chat/completions",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "Bearer REDACTED_PERPLEXITY_KEY"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "contentType": "raw",
+        "rawContentType": "application/json",
+        "body": "={{ $json.api_body }}",
+        "options": {
+          "batching": {
+            "batch": {
+              "batchSize": 1,
+              "batchInterval": 2000
+            }
+          },
+          "timeout": 60000
+        }
+      },
+      "id": "9235fdfe-18a9-4844-a79a-2275462a24d2",
+      "name": "Perplexity Analysis",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1328,
+        288
+      ],
+      "retryOnFail": true,
+      "maxTries": 2,
+      "waitBetweenTries": 3000,
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "mode": "combine",
+        "combineBy": "combineByPosition",
+        "options": {}
+      },
+      "id": "6a434f7d-b791-4047-bf42-031285ddb97e",
+      "name": "Merge Metadata + LLM",
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 3.1,
+      "position": [
+        1600,
+        368
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Parse merged LLM responses + metadata, extract scores, rank\nconst items = $input.all();\nconst results = [];\n\nfor (const item of items) {\n  const d = item.json;\n\n  // Original metadata (from merge input 2)\n  const title = d.title || 'Unknown';\n  const author = d.author || 'Unknown';\n  const scriptUrl = d.script_url || '';\n  const category = d.category || '';\n\n  // Parse LLM response (from merge input 1)\n  let llmText = '';\n  let parsed = null;\n\n  try {\n    if (d.choices && d.choices[0] && d.choices[0].message) {\n      llmText = d.choices[0].message.content || '';\n    }\n    let cleanText = llmText.replace(/```json\\s*/gi, '').replace(/```\\s*/gi, '').trim();\n    const jsonMatch = cleanText.match(/\\{[\\s\\S]*\\}/);\n    if (jsonMatch) {\n      parsed = JSON.parse(jsonMatch[0]);\n    }\n  } catch (e) {\n    // Parse failed - use defaults\n  }\n\n  const est = parsed?.estimates || {};\n  const score = Number(parsed?.overall_score) || 0;\n  const netPct = Number(est.net_return_pct) || 0;\n  const winRate = Number(est.win_rate_pct) || 0;\n  const pf = Number(est.profit_factor) || 0;\n  const maxDd = Number(est.max_drawdown_pct) || 0;\n  const sharpe = Number(est.sharpe_ratio) || 0;\n  const trades = Number(est.num_trades) || 0;\n\n  results.push({\n    json: {\n      title, author, script_url: scriptUrl, category, score,\n      est_net_pct: netPct, est_win_rate: winRate, est_profit_factor: pf,\n      est_max_dd: maxDd, est_sharpe: sharpe, est_trades: trades,\n      strategy_summary: parsed?.strategy_summary || 'Analysis failed',\n      risk_profile: parsed?.risk_profile || 'Unknown',\n      llm_analysis: parsed?.analysis || llmText.substring(0, 1000),\n      analyzed_at: new Date().toISOString()\n    }\n  });\n}\n\n// Sort by composite: score * (winRate/100) * max(pf,0.1) * max(sharpe,0.1)\nresults.sort((a, b) => {\n  const compA = a.json.score * (a.json.est_win_rate / 100) * Math.max(a.json.est_profit_factor, 0.1) * Math.max(a.json.est_sharpe, 0.1);\n  const compB = b.json.score * (b.json.est_win_rate / 100) * Math.max(b.json.est_profit_factor, 0.1) * Math.max(b.json.est_sharpe, 0.1);\n  return compB - compA;\n});\n\nresults.forEach((r, i) => { r.json.rank = i + 1; });\nreturn results;"
+      },
+      "id": "83696b13-d461-4b60-841f-774eafc39755",
+      "name": "Parse & Rank Results",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1888,
+        368
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "appendOrUpdate",
+        "documentId": {
+          "__rl": true,
+          "value": "1Ca-jRxlXNoZEcT470D8I9RbkN-bDCIUqeGaGpMR8BDY",
+          "mode": "id"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "Sheet1",
+          "mode": "name"
+        },
+        "columns": {
+          "mappingMode": "autoMapInputData",
+          "value": {},
+          "matchingColumns": [
+            "script_url"
+          ],
+          "schema": [
+            {
+              "id": "rank",
+              "displayName": "rank",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "title",
+              "displayName": "title",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "author",
+              "displayName": "author",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "script_url",
+              "displayName": "script_url",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "category",
+              "displayName": "category",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "score",
+              "displayName": "score",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "est_net_pct",
+              "displayName": "est_net_pct",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "est_win_rate",
+              "displayName": "est_win_rate",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "est_profit_factor",
+              "displayName": "est_profit_factor",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "est_max_dd",
+              "displayName": "est_max_dd",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "est_sharpe",
+              "displayName": "est_sharpe",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "est_trades",
+              "displayName": "est_trades",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "strategy_summary",
+              "displayName": "strategy_summary",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "risk_profile",
+              "displayName": "risk_profile",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "llm_analysis",
+              "displayName": "llm_analysis",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "analyzed_at",
+              "displayName": "analyzed_at",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {}
+      },
+      "id": "049500ff-97f7-480f-931f-c387b9d5fbea",
+      "name": "Save to Indicator Candidates",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [
+        2160,
+        240
+      ],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "gT3auKKLeI5MUoOt",
+          "name": "Google Sheets OAuth2 API"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// Top 3 scripts with scores, one-line summary, and TradingView link\nconst items = $input.all();\nconst top3 = items.filter(i => i.json.score > 0).slice(0, 3);\nconst NL = String.fromCharCode(10);\n\nif (top3.length === 0) {\n  return [{ json: { message: 'Hybrid Discovery: No noteworthy scripts found this run.' } }];\n}\n\nconst esc = (s) => (s || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');\n\nconst lines = [];\nlines.push('<b>' + String.fromCharCode(9889) + ' Quantum Discovery - Top ' + top3.length + '</b>');\nlines.push('');\n\nfor (const item of top3) {\n  const d = item.json;\n  const stars = d.score >= 8 ? String.fromCharCode(11088) : d.score >= 6 ? String.fromCharCode(10004) : String.fromCharCode(9679);\n  lines.push(stars + ' <b>' + esc(d.title) + '</b> [' + d.score + '/10]');\n  lines.push('   ' + esc((d.strategy_summary || '').substring(0, 120)));\n  if (d.script_url) {\n    lines.push('   ' + String.fromCharCode(128279) + ' <a href=\"' + d.script_url + '\">Add to TradingView</a>');\n  }\n  lines.push('');\n}\n\nlines.push('<i>' + items.length + ' scripts analyzed ' + String.fromCharCode(8226) + ' ' + new Date().toISOString().substring(0, 10) + '</i>');\n\nreturn [{ json: { message: lines.join(NL) } }];"
+      },
+      "id": "f33803d7-974f-47f7-9c2f-c9f45d6a2d91",
+      "name": "Format Telegram Message",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2160,
+        480
+      ]
+    },
+    {
+      "parameters": {
+        "chatId": "REDACTED_CHAT_ID",
+        "text": "={{ $json.message }}",
+        "additionalFields": {
+          "parse_mode": "HTML"
+        }
+      },
+      "id": "0017b075-7da4-45c8-885f-4bd1c43929c1",
+      "name": "Send Telegram Summary",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [
+        2448,
+        480
+      ],
+      "webhookId": "540ed7e2-d90c-4cc6-b44b-35d843535b66",
+      "credentials": {
+        "telegramApi": {
+          "id": "GiUsUl7vX5HyzagN",
+          "name": "Telegram account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// Discovery Queue - top 3 scripts with full LLM analysis\nconst items = $input.all();\nconst top3 = items.slice(0, 3);\n\nif (top3.length === 0) {\n  return [{ json: { queue_status: 'EMPTY', message: 'No scripts queued.', timestamp: new Date().toISOString() } }];\n}\n\nconsole.log('=== DISCOVERY QUEUE @ ' + new Date().toISOString() + ' ===');\n\nreturn top3.map((item, idx) => {\n  const d = item.json;\n  console.log('#' + (idx + 1) + ': ' + d.title + ' (Score: ' + d.score + '/10, Net: ' + d.est_net_pct + '%)');\n  return {\n    json: {\n      queue_rank: idx + 1,\n      title: d.title, author: d.author, script_url: d.script_url,\n      score: d.score, est_net_pct: d.est_net_pct, est_win_rate: d.est_win_rate,\n      est_profit_factor: d.est_profit_factor, est_sharpe: d.est_sharpe,\n      strategy_summary: d.strategy_summary, risk_profile: d.risk_profile,\n      llm_analysis: d.llm_analysis, queued_at: new Date().toISOString()\n    }\n  };\n});"
+      },
+      "id": "ddf0561f-4bb7-4d22-81af-c9d8ad41048e",
+      "name": "Discovery Queue",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2448,
+        240
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const item = $input.first().json;\nconsole.log('Hybrid Discovery: ' + item.message);\nreturn [{ json: { message: 'Hybrid Discovery: ' + item.message, timestamp: new Date().toISOString() } }];"
+      },
+      "id": "da4b4b2f-d515-4c70-a93d-93052b862d3e",
+      "name": "Log No Scripts",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1328,
+        560
+      ]
+    },
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "script-scraper-complete",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2.1,
+      "position": [
+        128,
+        0
+      ],
+      "id": "1740bf66-d8b0-482c-b130-ecd71501da6d",
+      "name": "Webhook",
+      "webhookId": "f29d11d0-e55a-4c0a-88b0-925f4e6c6e8b"
+    }
+  ],
+  "connections": {
+    "Called by Scraper": {
+      "main": [
+        [
+          {
+            "node": "Filter & Build Prompts",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Filter & Build Prompts": {
+      "main": [
+        [
+          {
+            "node": "Has Pine Scripts?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Has Pine Scripts?": {
+      "main": [
+        [
+          {
+            "node": "Perplexity Analysis",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Merge Metadata + LLM",
+            "type": "main",
+            "index": 1
+          }
+        ],
+        [
+          {
+            "node": "Log No Scripts",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Perplexity Analysis": {
+      "main": [
+        [
+          {
+            "node": "Merge Metadata + LLM",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Merge Metadata + LLM": {
+      "main": [
+        [
+          {
+            "node": "Parse & Rank Results",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parse & Rank Results": {
+      "main": [
+        [
+          {
+            "node": "Save to Indicator Candidates",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Format Telegram Message",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Save to Indicator Candidates": {
+      "main": [
+        [
+          {
+            "node": "Discovery Queue",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Format Telegram Message": {
+      "main": [
+        [
+          {
+            "node": "Send Telegram Summary",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Webhook": {
+      "main": [
+        [
+          {
+            "node": "Filter & Build Prompts",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate",
+    "callerPolicy": "workflowsFromSameOwner",
+    "availableInMCP": false
+  },
+  "meta": {
+    "n8n_workflow_id": "MWQd7v57XBAfZXhS",
+    "instance": "tradenextgen.app.n8n.cloud",
+    "exported_at": "2026-04-13T16:35:00Z",
+    "active_at_export": true,
+    "node_count": 13,
+    "secrets_redacted": true
+  }
+}

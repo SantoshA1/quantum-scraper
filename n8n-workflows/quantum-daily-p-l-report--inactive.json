@@ -1,0 +1,129 @@
+{
+  "name": "Quantum Daily P&L Report",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "cronExpression",
+              "expression": "0 17 * * 1-5"
+            }
+          ]
+        }
+      },
+      "name": "Schedule Trigger",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        250,
+        300
+      ],
+      "id": "3e2e12f6-475e-4259-9f59-15d7d794e8bf"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Quantum Daily P&L Report v1\n// Pulls Alpaca positions, orders, account data and formats a clean report.\n\nconst ALPACA_KEY    = 'REDACTED_ALPACA_KEY_ID';\nconst ALPACA_SECRET = 'REDACTED_ALPACA_SECRET';\nconst ALPACA_BASE   = 'https://paper-api.alpaca.markets';\nconst NL = String.fromCharCode(10);\n\nasync function alpaca(path) {\n  try {\n    return await this.helpers.httpRequest({\n      method: 'GET',\n      url: ALPACA_BASE + path,\n      headers: {\n        'APCA-API-KEY-ID': ALPACA_KEY,\n        'APCA-API-SECRET-KEY': ALPACA_SECRET,\n      },\n      json: true,\n    });\n  } catch (err) {\n    console.log('[P&L] API error on ' + path + ': ' + (err.message || err));\n    return null;\n  }\n}\n\n// \u2500\u2500\u2500 FETCH DATA \u2500\u2500\u2500\nconst account    = await alpaca('/v2/account');\nconst positions  = await alpaca('/v2/positions') || [];\nconst todayISO   = new Date().toISOString().split('T')[0] + 'T00:00:00Z';\nconst allOrders  = await alpaca('/v2/orders?status=all&limit=200&after=' + todayISO) || [];\n\nif (!account) {\n  return [{ json: { message: '<b>Quantum Daily P&amp;L Report</b>' + NL + NL + 'Error: Could not connect to Alpaca.' } }];\n}\n\n// \u2500\u2500\u2500 ACCOUNT P&L \u2500\u2500\u2500\nconst equity     = parseFloat(account.equity) || 0;\nconst lastEquity = parseFloat(account.last_equity) || 0;\nconst totalPnL   = equity - lastEquity;\nconst totalPnLPct = lastEquity > 0 ? (totalPnL / lastEquity * 100) : 0;\n\n// \u2500\u2500\u2500 UNREALIZED P&L from positions \u2500\u2500\u2500\nlet unrealizedPnL = 0;\nconst posData = [];\nfor (const p of positions) {\n  const upl = parseFloat(p.unrealized_pl) || 0;\n  const uplPct = (parseFloat(p.unrealized_plpc) || 0) * 100;\n  unrealizedPnL += upl;\n  posData.push({\n    symbol: p.symbol,\n    qty: parseInt(p.qty),\n    side: p.side,\n    upl: upl,\n    uplPct: uplPct,\n  });\n}\n\n// Realized = Total - Unrealized\nconst realizedPnL = totalPnL - unrealizedPnL;\n\n// \u2500\u2500\u2500 TODAY'S SIGNALS (entry orders only) \u2500\u2500\u2500\n// Count filled entry orders (market orders from brackets or simple)\nconst filledOrders = allOrders.filter(o => o.status === 'filled');\nconst entryOrders = filledOrders.filter(o =>\n  o.type === 'market' && (o.order_class === 'bracket' || o.order_class === '' || !o.order_class)\n);\nconst buySignals  = entryOrders.filter(o => o.side === 'buy');\nconst sellSignals = entryOrders.filter(o => o.side === 'sell');\n\n// Deduplicate by symbol (count unique tickers)\nconst buyTickers  = [...new Set(buySignals.map(o => o.symbol))];\nconst sellTickers = [...new Set(sellSignals.map(o => o.symbol))];\nconst totalSignals = buyTickers.length + sellTickers.length;\n\n// \u2500\u2500\u2500 TOP PERFORMERS \u2500\u2500\u2500\nconst sorted = [...posData].sort((a, b) => b.uplPct - a.uplPct);\nconst top3 = sorted.slice(0, 3).filter(p => p.uplPct !== 0);\n\n// \u2500\u2500\u2500 STATUS \u2500\u2500\u2500\nlet status = 'Healthy';\nlet statusEmoji = '\\u2705';\nif (totalPnL < -500) { status = 'Under Pressure'; statusEmoji = '\\u26A0\\uFE0F'; }\nif (totalPnL < -1000) { status = 'Risk Alert'; statusEmoji = '\\uD83D\\uDED1'; }\n\n// \u2500\u2500\u2500 FORMAT DATE \u2500\u2500\u2500\nconst now = new Date();\nconst dateStr = now.toLocaleDateString('en-US', {\n  timeZone: 'America/New_York',\n  month: 'long',\n  day: 'numeric',\n  year: 'numeric',\n});\n\n// \u2500\u2500\u2500 FORMAT P&L VALUES \u2500\u2500\u2500\nfunction fmtPnL(val) {\n  const sign = val >= 0 ? '+' : '';\n  return sign + '$' + Math.abs(val).toFixed(2);\n}\n\nfunction fmtPct(val) {\n  const sign = val >= 0 ? '+' : '';\n  return sign + val.toFixed(1) + '%';\n}\n\n// \u2500\u2500\u2500 BUILD MESSAGE \u2500\u2500\u2500\nlet msg = '\\uD83D\\uDCCA <b>QUANTUM DAILY P&amp;L REPORT \\u2014 ' + dateStr + '</b>' + NL + NL;\n\nmsg += 'Total Signals Today: ' + totalSignals + ' (' + buyTickers.length + ' BUY, ' + sellTickers.length + ' SELL)' + NL;\nmsg += 'Realized P&amp;L: ' + fmtPnL(realizedPnL) + NL;\nmsg += 'Unrealized P&amp;L: ' + fmtPnL(unrealizedPnL) + NL;\nmsg += 'Total P&amp;L: ' + fmtPnL(totalPnL) + ' (' + fmtPct(totalPnLPct) + ')' + NL + NL;\n\nmsg += 'Open Positions: ' + positions.length + NL;\n\nif (top3.length > 0) {\n  const topStr = top3.map(p => p.symbol + ' ' + fmtPct(p.uplPct)).join(', ');\n  msg += 'Top Performers: ' + topStr + NL;\n}\n\nmsg += 'Status: ' + status + ' ' + statusEmoji + NL + NL;\n\nmsg += 'Broad Scanner ran successfully. Position flips and brackets active.';\n\nreturn [{ json: { message: msg } }];\n"
+      },
+      "name": "Build P&L Report",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        470,
+        300
+      ],
+      "id": "46c5bb54-13d3-4988-921f-41b1e394c23d"
+    },
+    {
+      "parameters": {
+        "chatId": "REDACTED_CHANNEL_ID",
+        "text": "={{ $json.message }}",
+        "additionalFields": {
+          "appendAttribution": false,
+          "parse_mode": "HTML"
+        }
+      },
+      "name": "Send to Channel",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [
+        690,
+        200
+      ],
+      "credentials": {
+        "telegramApi": {
+          "id": "GiUsUl7vX5HyzagN",
+          "name": "Telegram account"
+        }
+      },
+      "id": "9a2b8e0c-ed71-4aa4-90a1-1ba89dada576"
+    },
+    {
+      "parameters": {
+        "chatId": "REDACTED_CHAT_ID",
+        "text": "={{ $json.message }}",
+        "additionalFields": {
+          "appendAttribution": false,
+          "parse_mode": "HTML"
+        }
+      },
+      "name": "Send to Personal",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [
+        690,
+        400
+      ],
+      "credentials": {
+        "telegramApi": {
+          "id": "GiUsUl7vX5HyzagN",
+          "name": "Telegram account"
+        }
+      },
+      "id": "39c2d965-ec09-4f42-8f75-bfa08d4eaf89"
+    }
+  ],
+  "connections": {
+    "Schedule Trigger": {
+      "main": [
+        [
+          {
+            "node": "Build P&L Report",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build P&L Report": {
+      "main": [
+        [
+          {
+            "node": "Send to Channel",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Send to Personal",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "saveManualExecutions": true,
+    "callerPolicy": "workflowsFromSameOwner",
+    "availableInMCP": false
+  },
+  "meta": {
+    "n8n_workflow_id": "1HTU7gd1XeTSbp1p",
+    "instance": "tradenextgen.app.n8n.cloud",
+    "exported_at": "2026-04-13T16:35:00Z",
+    "active_at_export": false,
+    "node_count": 4,
+    "secrets_redacted": true
+  }
+}

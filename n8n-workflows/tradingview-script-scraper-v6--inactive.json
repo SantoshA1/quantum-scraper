@@ -1,0 +1,379 @@
+{
+  "name": "TradingView Script Scraper v6",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "triggerAtHour": 6
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        0,
+        300
+      ],
+      "id": "trigger",
+      "name": "Nightly 2AM ET"
+    },
+    {
+      "parameters": {
+        "jsCode": "// ============================================================\n// STEP 1: Fetch both listing pages & parse all script cards\n// v6 fix: all HTTP fetching inside Code node to prevent item loss\n// ============================================================\n\nconst URLS = [\n  { category: 'editors_picks', url: 'https://www.tradingview.com/scripts/editors-picks/' },\n  { category: 'popular',       url: 'https://www.tradingview.com/scripts/' }\n];\n\nconst UA = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36';\n\n// \u2500\u2500\u2500 Dedup state (persists across nightly runs) \u2500\u2500\u2500\nconst state = $getWorkflowStaticData('global');\nif (!state.seenUrls) state.seenUrls = {};\n\n// Prune entries older than 30 days\nconst cutoff = new Date(Date.now() - 30 * 86400000).toISOString();\nfor (const [url, date] of Object.entries(state.seenUrls)) {\n  if (date < cutoff) delete state.seenUrls[url];\n}\n\nconst allScripts = [];\nconst seen = new Set();\n\nfor (const page of URLS) {\n  let html = '';\n  try {\n    html = await this.helpers.httpRequest({\n      method: 'GET',\n      url: page.url,\n      headers: {\n        'User-Agent': UA,\n        'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',\n        'Accept-Language': 'en-US,en;q=0.9'\n      },\n      returnFullResponse: false,\n      encoding: 'utf-8'\n    });\n  } catch(e) {\n    console.log('[FETCH] Error fetching ' + page.category + ': ' + e.message);\n    continue;\n  }\n  \n  if (!html || html.length < 5000) {\n    console.log('[FETCH] ' + page.category + ': response too short (' + (html||'').length + ' chars)');\n    continue;\n  }\n  \n  console.log('[FETCH] ' + page.category + ': ' + html.length + ' chars');\n  \n  // Parse article cards (ideaCard pattern)\n  const cardRegex = /<article[^>]*class=\"[^\"]*ideaCard[^\"]*\"[^>]*>([\\s\\S]*?)<\\/article>/g;\n  let match;\n  let count = 0;\n  \n  while ((match = cardRegex.exec(html)) !== null && count < 25) {\n    const card = match[1];\n    \n    // Title\n    const titleMatch = card.match(/data-qa-id=\"ui-lib-card-link-title\"[^>]*>([^<]+)/);\n    const title = titleMatch ? titleMatch[1].trim() : '';\n    if (!title) continue;\n    \n    // Script URL (non-fragment)\n    const urlMatch = card.match(/href=\"(https:\\/\\/www\\.tradingview\\.com\\/script\\/[^\"#]+)\"/);\n    const scriptUrl = urlMatch ? urlMatch[1] : '';\n    if (!scriptUrl) continue;\n    \n    // Dedup within this run\n    if (seen.has(scriptUrl)) continue;\n    seen.add(scriptUrl);\n    \n    // Dedup across runs\n    if (state.seenUrls[scriptUrl]) {\n      console.log('[DEDUP-CROSS] ' + title.substring(0, 40));\n      continue;\n    }\n    \n    // Script ID from URL\n    const idMatch = scriptUrl.match(/\\/script\\/([A-Za-z0-9]+)/);\n    const scriptId = idMatch ? idMatch[1] : '';\n    \n    // Author from /u/username/ in card\n    const authorLinks = [];\n    const authorRegex = /\\/u\\/([A-Za-z0-9_-]+)\\//g;\n    let am;\n    while ((am = authorRegex.exec(card)) !== null) {\n      if (!authorLinks.includes(am[1])) authorLinks.push(am[1]);\n    }\n    const author = authorLinks[0] || '';\n    \n    // Description\n    const descMatch = card.match(/line-clamp-content-[^\"]*\"[^>]*>([\\s\\S]*?)<\\/span>/);\n    let description = '';\n    if (descMatch) {\n      description = descMatch[1].replace(/<[^>]+>/g, '').replace(/&#x27;/g, \"'\").replace(/&quot;/g, '\"').replace(/&amp;/g, '&').replace(/\\s+/g, ' ').trim().substring(0, 500);\n    }\n    \n    // Chart preview image\n    const imgMatch = card.match(/src=\"(https:\\/\\/s3\\.tradingview\\.com\\/[^\"]+)\"/);\n    const screenshotUrl = imgMatch ? imgMatch[1] : '';\n    \n    allScripts.push({\n      title,\n      author,\n      description,\n      script_url: scriptUrl,\n      script_id: scriptId,\n      screenshot_url: screenshotUrl,\n      category: page.category\n    });\n    \n    count++;\n  }\n  \n  console.log('[PARSE] ' + page.category + ': ' + count + ' cards extracted');\n  \n  // Small delay between pages\n  await new Promise(r => setTimeout(r, 500));\n}\n\nconsole.log('[TOTAL] ' + allScripts.length + ' unique new scripts to process');\n\nif (allScripts.length === 0) {\n  return [{ json: { _empty: true, _count: 0, message: 'No new scripts found' } }];\n}\n\n// Return all scripts as items for next node\nreturn allScripts.map(s => ({ json: s }));\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        280,
+        300
+      ],
+      "id": "fetch-parse",
+      "name": "Fetch & Parse Listings"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "has-scripts",
+              "leftValue": "={{ $json._empty }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "notTrue"
+              }
+            }
+          ],
+          "combinator": "and"
+        }
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        560,
+        300
+      ],
+      "id": "check-scripts",
+      "name": "Has Scripts?"
+    },
+    {
+      "parameters": {
+        "jsCode": "// ============================================================\n// STEP 2: Fetch detail pages + Pine source code\n// v6 fix: all HTTP work inside Code node \u2014 zero item loss\n// ============================================================\n\nconst items = $input.all();\nconst results = [];\nconst scraped_at = new Date().toISOString();\n\nconst UA = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36';\n\n// Mark URLs as seen for cross-run dedup\nconst state = $getWorkflowStaticData('global');\nif (!state.seenUrls) state.seenUrls = {};\n\nconsole.log('[DETAIL] Processing ' + items.length + ' scripts...');\n\nfor (let i = 0; i < items.length; i++) {\n  const s = items[i].json;\n  \n  let pinePubId = '';\n  let scriptAccess = 'UNKNOWN';\n  let scriptType = '';\n  let author = s.author || '';\n  let description = s.description || '';\n  let screenshotUrl = s.screenshot_url || '';\n  let pineCode = '';\n  \n  // \u2500\u2500\u2500 Fetch detail page \u2500\u2500\u2500\n  try {\n    await new Promise(r => setTimeout(r, 800)); // Rate limit\n    \n    const html = await this.helpers.httpRequest({\n      method: 'GET',\n      url: s.script_url,\n      headers: { 'User-Agent': UA, 'Accept': 'text/html' },\n      encoding: 'utf-8'\n    });\n    \n    // Extract SSR init-data JSON\n    const initRegex = /<script type=\"application\\/prs\\.init-data\\+json\">([\\s\\S]*?)<\\/script>/g;\n    let block;\n    \n    while ((block = initRegex.exec(html)) !== null) {\n      try {\n        const data = JSON.parse(block[1]);\n        \n        for (const [key, val] of Object.entries(data)) {\n          if (val && typeof val === 'object' && val.ssrIdeaData) {\n            const idea = val.ssrIdeaData;\n            \n            // PUB ID for Pine Facade API\n            if (idea.script && idea.script.script_id_part) {\n              pinePubId = idea.script.script_id_part;\n            }\n            \n            // Access type: 1=open, 2=invite-only, 3/0=protected\n            if (idea.script && idea.script.access !== undefined) {\n              const a = idea.script.access;\n              if (a === 1) scriptAccess = 'OPEN_SOURCE';\n              else if (a === 2) scriptAccess = 'INVITE_ONLY';\n              else scriptAccess = 'PROTECTED';\n            }\n            \n            if (idea.script && idea.script.script_type) {\n              scriptType = idea.script.script_type;\n            }\n            \n            // Better author\n            if (idea.user && idea.user.username) {\n              author = idea.user.username;\n            }\n            \n            // Better description\n            if (idea.description && idea.description.length > 10) {\n              description = idea.description\n                .replace(/\\[b\\]/g,'').replace(/\\[\\/b\\]/g,'')\n                .replace(/\\[i\\]/g,'').replace(/\\[\\/i\\]/g,'')\n                .replace(/\\[url[^\\]]*\\]/g,'').replace(/\\[\\/url\\]/g,'')\n                .replace(/\\s+/g, ' ').trim().substring(0, 1000);\n            }\n            \n            // Better screenshot\n            if (idea.preview_image_urls && idea.preview_image_urls.mid) {\n              screenshotUrl = idea.preview_image_urls.mid;\n            }\n            \n            break;\n          }\n        }\n      } catch(e) { /* JSON parse error in this block, continue */ }\n    }\n    \n    // Fallback access detection from HTML text\n    if (scriptAccess === 'UNKNOWN') {\n      if (html.includes('OPEN-SOURCE SCRIPT') || html.includes('rootOpenSource')) {\n        scriptAccess = 'OPEN_SOURCE';\n      } else if (html.toUpperCase().includes('INVITE-ONLY')) {\n        scriptAccess = 'INVITE_ONLY';\n      } else if (html.toUpperCase().includes('PROTECTED SCRIPT')) {\n        scriptAccess = 'PROTECTED';\n      }\n    }\n    \n    console.log('[DETAIL ' + (i+1) + '/' + items.length + '] ' + s.title.substring(0,40) + ' | ' + scriptAccess + ' | PUB=' + (pinePubId ? 'YES' : 'NO'));\n    \n  } catch(e) {\n    console.log('[DETAIL ' + (i+1) + '/' + items.length + '] ERROR fetching ' + s.title.substring(0,30) + ': ' + e.message);\n    scriptAccess = 'FETCH_ERROR';\n  }\n  \n  // \u2500\u2500\u2500 Fetch Pine source code (open-source only) \u2500\u2500\u2500\n  if (scriptAccess === 'OPEN_SOURCE' && pinePubId) {\n    try {\n      await new Promise(r => setTimeout(r, 500)); // Rate limit\n      \n      const encoded = encodeURIComponent(pinePubId);\n      const pineResp = await this.helpers.httpRequest({\n        method: 'GET',\n        url: 'https://pine-facade.tradingview.com/pine-facade/get/' + encoded + '/last',\n        headers: {\n          'User-Agent': UA,\n          'Origin': 'https://www.tradingview.com',\n          'Referer': 'https://www.tradingview.com/'\n        },\n        json: true\n      });\n      \n      if (pineResp && pineResp.source) {\n        pineCode = pineResp.source;\n        console.log('  \u2192 Pine code: ' + pineCode.length + ' chars');\n      } else {\n        pineCode = 'REQUIRES_BROWSER';\n      }\n    } catch(e) {\n      pineCode = 'REQUIRES_BROWSER';\n      console.log('  \u2192 Pine API error: ' + e.message);\n    }\n  } else if (scriptAccess === 'INVITE_ONLY') {\n    pineCode = 'INVITE_ONLY';\n  } else if (scriptAccess === 'PROTECTED') {\n    pineCode = 'PROTECTED';\n  } else {\n    pineCode = 'REQUIRES_BROWSER';\n  }\n  \n  // Mark as seen for cross-run dedup\n  state.seenUrls[s.script_url] = scraped_at;\n  \n  // Truncate pine code for sheets (50K char limit)\n  const pineForOutput = pineCode.length > 50000\n    ? pineCode.substring(0, 50000) + '\\n// [TRUNCATED \u2014 full: ' + pineCode.length + ' chars]'\n    : pineCode;\n  \n  results.push({\n    json: {\n      title: s.title,\n      author: author,\n      description: description,\n      script_url: s.script_url,\n      category: s.category,\n      pine_code: pineForOutput,\n      is_protected: scriptAccess,\n      screenshot_url: screenshotUrl,\n      scraped_at: scraped_at,\n      // Extra fields for backtester filtering (not in sheets)\n      _has_version: pineCode.includes('//@version'),\n      _is_strategy: pineCode.includes('strategy('),\n      _pine_length: pineCode.length,\n      _script_type: scriptType\n    }\n  });\n}\n\nconst withCode = results.filter(r => r.json._has_version);\nconsole.log('[DONE] ' + results.length + ' scripts processed. ' + withCode.length + ' with full Pine code.');\nreturn results;\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        840,
+        200
+      ],
+      "id": "fetch-details",
+      "name": "Fetch Details + Pine Code"
+    },
+    {
+      "parameters": {
+        "operation": "append",
+        "documentId": {
+          "__rl": true,
+          "value": "16QmkJdHUptjAxLkVpJ5bghVSKRup3KtjKyaHQtz6BoQ",
+          "mode": "id"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "Sheet1",
+          "mode": "name"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "title": "={{ $json.title }}",
+            "author": "={{ $json.author }}",
+            "script_url": "={{ $json.script_url }}",
+            "category": "={{ $json.category }}",
+            "pine_code": "={{ $json.pine_code }}",
+            "is_protected": "={{ $json.is_protected }}",
+            "description": "={{ $json.description }}",
+            "screenshot_url": "={{ $json.screenshot_url }}",
+            "scraped_at": "={{ $json.scraped_at }}"
+          },
+          "matchingColumns": [],
+          "schema": [
+            {
+              "id": "title",
+              "displayName": "title",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "string",
+              "removed": false
+            },
+            {
+              "id": "author",
+              "displayName": "author",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "string",
+              "removed": false
+            },
+            {
+              "id": "script_url",
+              "displayName": "script_url",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "string",
+              "removed": false
+            },
+            {
+              "id": "category",
+              "displayName": "category",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "string",
+              "removed": false
+            },
+            {
+              "id": "pine_code",
+              "displayName": "pine_code",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "string",
+              "removed": false
+            },
+            {
+              "id": "is_protected",
+              "displayName": "is_protected",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "string",
+              "removed": false
+            },
+            {
+              "id": "description",
+              "displayName": "description",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "string",
+              "removed": false
+            },
+            {
+              "id": "screenshot_url",
+              "displayName": "screenshot_url",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "string",
+              "removed": false
+            },
+            {
+              "id": "scraped_at",
+              "displayName": "scraped_at",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "string",
+              "removed": false
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [
+        1160,
+        100
+      ],
+      "id": "sheets-append",
+      "name": "Save to Google Sheets",
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "gT3auKKLeI5MUoOt",
+          "name": "Google Sheets OAuth2 API"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// Filter top 3 scripts with valid Pine code for backtesting\nconst valid = $input.all()\n  .filter(item => item.json._has_version === true)\n  .slice(0, 3);\n\nif (valid.length === 0) {\n  console.log('[BACKTEST] No scripts with valid //@version Pine code');\n  return [{ json: { _empty: true, message: 'No valid Pine scripts' } }];\n}\n\nconsole.log('[BACKTEST] ' + valid.length + ' scripts selected:');\nfor (const v of valid) {\n  console.log('  - ' + v.json.title + ' (' + v.json._pine_length + ' chars, ' + (v.json._is_strategy ? 'STRATEGY' : 'INDICATOR') + ')');\n}\n\nreturn valid;\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1160,
+        300
+      ],
+      "id": "filter-backtest",
+      "name": "Filter Top 3 for Backtest"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Feed to Backtester \u2014 TSLA 5min 90d $25K\nconst CONFIG = {\n  symbol: 'TSLA',\n  timeframe: '5',\n  lookback_days: 90,\n  initial_capital: 25000,\n  commission_pct: 0.05,\n  slippage_ticks: 2,\n  currency: 'USD',\n  pyramiding: 0,\n  default_qty_type: 'fixed',\n  default_qty_value: 100\n};\n\nconst results = [];\nfor (const item of $input.all()) {\n  if (item.json._empty) continue;\n  \n  results.push({\n    json: {\n      title: item.json.title,\n      author: item.json.author,\n      script_url: item.json.script_url,\n      script_type: item.json._is_strategy ? 'strategy' : 'indicator',\n      pine_version: (item.json.pine_code.match(/\\/\\/@version=(\\d+)/) || [])[1] || '?',\n      pine_code_length: item.json._pine_length,\n      backtest_config: CONFIG,\n      backtest_ready: item.json._is_strategy,\n      note: item.json._is_strategy\n        ? 'Strategy \u2014 ready for backtesting'\n        : 'Indicator \u2014 needs strategy wrapper for backtesting'\n    }\n  });\n}\n\nconsole.log('[BACKTESTER] ' + results.length + ' scripts prepared. Strategies: ' + results.filter(r => r.json.backtest_ready).length);\nreturn results.length > 0 ? results : [{ json: { message: 'No scripts for backtester', config: CONFIG } }];\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1440,
+        300
+      ],
+      "id": "backtester",
+      "name": "Feed to Backtester"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Build summary for Telegram notification\n// We receive the backtester output, but we need the full stats\n// Access the original items via $('Fetch Details + Pine Code')\nconst allItems = $('Fetch Details + Pine Code').all();\nconst total = allItems.length;\nconst withCode = allItems.filter(i => i.json._has_version).length;\nconst openSource = allItems.filter(i => i.json.is_protected === 'OPEN_SOURCE').length;\nconst editors = allItems.filter(i => i.json.category === 'editors_picks').length;\nconst popular = allItems.filter(i => i.json.category === 'popular').length;\nconst strategies = allItems.filter(i => i.json._is_strategy).length;\n\nconst backtestItems = $input.all().filter(i => !i.json.message);\n\nlet msg = '\ud83d\udcca <b>TradingView Script Scraper v6</b>\\n\\n';\nmsg += '\u2705 <b>' + total + ' scripts scraped</b>\\n';\nmsg += '\u251c Editors Picks: ' + editors + '\\n';\nmsg += '\u251c Popular: ' + popular + '\\n';\nmsg += '\u251c Open Source: ' + openSource + '\\n';\nmsg += '\u251c Full Pine Code: ' + withCode + '\\n';\nmsg += '\u2514 Strategies: ' + strategies + '\\n';\n\nif (backtestItems.length > 0) {\n  msg += '\\n\ud83e\uddea <b>Top ' + backtestItems.length + ' for Backtester:</b>\\n';\n  for (const bt of backtestItems) {\n    const b = bt.json;\n    msg += '\u2022 ' + b.title + ' (v' + b.pine_version + ', ' + b.script_type + ')\\n';\n  }\n  msg += '\\nConfig: TSLA | 5min | 90d | $25K';\n} else {\n  msg += '\\nNo strategies found for backtesting.';\n}\n\nmsg += '\\n\\n\ud83d\udccb Results saved to Google Sheets';\n\nreturn [{ json: { text: msg } }];\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1720,
+        300
+      ],
+      "id": "build-summary",
+      "name": "Build Summary"
+    },
+    {
+      "parameters": {
+        "operation": "sendMessage",
+        "chatId": "REDACTED_CHAT_ID",
+        "text": "={{ $json.text }}",
+        "additionalFields": {
+          "parse_mode": "HTML"
+        }
+      },
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [
+        2000,
+        300
+      ],
+      "id": "telegram-notify",
+      "name": "Notify Telegram",
+      "credentials": {
+        "telegramApi": {
+          "id": "GiUsUl7vX5HyzagN",
+          "name": "Telegram account"
+        }
+      }
+    }
+  ],
+  "connections": {
+    "Nightly 2AM ET": {
+      "main": [
+        [
+          {
+            "node": "Fetch & Parse Listings",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Fetch & Parse Listings": {
+      "main": [
+        [
+          {
+            "node": "Has Scripts?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Has Scripts?": {
+      "main": [
+        [
+          {
+            "node": "Fetch Details + Pine Code",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        []
+      ]
+    },
+    "Fetch Details + Pine Code": {
+      "main": [
+        [
+          {
+            "node": "Save to Google Sheets",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Filter Top 3 for Backtest",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Filter Top 3 for Backtest": {
+      "main": [
+        [
+          {
+            "node": "Feed to Backtester",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Feed to Backtester": {
+      "main": [
+        [
+          {
+            "node": "Build Summary",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build Summary": {
+      "main": [
+        [
+          {
+            "node": "Notify Telegram",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "callerPolicy": "workflowsFromSameOwner",
+    "availableInMCP": false
+  },
+  "meta": {
+    "n8n_workflow_id": "clJx38QvH37GrB0v",
+    "instance": "tradenextgen.app.n8n.cloud",
+    "exported_at": "2026-04-13T16:35:00Z",
+    "active_at_export": false,
+    "node_count": 9,
+    "secrets_redacted": true
+  }
+}

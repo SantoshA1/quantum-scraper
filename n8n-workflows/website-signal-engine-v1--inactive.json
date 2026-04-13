@@ -1,0 +1,180 @@
+{
+  "name": "Website Signal Engine v1",
+  "nodes": [
+    {
+      "id": "webhook-node",
+      "name": "Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        250,
+        300
+      ],
+      "parameters": {
+        "path": "website-signal",
+        "responseMode": "responseNode",
+        "options": {
+          "allowedOrigins": "*"
+        }
+      }
+    },
+    {
+      "id": "validate-node",
+      "name": "Validate and Format",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        500,
+        300
+      ],
+      "parameters": {
+        "jsCode": "const body = $input.first().json.body || $input.first().json;\nconst ticker = (body.ticker || '').toUpperCase().trim();\nif (!ticker || ticker.length > 6) throw new Error('INVALID_TICKER');\nconst ind = {\n  ticker,\n  price: parseFloat(body.price) || 0,\n  change: parseFloat(body.change) || 0,\n  changePct: parseFloat(body.changePct) || 0,\n  rsi: parseFloat(body.rsi) || 50,\n  macd: parseFloat(body.macd) || 0,\n  macdSignal: parseFloat(body.macdSignal) || 0,\n  macdHist: parseFloat(body.macdHist) || 0,\n  ema20: parseFloat(body.ema20) || 0,\n  ema50: parseFloat(body.ema50) || 0,\n  bbUpper: parseFloat(body.bbUpper) || 0,\n  bbMiddle: parseFloat(body.bbMiddle) || 0,\n  bbLower: parseFloat(body.bbLower) || 0,\n  bbPosition: parseFloat(body.bbPosition) || 0.5,\n  atr: parseFloat(body.atr) || 0,\n  obvTrend: body.obvTrend || 'NEUTRAL',\n  volRatio: parseFloat(body.volRatio) || 1,\n  high52: parseFloat(body.high52) || 0,\n  low52: parseFloat(body.low52) || 0,\n  lastDate: body.lastDate || 'N/A',\n  roc10: parseFloat(body.roc10) || 0\n};\nind.emaCross = ind.ema20 > ind.ema50 ? 'BULLISH' : 'BEARISH';\nind.distFromHigh = ind.high52 > 0 ? (((ind.price - ind.high52) / ind.high52) * 100).toFixed(1) : 'N/A';\nind.distFromLow = ind.low52 > 0 ? (((ind.price - ind.low52) / ind.low52) * 100).toFixed(1) : 'N/A';\nreturn [{ json: ind }];"
+      }
+    },
+    {
+      "id": "grok-node",
+      "name": "Grok-3 AI Analysis",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        750,
+        300
+      ],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "ZbFS9PEaaQfhX0uC",
+          "name": "Header Auth account"
+        }
+      },
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.x.ai/v1/chat/completions",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "httpHeaderAuth",
+        "sendBody": true,
+        "contentType": "json",
+        "body": {
+          "model": "grok-3",
+          "temperature": 0.2,
+          "max_tokens": 900,
+          "messages": [
+            {
+              "role": "system",
+              "content": "You are the VC Gate Decision Engine for the AgilityServ Quantum Trading Pipeline. You analyze technical indicator data for US equities and produce structured, institutional-grade trading signals. You are precise, data-driven, and never vague. You always output valid JSON only \u2014 no markdown, no explanation outside JSON."
+            },
+            {
+              "role": "user",
+              "content": "=Analyze {{ $json.ticker }} using pipeline data from {{ $json.lastDate }}:\n\nPRICE: ${{ $json.price }} | Change: {{ $json.changePct }}% | 10d ROC: {{ $json.roc10 }}%\n\nTREND: EMA20=${{ $json.ema20 }} | EMA50=${{ $json.ema50 }} | Cross={{ $json.emaCross }}\nMACD={{ $json.macd }} | Signal={{ $json.macdSignal }} | Hist={{ $json.macdHist }}\n\nMOMENTUM: RSI(14)={{ $json.rsi }}\n\nVOLATILITY: BB Upper=${{ $json.bbUpper }} | Mid=${{ $json.bbMiddle }} | Lower=${{ $json.bbLower }} | Position={{ $json.bbPosition }} | ATR=${{ $json.atr }}\n\nVOLUME: OBV={{ $json.obvTrend }} | Vol Ratio={{ $json.volRatio }}x\n\nRANGE: 52W High=${{ $json.high52 }} ({{ $json.distFromHigh }}% from high) | 52W Low=${{ $json.low52 }} (+{{ $json.distFromLow }}% from low)\n\nReturn ONLY valid JSON:\n{\"signal\":\"BUY\"|\"SELL\"|\"STAND ASIDE\",\"confidence\":<0-100>,\"correlationScore\":<0-100>,\"vcGateScore\":<0-100>,\"reasons\":[\"<reason with exact numbers>\",\"<reason>\",\"<reason>\",\"<reason>\"],\"tradePlan\":{\"direction\":\"LONG\"|\"SHORT\",\"entry\":\"$X\",\"stopLoss\":\"$X\",\"target1\":\"$X\",\"target2\":\"$X\",\"riskReward\":\"1:X\"},\"standAsideConditions\":[\"<condition if STAND ASIDE>\"],\"marketContext\":\"<1 sentence>\"}"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "parse-node",
+      "name": "Parse Grok Response",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1000,
+        300
+      ],
+      "parameters": {
+        "jsCode": "const raw = $input.first().json.choices?.[0]?.message?.content || '';\nlet parsed;\ntry {\n  const cleaned = raw.replace(/```json\\n?|\\n?```/g, '').trim();\n  parsed = JSON.parse(cleaned);\n} catch(e) {\n  parsed = { signal: 'STAND ASIDE', confidence: 50, correlationScore: 50, vcGateScore: 50,\n    reasons: ['Analysis inconclusive \u2014 monitor for confirmation signals before entering.',\n      'EMA trend unclear \u2014 wait for cross confirmation.',\n      'RSI in neutral zone \u2014 no high-probability entry identified.',\n      'Volume not confirming directional move \u2014 stand aside.'],\n    tradePlan: null, standAsideConditions: ['Wait for EMA20/EMA50 cross confirmation.'],\n    marketContext: 'Mixed signals \u2014 no clear edge at current levels.' };\n}\nconst colorMap = {\n  'BUY': { color: '#00E599', glow: 'rgba(0,229,153,0.35)' },\n  'SELL': { color: '#FF4D4D', glow: 'rgba(255,77,77,0.35)' },\n  'STAND ASIDE': { color: '#FFB547', glow: 'rgba(255,181,71,0.35)' }\n};\nparsed.meta = colorMap[parsed.signal] || colorMap['STAND ASIDE'];\nparsed.poweredBy = 'Grok-3 \u00b7 AgilityServ Quantum Pipeline';\nreturn [{ json: parsed }];"
+      }
+    },
+    {
+      "id": "respond-node",
+      "name": "Respond to Webhook",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [
+        1250,
+        300
+      ],
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify($json) }}",
+        "options": {
+          "responseHeaders": {
+            "entries": [
+              {
+                "name": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "name": "Access-Control-Allow-Origin",
+                "value": "*"
+              },
+              {
+                "name": "Access-Control-Allow-Methods",
+                "value": "POST, OPTIONS"
+              },
+              {
+                "name": "Access-Control-Allow-Headers",
+                "value": "Content-Type"
+              }
+            ]
+          }
+        }
+      }
+    }
+  ],
+  "connections": {
+    "Webhook": {
+      "main": [
+        [
+          {
+            "node": "Validate and Format",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Validate and Format": {
+      "main": [
+        [
+          {
+            "node": "Grok-3 AI Analysis",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Grok-3 AI Analysis": {
+      "main": [
+        [
+          {
+            "node": "Parse Grok Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parse Grok Response": {
+      "main": [
+        [
+          {
+            "node": "Respond to Webhook",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "meta": {
+    "n8n_workflow_id": "zdoNfdBqI0MgGfwm",
+    "instance": "tradenextgen.app.n8n.cloud",
+    "exported_at": "2026-04-13T16:35:00Z",
+    "active_at_export": false,
+    "node_count": 5,
+    "secrets_redacted": true
+  }
+}

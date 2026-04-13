@@ -1,0 +1,301 @@
+{
+  "name": "Telegram Signal \u2192 Grok Analyzer (Isolated)",
+  "nodes": [
+    {
+      "parameters": {
+        "updates": [
+          "message"
+        ],
+        "additionalFields": {}
+      },
+      "id": "b49706df-fa53-4527-9cd6-204584a270ec",
+      "name": "Telegram Trigger",
+      "type": "n8n-nodes-base.telegramTrigger",
+      "typeVersion": 1.1,
+      "position": [
+        0,
+        0
+      ],
+      "webhookId": "tg-signal-grok-webhook-001",
+      "credentials": {
+        "telegramApi": {
+          "id": "GiUsUl7vX5HyzagN",
+          "name": "Telegram account"
+        }
+      },
+      "notes": "Listens for all new messages in the Telegram signals chat.\nThe bot must be added to the group/channel as an admin with privacy mode disabled so it can see all messages (not just /commands).\nOnly triggers on 'message' events \u2014 ignores edits, reactions, etc."
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 1
+          },
+          "conditions": [
+            {
+              "id": "cond-trading-keywords",
+              "leftValue": "={{ $json.message.text }}",
+              "rightValue": "BUY",
+              "operator": {
+                "type": "string",
+                "operation": "contains"
+              }
+            },
+            {
+              "id": "cond-sell-keyword",
+              "leftValue": "={{ $json.message.text }}",
+              "rightValue": "SELL",
+              "operator": {
+                "type": "string",
+                "operation": "contains"
+              }
+            },
+            {
+              "id": "cond-long-keyword",
+              "leftValue": "={{ $json.message.text }}",
+              "rightValue": "LONG",
+              "operator": {
+                "type": "string",
+                "operation": "contains"
+              }
+            },
+            {
+              "id": "cond-short-keyword",
+              "leftValue": "={{ $json.message.text }}",
+              "rightValue": "SHORT",
+              "operator": {
+                "type": "string",
+                "operation": "contains"
+              }
+            },
+            {
+              "id": "cond-entry-keyword",
+              "leftValue": "={{ $json.message.text }}",
+              "rightValue": "ENTRY",
+              "operator": {
+                "type": "string",
+                "operation": "contains"
+              }
+            },
+            {
+              "id": "cond-ticker-symbol",
+              "leftValue": "={{ $json.message.text }}",
+              "rightValue": "\\$[A-Z]{1,5}",
+              "operator": {
+                "type": "string",
+                "operation": "regex"
+              }
+            },
+            {
+              "id": "cond-stop-loss",
+              "leftValue": "={{ $json.message.text }}",
+              "rightValue": "SL",
+              "operator": {
+                "type": "string",
+                "operation": "contains"
+              }
+            },
+            {
+              "id": "cond-take-profit",
+              "leftValue": "={{ $json.message.text }}",
+              "rightValue": "TP",
+              "operator": {
+                "type": "string",
+                "operation": "contains"
+              }
+            },
+            {
+              "id": "cond-alert-keyword",
+              "leftValue": "={{ $json.message.text }}",
+              "rightValue": "ALERT",
+              "operator": {
+                "type": "string",
+                "operation": "contains"
+              }
+            }
+          ],
+          "combinator": "or"
+        },
+        "options": {
+          "looseTypeValidation": true
+        }
+      },
+      "id": "599414ff-915d-4be4-af53-f4bc83bae55f",
+      "name": "Filter Trading Signals",
+      "type": "n8n-nodes-base.filter",
+      "typeVersion": 2,
+      "position": [
+        288,
+        0
+      ],
+      "notes": "Filters incoming messages to only pass through those that look like trading signals.\nMatches (case-insensitive): BUY, SELL, LONG, SHORT, ENTRY, SL, TP, ALERT, or ticker symbols like $AAPL.\nMessages that don't match any of these are silently dropped \u2014 no error, no downstream processing.\nUses OR logic: any single keyword match is enough to pass."
+    },
+    {
+      "parameters": {
+        "jsCode": "// ============================================================\n// Extract & format the signal text from the Telegram message\n// Handles both group messages and channel posts gracefully\n// ============================================================\n\nconst item = $input.first().json;\n\n// Channel posts come in as 'channel_post', group messages as 'message'\nconst message = item.message || item.channel_post || {};\nconst text = message.text || message.caption || '[No text content]';\n\n// Extract metadata for logging\nconst chatTitle = message.chat?.title || 'Unknown Chat';\nconst chatType = message.chat?.type || 'unknown';\nconst messageDate = message.date\n  ? new Date(message.date * 1000).toISOString()\n  : new Date().toISOString();\nconst messageId = message.message_id || 'N/A';\n\n// Build the analysis prompt with fixed portfolio context\nconst analysisPrompt = `Here is a new trading signal from my Broad Scanner v3.0: ${text}. Current portfolio has 11 positions with ~$56K exposure (heavy AI/tech bias). Analyze the signal for: fit with existing holdings, correlation risk, potential overlap, risk level, and give a short actionable recommendation (take it / skip / watch). Keep response concise.`;\n\nreturn [{\n  json: {\n    signalText: text,\n    analysisPrompt: analysisPrompt,\n    chatTitle: chatTitle,\n    chatType: chatType,\n    messageDate: messageDate,\n    messageId: messageId\n  }\n}];"
+      },
+      "id": "b2baa120-32d6-4ddb-88a7-ac10d4076234",
+      "name": "Format Signal Prompt",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        544,
+        0
+      ],
+      "notes": "Extracts the message text from the Telegram payload and builds the full analysis prompt.\nHandles both group messages (message.text) and channel posts (channel_post.text).\nIncludes the fixed portfolio context: 11 positions, ~$56K exposure, AI/tech bias.\nAlso extracts metadata (chat title, date, message ID) for the log."
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "={{ $json.analysisPrompt }}",
+        "options": {
+          "systemMessage": "You are a professional trading analyst assistant. You analyze incoming trading signals against an existing portfolio. Be direct, concise, and actionable. Always structure your response as:\n\n1. SIGNAL SUMMARY: (ticker, direction, key levels)\n2. FIT ANALYSIS: (how it fits with current AI/tech-heavy portfolio)\n3. CORRELATION RISK: (overlap with existing 11 positions)\n4. RISK LEVEL: (Low / Medium / High)\n5. RECOMMENDATION: (TAKE IT / SKIP / WATCH \u2014 with brief reasoning)\n\nKeep total response under 200 words."
+        }
+      },
+      "id": "0cf75c4b-25b4-471d-958f-c5e16e82fe06",
+      "name": "Grok Signal Analyzer",
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 1.8,
+      "position": [
+        800,
+        0
+      ],
+      "onError": "continueRegularOutput",
+      "notes": "AI Agent node that sends the formatted signal prompt to Grok for analysis.\nUses a structured system message to ensure consistent, actionable output.\nSet to 'Continue On Fail' so a Grok API error won't crash the workflow.\nThe prompt includes the fixed portfolio context (11 positions, $56K, AI/tech bias)."
+    },
+    {
+      "parameters": {
+        "model": "grok-3",
+        "options": {
+          "maxTokens": 1024,
+          "temperature": 0.3
+        }
+      },
+      "id": "0957ae90-cab1-4791-b066-b44bfa83c2e5",
+      "name": "xAI Grok Chat Model",
+      "type": "@n8n/n8n-nodes-langchain.lmChatXAiGrok",
+      "typeVersion": 1,
+      "position": [
+        832,
+        240
+      ],
+      "credentials": {
+        "xAiApi": {
+          "id": "qyUISF3PUWktrFtN",
+          "name": "xAi account"
+        }
+      },
+      "notes": "xAI Grok Chat Model sub-node \u2014 connected to the AI Agent as its language model.\nModel: grok-3-fast-beta (fast responses, good for real-time signal analysis).\nTemperature: 0.3 (low \u2014 we want consistent, factual analysis, not creative output).\nMax tokens: 1024 (plenty for a concise analysis).\nYou can change the model to grok-3-beta or grok-2-latest depending on your xAI plan."
+    },
+    {
+      "parameters": {
+        "jsCode": "// ============================================================\n// Log the Grok analysis result alongside the original signal\n// This node structures the output for easy review/export\n// ============================================================\n\nconst input = $input.first().json;\n\n// Get data from the Format Signal Prompt node\nconst signalData = $('Format Signal Prompt').first().json;\n\nconst logEntry = {\n  timestamp: new Date().toISOString(),\n  messageId: signalData.messageId,\n  chatTitle: signalData.chatTitle,\n  chatType: signalData.chatType,\n  originalSignal: signalData.signalText,\n  grokAnalysis: input.output || input.text || JSON.stringify(input),\n  messageDate: signalData.messageDate,\n  status: 'analyzed'\n};\n\nconsole.log('[Signal Analyzer] Processed signal:', logEntry.originalSignal?.substring(0, 80));\nconsole.log('[Signal Analyzer] Grok says:', logEntry.grokAnalysis?.substring(0, 120));\n\nreturn [{ json: logEntry }];"
+      },
+      "id": "ddf12503-b1c7-47c3-a584-a436bc9f759f",
+      "name": "Log Analysis",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1104,
+        0
+      ],
+      "onError": "continueRegularOutput",
+      "notes": "Structures the final output as a clean log entry: timestamp, original signal, Grok analysis, metadata.\nOutputs to the execution log (visible in n8n execution history).\nYou can optionally connect this to a Google Sheets node, webhook, or database to persist the logs.\nSet to 'Continue On Fail' for resilience."
+    },
+    {
+      "parameters": {},
+      "id": "25a66b5b-b985-4089-b173-23e34c36e76d",
+      "name": "No Operation (End)",
+      "type": "n8n-nodes-base.noOp",
+      "typeVersion": 1,
+      "position": [
+        1360,
+        0
+      ],
+      "notes": "Terminal node \u2014 marks the end of the workflow.\nThe analysis is logged in the execution history.\nTo extend: replace this with a Google Sheets, Slack, Discord, or Email node to forward the analysis."
+    }
+  ],
+  "connections": {
+    "Telegram Trigger": {
+      "main": [
+        [
+          {
+            "node": "Filter Trading Signals",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Filter Trading Signals": {
+      "main": [
+        [
+          {
+            "node": "Format Signal Prompt",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Format Signal Prompt": {
+      "main": [
+        [
+          {
+            "node": "Grok Signal Analyzer",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "xAI Grok Chat Model": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "Grok Signal Analyzer",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Grok Signal Analyzer": {
+      "main": [
+        [
+          {
+            "node": "Log Analysis",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Log Analysis": {
+      "main": [
+        [
+          {
+            "node": "No Operation (End)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate"
+  },
+  "meta": {
+    "n8n_workflow_id": "UOpjdZJhhXhjkipK",
+    "instance": "tradenextgen.app.n8n.cloud",
+    "exported_at": "2026-04-13T16:35:00Z",
+    "active_at_export": false,
+    "node_count": 7,
+    "secrets_redacted": true
+  }
+}
