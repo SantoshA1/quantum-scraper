@@ -209,6 +209,23 @@ Telegram Trigger → Filter Trading Signals
 
 ---
 
+## Upcoming Maintenance Deadlines
+
+| Date | Action | Impact if missed |
+|---|---|---|
+| **April 25, 2026** | Rotate n8n API key (old key expires April 26) | Dead-Man's Switch workflows lose ability to query n8n execution API — silent failure, no alerts if scanners go down |
+| **July 5, 2026** | Rotate current n8n API key ("QuantumBot-Rotated-Apr2026", expires July 6) | Same as above |
+
+The n8n API key is embedded in these workflows' Code nodes:
+- Dead-Man's Switch — Broad Scanner (`uqv5Qs4vcb78EbM3`)
+- Dead-Man's Switch — Signal Agent (`gmoB1UWSGCkm0xah`)
+- Daily Testing Agent (`5kpUVMQJhPFnBPyB`)
+- Daily Summary Report (`zVyA33wjmJrZJDs3`)
+
+After generating a new key in n8n Settings → API, search each workflow's Code nodes for the old JWT and replace it.
+
+---
+
 ## Disaster Recovery Procedure
 
 1. Log into `https://tradenextgen.app.n8n.cloud`
