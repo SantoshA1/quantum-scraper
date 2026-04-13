@@ -1,3 +1,23 @@
 node_modules/
 .DS_Store
 *.log
+
+# Secret / credential files — never commit these
+.env
+.env.*
+*.pem
+*.key
+*-serviceaccount.json
+*-credentials.json
+*service-account*.json
+*keyfile*.json
+secrets/
+credentials/
+
+# Google Cloud service account keys
+tradingview-scraper-*.json
+!n8n-workflows/tradingview-script-scraper-*.json
+
+# IDE
+.vscode/
+.idea/
