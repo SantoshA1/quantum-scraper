@@ -1,0 +1,139 @@
+{
+  "name": "Real-Time Signal Agent",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "minutes"
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.3,
+      "position": [
+        0,
+        0
+      ],
+      "id": "167f3d63-3f47-4ea5-93b6-6a6054ec7ffe",
+      "name": "Schedule Trigger"
+    },
+    {
+      "parameters": {
+        "jsCode": "// ================================================\n// REAL-TIME SIGNAL AGENT v2.6 \u2014 Batch snapshots fix for timeout \u2014 Tickers from upstream node, not inline API call \u2014 Fix #18 static data keys \u2014 Fix #7 getSnapshot, Fix #3 fallback alert \u2014 Threshold Alignment Fix \u2014 HYBRID FEEDER + DEBUG LOGGING\n// Scans 105 tickers from Google Sheet\n// ================================================\n\n// GOOGLE_SHEET_ID removed \u2014 tickers now loaded via upstream Google Sheets node\n\n// ================== CONFIG ==================\nconst MOMENTUM_THRESHOLD = 0.7;  // v2.2: lowered from 1.0 to match Broad Scanner\nconst PROFILE_IMBALANCE = 1.8;        // Kioseff Market Structure\nconst VOLUME_MIN = 0.3;\nconst MIN_RR = 2.0;\n\n// v2.6 \u2014 Batch snapshots fix for timeout \u2014 Tickers from upstream node, not inline API call: Use workflow static data for API keys (Fix #18)\nconst _creds = $getWorkflowStaticData('global');\nconst ALPACA_KEY = _creds._alpaca_key || 'REDACTED_ALPACA_KEY_ID';\nconst ALPACA_SECRET = _creds._alpaca_secret || 'REDACTED_ALPACA_SECRET';\n\n\nconsole.log(\"\ud83d\ude80 Hybrid Agent started - Scanning 105 tickers\");\n\n// ================== LOAD TICKERS FROM UPSTREAM GOOGLE SHEETS NODE ==================\n// v2.6 \u2014 Batch snapshots fix for timeout: Tickers now come from the \"Load Tickers\" Google Sheets node (pre-stage)\n// This fixes the httpRequestWithAuthentication error in Code nodes.\nconst FALLBACK_TICKERS = [\"TSLA\",\"NVDA\",\"AMD\",\"MSFT\",\"GILD\",\"SPY\",\"QQQ\",\"AAPL\",\"GOOGL\",\"AMZN\",\"META\",\"SMCI\",\"NBIS\",\"CRWV\"];\nlet tickers = [];\n\ntry {\n  const inputItems = $input.all();\n  tickers = inputItems\n    .map(item => {\n      const row = item.json;\n      return row.Ticker || row.ticker || row.COST || Object.values(row).find(v => typeof v === 'string' && v.length <= 6 && /^[A-Z]+$/.test(v));\n    })\n    .filter(t => t && typeof t === 'string' && t.length >= 1 && t.length <= 6 && /^[A-Z]+$/.test(t.toUpperCase()))\n    .map(t => t.toUpperCase());\n  \n  if (tickers.length === 0) {\n    throw new Error('Sheet returned 0 valid tickers');\n  }\n  \n  console.log('Sheet loaded: ' + tickers.length + ' tickers from upstream node');\n} catch (e) {\n  console.log('Sheet parse failed: ' + e.message + ' \u2014 using ' + FALLBACK_TICKERS.length + '-ticker fallback');\n  tickers = FALLBACK_TICKERS;\n  \n  try {\n    await this.helpers.httpRequest({\n      method: 'POST',\n      url: 'https://api.telegram.org/botREDACTED_TELEGRAM_BOT_TOKEN/sendMessage',\n      headers: { 'Content-Type': 'application/json' },\n      body: JSON.stringify({\n        chat_id: REDACTED_CHAT_ID,\n        text: '[RT AGENT] Sheet parse failed \u2014 ' + FALLBACK_TICKERS.length + '-ticker fallback. Error: ' + e.message\n      }),\n      json: true\n    });\n  } catch (tgErr) { /* silent */ }\n}\n\n// ================== MAIN LOOP ==================\nconst vixData = await getSnapshot(\"I:VIX\");\nconst vix = vixData?.price || 25.0;\nconsole.log(`\ud83d\udcca VIX = ${vix.toFixed(1)}`);\n\nlet signalsFound = 0;\n\nfor (const ticker of tickers) {\n    const data = await getSnapshot(ticker);\n    if (!data || !data.price) {\n        console.log(`\u26a0\ufe0f ${ticker} \u2014 No data`);\n        continue;\n    }\n\n    const signal = evaluateTicker(ticker, data, vix);\n\n    if (signal) {\n        signalsFound++;\n        console.log(`\ud83d\udd25 SIGNAL FOUND \u2192 ${ticker} ${signal.signal} | ${signal.reason} | Conf ${signal.confidence}% | R:R ${signal.rr}`);\n\n        // Push to VC Gate + AI Super Score pipeline\n        await this.helpers.httpRequest({\n            method: 'POST',\n            url: 'https://tradenextgen.app.n8n.cloud/webhook/tradingview-signal',\n            headers: { 'Content-Type': 'application/json' },\n            body: {\n                ticker: ticker,\n                price: signal.price,\n                execution: signal.signal,\n                signal: signal.signal === \"SELL\" ? \"BEARISH\" : \"BULLISH\",\n                bias_score: signal.confidence,\n                regime: \"TRENDING\",\n                adx: \"N/A\",\n                rsi: \"N/A\",\n                macd_hist: \"N/A\",\n                atr: signal.atr_est,\n                volume_ratio: signal.vol_ratio,\n                vix: vix.toFixed(1),\n                timeframe: \"5\",\n                alert_type: \"REALTIME_AGENT_HYBRID\",\n                comment: `HYBRID AGENT v2.1 + Kioseff Structure: ${signal.reason} | R:R=${signal.rr}`,\n                momentum_engine: \"true\",\n                momentum_type: \"realtime_agent\"\n            }\n        });\n    } else {\n        // Debug why it was skipped\n        const changePct = (data.price - data.prev_close) / data.prev_close * 100;\n        const volRatio = data.volume / data.avg_volume;\n        console.log(`\u23ed\ufe0f ${ticker} skipped | change ${changePct.toFixed(2)}% | vol ${volRatio.toFixed(2)}x | (no threshold met)`);\n    }\n}\n\nconsole.log(`\u2705 Scan complete \u2014 Signals found: ${signalsFound} | Tickers scanned: ${tickers.length}`);\n\nreturn { signalsFound, tickersScanned: tickers.length };\n\n// ================== HELPERS ==================\n// v2.6: Batch snapshot fetcher \u2014 pre-loads all tickers in 1-2 API calls\n// (replaces 102 individual calls that caused 60s timeouts)\nvar _batchSnapshots = null;\nasync function loadBatchSnapshots(tickerList) {\n  if (_batchSnapshots) return; // already loaded\n  _batchSnapshots = {};\n  const batchSize = 100;\n  for (let b = 0; b < tickerList.length; b += batchSize) {\n    const batch = tickerList.slice(b, b + batchSize)\n      .filter(t => /^[A-Z]{1,6}$/.test(t)); // strip invalid tickers like OIL\n    if (!batch.length) continue;\n    try {\n      const resp = await this.helpers.httpRequest({\n        method: 'GET',\n        url: 'https://data.alpaca.markets/v2/stocks/snapshots?symbols=' + batch.join(',') + '&feed=iex',\n        headers: { 'APCA-API-KEY-ID': ALPACA_KEY, 'APCA-API-SECRET-KEY': ALPACA_SECRET },\n        json: true\n      });\n      Object.assign(_batchSnapshots, resp || {});\n    } catch (e) {\n      console.log('[BATCH] Snapshot fetch failed for batch: ' + e.message);\n    }\n  }\n  console.log('[BATCH] Loaded snapshots for ' + Object.keys(_batchSnapshots).length + ' tickers');\n}\n\nasync function getSnapshot(ticker) {\n  if (!_batchSnapshots) return null; // loadBatchSnapshots must run first\n  const snap = _batchSnapshots[ticker];\n  if (!snap || !snap.latestTrade || !snap.dailyBar || !snap.prevDailyBar) return null;\n  return {\n    price:      snap.latestTrade.p,\n    prev_close: snap.prevDailyBar.c,\n    volume:     snap.dailyBar.v,\n    avg_volume: snap.prevDailyBar.v,\n    day_high:   snap.dailyBar.h,\n    day_low:    snap.dailyBar.l\n  };\n}\n\nfunction evaluateTicker(ticker, data, vix) {\n    const changePct = (data.price - data.prev_close) / data.prev_close * 100;\n    const volRatio = data.volume / data.avg_volume;\n\n    let signal = null;\n    let reason = \"\";\n\n    if (changePct <= -MOMENTUM_THRESHOLD && volRatio >= VOLUME_MIN) {\n        signal = \"SELL\";\n        reason = `MOMENTUM SHORT: ${changePct.toFixed(1)}% | vol ${volRatio.toFixed(1)}x`;\n    } else if (changePct >= MOMENTUM_THRESHOLD && volRatio >= VOLUME_MIN && vix < 30) {\n        signal = \"BUY\";\n        reason = `MOMENTUM LONG: ${changePct.toFixed(1)}% | vol ${volRatio.toFixed(1)}x`;\n    } else if (volRatio >= PROFILE_IMBALANCE && changePct < -0.8) {\n        signal = \"SELL\";\n        reason = `MARKET STRUCTURE BREAK (Kioseff) - imbalance ${volRatio.toFixed(1)}x`;\n    }\n\n    if (!signal) return null;\n\n    const atrEst = (data.day_high - data.day_low) || (data.price * 0.01);\n    const slDist = atrEst * 1.5;\n    const tpDist = atrEst * 3.0;\n    if (tpDist / slDist < MIN_RR) return null;\n\n    return {\n        signal,\n        price: Number(data.price.toFixed(2)),\n        confidence: Math.round(Math.abs(changePct) * 25 + volRatio * 15),\n        reason,\n        vol_ratio: Number(volRatio.toFixed(2)),\n        atr_est: Number(atrEst.toFixed(2)),\n        rr: Number((tpDist / slDist).toFixed(1))\n    };\n}"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        208,
+        0
+      ],
+      "id": "46a95849-704c-46b5-91c3-dfbd352134bb",
+      "name": "Fetch & Evaluate"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://tradenextgen.app.n8n.cloud/webhook/tradingview-signal",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify($json) }}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [
+        416,
+        0
+      ],
+      "id": "42c230dc-14fc-4c3d-82b1-882bb6f2c1ec",
+      "name": "Push to Pipeline"
+    },
+    {
+      "parameters": {
+        "documentId": {
+          "__rl": true,
+          "value": "1gMSYFW6ZsJpIkyXQQZOxczfr1ryLC3pb1TI3C_-2v-E",
+          "mode": "id"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "gid=0",
+          "mode": "list",
+          "cachedResultName": "Sheet1"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [
+        256,
+        304
+      ],
+      "id": "rt-load-tickers-v2",
+      "name": "Load Tickers",
+      "retryOnFail": true,
+      "maxTries": 2,
+      "waitBetweenTries": 30000,
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "4JBjbFyLikLTrZtm",
+          "name": "Google Sheets account"
+        }
+      }
+    }
+  ],
+  "connections": {
+    "Schedule Trigger": {
+      "main": [
+        [
+          {
+            "node": "Load Tickers",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Load Tickers": {
+      "main": [
+        [
+          {
+            "node": "Fetch & Evaluate",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Fetch & Evaluate": {
+      "main": [
+        [
+          {
+            "node": "Push to Pipeline",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate",
+    "callerPolicy": "workflowsFromSameOwner",
+    "availableInMCP": false
+  },
+  "meta": {
+    "n8n_workflow_id": "qq1mZLLsuUtot0ID",
+    "instance": "tradenextgen.app.n8n.cloud",
+    "exported_at": "2026-04-13T14:06:00Z",
+    "version": "v1.0",
+    "node_count": 4,
+    "description": "RT Signal Agent \u2014 real-time signal agent. Loads tickers from Google Sheet watchlist, fetches live data, computes indicators, and pushes signals to the Signal State Machine webhook. Runs every 5 min during market hours.",
+    "secrets_redacted": true,
+    "restore_notes": "Replace REDACTED_* placeholders with real credentials after import."
+  }
+}

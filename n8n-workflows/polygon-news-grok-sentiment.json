@@ -1,0 +1,394 @@
+{
+  "name": "Polygon News \u2192 Grok Sentiment \u2192 Signal State Machine v5.13",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "minutes"
+            }
+          ]
+        }
+      },
+      "id": "046f61da-8331-4ff6-9453-dcd9b6044f0f",
+      "name": "Every 10 Minutes",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        0,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "assign-001",
+              "name": "tickers",
+              "value": "AAPL,ADBE,AMD,AMZN,ANET,APP,ARM,ASML,ASTS,AVGO,BA,BE,BMNR,BRK/B,BYDDF,BYND,CART,CMG,COST,CRM,CRMD,CRWV,CVNA,CVX,DELL,DIA,DIS,DJX,DOW,DUOL,EOSE,EXEL,FDX,GBTC,GILD,GM,GOOGL,GS,HD,HPE,INTC,INTU,IONQ,JPM,JYD,LC,LITE,LLY,LULU,LYFT,LYV,META,MSFT,MSTR,MU,NBIS,NBR,NDX,NFLX,NIO,NKE,NOW,NTAP,NTNX,NVDA,NVTS,OLED,ORCL,PANW,PCG,PFE,PLTR,PYPL,QCOM,QQQ,RDDT,RGTI,RIG,RIVN,ROKU,RTX,SHOP,SMCI,SNAP,SOUN,SPX,SPY,SQQQ,TARK,TSLA,TTD,TXG,UBER,UNH,UPST,USO,VFS,VST,WDAY,WMT,WRD,XLF,XLV,XPEV,ZETA",
+              "type": "string"
+            },
+            {
+              "id": "assign-002",
+              "name": "polygon_api_key",
+              "value": "REDACTED_POLYGON_KEY",
+              "type": "string"
+            },
+            {
+              "id": "assign-003",
+              "name": "grok_api_key",
+              "value": "REDACTED_XAI_API_KEY",
+              "type": "string"
+            },
+            {
+              "id": "assign-004",
+              "name": "sentiment_threshold",
+              "value": -0.75,
+              "type": "number"
+            },
+            {
+              "id": "assign-005",
+              "name": "lookback_minutes",
+              "value": 240,
+              "type": "number"
+            },
+            {
+              "id": "assign-006",
+              "name": "sm_webhook",
+              "value": "https://tradenextgen.app.n8n.cloud/webhook/tradingview-signal",
+              "type": "string"
+            },
+            {
+              "id": "assign-007",
+              "name": "telegram_bot_token",
+              "value": "REDACTED_TELEGRAM_BOT_TOKEN",
+              "type": "string"
+            },
+            {
+              "id": "assign-008",
+              "name": "telegram_chat_id",
+              "value": "REDACTED_CHAT_ID",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "ee173adc-c43e-4588-8eb3-885591670d70",
+      "name": "Watchlist and Config",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        224,
+        0
+      ],
+      "notes": "Edit tickers, thresholds and API keys here. No code changes needed."
+    },
+    {
+      "parameters": {
+        "jsCode": "// Split the comma-separated ticker string into one item per ticker.\n// Config values are forwarded on every item so downstream nodes stay stateless.\nconst cfg = $input.first().json;\nconst tickers = cfg.tickers\n  .split(',')\n  .map(t => t.trim().toUpperCase())\n  .filter(Boolean);\n\nconsole.log('[CONFIG] Scanning ' + tickers.length + ' tickers: ' + tickers.join(', '));\n\nreturn tickers.map(ticker => ({\n  json: {\n    ticker,\n    polygon_api_key:     cfg.polygon_api_key,\n    grok_api_key:        cfg.grok_api_key,\n    sentiment_threshold: cfg.sentiment_threshold,\n    lookback_minutes:    cfg.lookback_minutes,\n    sm_webhook:          cfg.sm_webhook,\n    telegram_bot_token:  cfg.telegram_bot_token,\n    telegram_chat_id:    cfg.telegram_chat_id\n  }\n}));"
+      },
+      "id": "69b2edbb-8872-43ef-8d52-cf18de36f2be",
+      "name": "Split and Prepare Tickers",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        448,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "url": "https://api.polygon.io/v2/reference/news",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "ticker",
+              "value": "={{ $json.ticker }}"
+            },
+            {
+              "name": "published_utc.gte",
+              "value": "={{ new Date(Date.now() - $('Watchlist and Config').item.json.lookback_minutes * 60000).toISOString().replace(/\\.\\d{3}Z$/, 'Z') }}"
+            },
+            {
+              "name": "limit",
+              "value": "10"
+            },
+            {
+              "name": "sort",
+              "value": "published_utc"
+            },
+            {
+              "name": "order",
+              "value": "desc"
+            },
+            {
+              "name": "apiKey",
+              "value": "={{ $json.polygon_api_key }}"
+            }
+          ]
+        },
+        "options": {
+          "response": {
+            "response": {
+              "responseFormat": "json"
+            }
+          }
+        }
+      },
+      "id": "2316e41e-2de6-48f5-a90f-a88aa26bc00e",
+      "name": "Polygon News per Ticker",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        672,
+        0
+      ],
+      "notes": "Requires Polygon Starter plan ($29/mo). Free tier returns 403 on this endpoint."
+    },
+    {
+      "parameters": {
+        "jsCode": "// Filter and Deduplicate Articles v2\n// Changes from v1:\n//   - Composite dedup key: ticker + article_id + published_utc (not bare ID)\n//   - Daily reset at 8:30 AM ET \u2014 ensures morning economic news (CPI, PPI, jobs) always processes fresh\n//   - Wider default lookback (60 min) so midday quiet periods don't silently drop valid recent news\n//   - Detailed per-article logging: [NEW] vs [SKIP]\n\nconst state = $getWorkflowStaticData('global');\nconst nowMs  = Date.now();\n\n// \u2500\u2500 Daily Reset \u2014 8:30 AM ET \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\n// If today's date (ET) is newer than the last reset date stored, and the\n// current ET time is at or past 08:30, clear the entire seen-article cache.\n// This guarantees pre-market / opening-bell news is never suppressed.\nconst nowET      = new Date(nowMs);\nconst etDateStr  = nowET.toLocaleDateString('en-US', { timeZone: 'America/New_York' });\nconst etTimeStr  = nowET.toLocaleTimeString('en-US', {\n  timeZone: 'America/New_York', hour: '2-digit', minute: '2-digit', hour12: false\n});\nconst etHHMM = etTimeStr.replace(':', '');  // e.g. \"0835\"\nconst resetKey = etDateStr + '_reset';       // e.g. \"4/6/2026_reset\"\n\nconst pastResetTime = parseInt(etHHMM) >= 830;  // at or after 08:30 ET\n\nif (pastResetTime && state._lastDailyReset !== resetKey) {\n  const oldSize = Object.keys(state.seenArticleIds || {}).length;\n  state.seenArticleIds = {};\n  state._lastDailyReset = resetKey;\n  console.log('[DEDUPE] Daily reset at 8:30 AM ET \u2014 cleared ' + oldSize + ' cached IDs for ' + etDateStr);\n}\n\nif (!state.seenArticleIds) state.seenArticleIds = {};\n\n// \u2500\u2500 Prune Stale Entries (4 hours \u2014 generous, daily reset handles the rest) \u2500\u2500\u2500\nconst PRUNE_MS = 4 * 60 * 60 * 1000;  // 4 hours\nlet pruned = 0;\nfor (const key of Object.keys(state.seenArticleIds)) {\n  if (nowMs - state.seenArticleIds[key] > PRUNE_MS) {\n    delete state.seenArticleIds[key];\n    pruned++;\n  }\n}\nif (pruned > 0) console.log('[DEDUPE] Pruned ' + pruned + ' stale entries (>4h old)');\n\n// \u2500\u2500 Process Articles \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\nconst newArticles = [];\nlet skipped = 0;\n\nfor (const item of $input.all()) {\n  const data     = item.json;\n  const articles = data.results || [];\n\n  // Accept articles published within the last 60 min by default.\n  // This is wider than v1's 10-min fallback so midday articles\n  // (published 30\u201355 min ago) are not silently rejected.\n  const lookbackMin = data.lookback_minutes || 60;\n  const cutoffMs    = nowMs - lookbackMin * 60 * 1000;\n\n  for (const a of articles) {\n    const rawId  = a.id || a.article_url || '';\n    if (!rawId) continue;\n\n    // Composite dedup key: ticker + article_id + date-part of published_utc\n    // Using date-part prevents a new-day rerun of an old article from being\n    // treated as duplicate across session boundaries.\n    const pubDay = (a.published_utc || '').substring(0, 10);  // \"2026-04-06\"\n    const ticker = data.ticker || (a.tickers || [])[0] || '';\n    const dedupeKey = ticker + '|' + rawId + '|' + pubDay;\n\n    // Skip genuinely-already-processed articles\n    if (state.seenArticleIds[dedupeKey]) {\n      skipped++;\n      console.log('[SKIP] ' + ticker + ' \u2014 \"' + (a.title || rawId).substring(0, 60) + '\" (already processed)');\n      continue;\n    }\n\n    // Skip articles outside the lookback window\n    const pubDate = new Date(a.published_utc || 0);\n    if (pubDate.getTime() < cutoffMs) {\n      console.log('[OLD]  ' + ticker + ' \u2014 \"' + (a.title || rawId).substring(0, 60) + '\" published ' + a.published_utc + ' (outside ' + lookbackMin + 'min window)');\n      continue;\n    }\n\n    // Mark as seen immediately (prevents double-fire within same run or next run)\n    state.seenArticleIds[dedupeKey] = nowMs;\n\n    if (!ticker) continue;\n\n    console.log('[NEW]  ' + ticker + ' \u2014 \"' + (a.title || rawId).substring(0, 60) + '\" published ' + a.published_utc);\n\n    newArticles.push({\n      json: {\n        ticker,\n        article_id:          rawId,\n        title:               a.title || '',\n        description:         (a.description || '').substring(0, 600),\n        published_utc:       a.published_utc || '',\n        article_url:         a.article_url   || '',\n        source:              (a.publisher || {}).name || 'Polygon',\n        grok_api_key:        data.grok_api_key,\n        sentiment_threshold: data.sentiment_threshold,\n        sm_webhook:          data.sm_webhook,\n        telegram_bot_token:  data.telegram_bot_token,\n        telegram_chat_id:    data.telegram_chat_id\n      }\n    });\n  }\n}\n\nconsole.log(\n  '[DEDUPE] Result: ' + newArticles.length + ' new | ' + skipped + ' skipped | ' +\n  'cache size: ' + Object.keys(state.seenArticleIds).length\n);\n\nif (newArticles.length === 0) return [];\nreturn newArticles;\n"
+      },
+      "id": "ee8f3d6c-2714-4d23-a096-2219caf902b9",
+      "name": "Filter and Deduplicate Articles",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        880,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "\n// Grok Sentiment Scorer v3 \u2014 fixes \"json property isn't an object\" error\n// The input item may contain a field named 'json' (e.g. from n8n internal wrapping).\n// Strip that key before spreading to avoid the validation error.\n// Mode: runOnceForEachItem\n\nconst GROK_KEY = 'REDACTED_XAI_API_KEY';\nconst GROK_URL = 'https://api.x.ai/v1/chat/completions';\n\nconst rawItem = $input.item.json;\n// Remove 'json' key if present \u2014 prevents \"json must point to an object\" validation error\nconst { json: _j, ...item } = rawItem;\n\nconst ticker      = (item.ticker      || '').toUpperCase();\nconst title       = (item.title       || '').slice(0, 300);\nconst description = (item.description || '').slice(0, 500);\n\nconst systemPrompt =\n  'You are a financial sentiment analyst. Output ONLY valid JSON: ' +\n  '{\"sentiment_score\": <-1.0 to 1.0>, \"sentiment_reason\": \"<one sentence>\"}. No markdown.';\n\nconst userPrompt = 'Ticker: ' + ticker + '\\nHeadline: ' + title + '\\nDescription: ' + description;\n\nlet result;\ntry {\n  result = await this.helpers.httpRequest({\n    method: 'POST', url: GROK_URL,\n    headers: { 'Authorization': 'Bearer ' + GROK_KEY, 'Content-Type': 'application/json' },\n    body: JSON.stringify({ model:'grok-3', messages:[{role:'system',content:systemPrompt},{role:'user',content:userPrompt}], temperature:0, max_tokens:120 }),\n    json: true\n  });\n  console.log('[GROK SENT v3] ' + ticker + ' OK');\n  return [{ json: { ...item, ...result, _grok_error: false } }];\n} catch (e) {\n  console.log('[GROK SENT v3] ERROR ' + ticker + ': ' + String(e.message).slice(0, 80));\n  return [{ json: { ...item, choices:[{message:{content:'{\"sentiment_score\":0,\"sentiment_reason\":\"error\"}' }}], _grok_error:true, _grok_error_msg: String(e.message).slice(0,150) } }];\n}\n"
+      },
+      "id": "f64ebbf2-a379-4d1f-b7c9-84ff8f3e7a22",
+      "name": "Grok Sentiment Scorer",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1104,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "// Parse and Validate Score v2 \u2014 Robust JSON extraction\n// v2 fixes: extract JSON by finding first { to last } in the response,\n// handles Grok reasoning text before/after JSON, NaN/Infinity, extra whitespace.\n\nconst resp = $input.item.json;\nconst meta = $input.item.json;\n\nlet sentiment_score  = 0;\nlet sentiment_reason = '';\nlet parse_ok         = false;\n\ntry {\n  const raw = ((resp.choices || [])[0]?.message?.content || '').trim();\n\n  // Step 1: Strip markdown fences\n  let clean = raw\n    .replace(/^```json\\s*/i, '')\n    .replace(/^```\\s*/i, '')\n    .replace(/\\s*```$/i, '')\n    .trim();\n\n  // Step 2: Extract JSON object by finding outermost { ... }\n  // Handles Grok prepending reasoning text before the JSON blob\n  const start = clean.indexOf('{');\n  const end   = clean.lastIndexOf('}');\n  if (start === -1 || end <= start) throw new Error('No JSON object found in response');\n  const jsonStr = clean.slice(start, end + 1);\n\n  // Step 3: Sanitise values that break JSON.parse (NaN, Infinity, undefined)\n  const safe = jsonStr\n    .replace(/:\\s*NaN\\b/g, ': 0')\n    .replace(/:\\s*Infinity\\b/g, ': 1')\n    .replace(/:\\s*-Infinity\\b/g, ': -1')\n    .replace(/:\\s*undefined\\b/g, ': null');\n\n  const parsed        = JSON.parse(safe);\n  sentiment_score     = Math.max(-1.0, Math.min(1.0, parseFloat(parsed.sentiment_score) || 0));\n  sentiment_reason    = String(parsed.sentiment_reason || '').substring(0, 200);\n  parse_ok            = true;\n\n} catch (err) {\n  // Log the failure but do NOT throw \u2014 _skip=false allows pipeline to continue\n  // with score=0 (neutral) rather than crashing the execution\n  console.log('[PARSE v2 WARN] ' + (meta.ticker||'?') + ': ' + err.message);\n}\n\nconsole.log('[SCORE] ' + (meta.ticker||'?') + ': ' + sentiment_score.toFixed(2) +\n  (parse_ok ? ' \u2014 ' + sentiment_reason.slice(0, 60) : ' (parse failed \u2014 neutral fallback)'));\n\nreturn [{\n  json: {\n    ticker:              meta.ticker,\n    title:               meta.title,\n    published_utc:       meta.published_utc,\n    article_url:         meta.article_url,\n    source:              meta.source,\n    sentiment_score,\n    sentiment_reason,\n    parse_ok,\n    sentiment_threshold: meta.sentiment_threshold,\n    sm_webhook:          meta.sm_webhook,\n    telegram_bot_token:  meta.telegram_bot_token,\n    telegram_chat_id:    meta.telegram_chat_id,\n  }\n}];\n"
+      },
+      "id": "2bea64e0-2905-4cc9-982f-40c24a2a7130",
+      "name": "Parse and Validate Score",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1328,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": false,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "threshold-check",
+              "leftValue": "={{ $json.sentiment_score }}",
+              "rightValue": "={{ $json.sentiment_threshold }}",
+              "operator": {
+                "type": "number",
+                "operation": "lte"
+              }
+            },
+            {
+              "id": "parse-ok-check",
+              "leftValue": "={{ $json.parse_ok }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "c1fa340f-d2f1-4066-94a7-bd29e6d315dc",
+      "name": "Kill Signal Threshold",
+      "type": "n8n-nodes-base.filter",
+      "typeVersion": 2.2,
+      "position": [
+        1552,
+        0
+      ],
+      "notes": "Only passes if score \u2264 threshold (default -0.75) AND Grok response parsed successfully."
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $json.sm_webhook }}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ {\n  ticker:           $json.ticker,\n  timeframe:        'D',\n  execution:        'SELL',\n  signal:           'BEARISH',\n  alert_type:       'SENTIMENT_AGENT',\n  bias_score:       '20',\n  adx:              'N/A',\n  rsi:              'N/A',\n  macd_hist:        'N/A',\n  atr:              '0',\n  volume_ratio:     '0',\n  vix:              '25',\n  gap_pct:          '0',\n  spy_price:        '0',\n  spy_change_pct:   '0',\n  spy_status:       'NEUTRAL',\n  daily_dd_pct:     '0',\n  daily_dd_halt:    'false',\n  vix_size_mult:    '1.0',\n  eff_position_size:'5',\n  vix_stop_mult:    '1.15',\n  momentum_engine:  'false',\n  momentum_type:    'sentiment_agent',\n  _sentiment_kill:  'true',\n  sentiment_score:  $json.sentiment_score,\n  sentiment_reason: $json.sentiment_reason,\n  comment:          'SENTIMENT_AGENT | ' + $json.source + ' | ' + $json.title.substring(0, 100)\n} }}",
+        "options": {}
+      },
+      "id": "5b4c901e-b22b-4523-a49b-a16f968f2039",
+      "name": "POST Kill to Signal State Machine",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1760,
+        0
+      ],
+      "notes": "Fires the SENTIMENT kill path in SM v5.13. Requires _sentiment_kill, sentiment_score, and sentiment_reason."
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "=https://api.telegram.org/bot{{ $json.telegram_bot_token }}/sendMessage",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ {\n  chat_id: $json.telegram_chat_id,\n  text: '[SENTIMENT KILL FIRED]\\nTicker: ' + $json.ticker + '\\nScore: ' + $json.sentiment_score.toFixed(2) + '\\nReason: ' + $json.sentiment_reason + '\\nSource: ' + $json.source + '\\nPublished: ' + $json.published_utc + '\\nURL: ' + $json.article_url\n} }}",
+        "options": {}
+      },
+      "id": "3ec7fca7-34f5-4766-888a-3ba149f1403c",
+      "name": "Telegram Personal Log",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1760,
+        208
+      ],
+      "notes": "Optional. Sends to personal Telegram (REDACTED_CHAT_ID) only. Remove if not needed."
+    }
+  ],
+  "connections": {
+    "Every 10 Minutes": {
+      "main": [
+        [
+          {
+            "node": "Watchlist and Config",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Watchlist and Config": {
+      "main": [
+        [
+          {
+            "node": "Split and Prepare Tickers",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Split and Prepare Tickers": {
+      "main": [
+        [
+          {
+            "node": "Polygon News per Ticker",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Polygon News per Ticker": {
+      "main": [
+        [
+          {
+            "node": "Filter and Deduplicate Articles",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Filter and Deduplicate Articles": {
+      "main": [
+        [
+          {
+            "node": "Grok Sentiment Scorer",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Grok Sentiment Scorer": {
+      "main": [
+        [
+          {
+            "node": "Parse and Validate Score",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parse and Validate Score": {
+      "main": [
+        [
+          {
+            "node": "Kill Signal Threshold",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Kill Signal Threshold": {
+      "main": [
+        [
+          {
+            "node": "POST Kill to Signal State Machine",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Telegram Personal Log",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate",
+    "callerPolicy": "workflowsFromSameOwner",
+    "availableInMCP": false
+  },
+  "meta": {
+    "n8n_workflow_id": "ARfeHFGyGQGgeXXB",
+    "instance": "tradenextgen.app.n8n.cloud",
+    "exported_at": "2026-04-13T14:06:00Z",
+    "version": "v2.0",
+    "node_count": 10,
+    "description": "Polygon News \u2192 Grok Sentiment pipeline. Scans 105 tickers every 10 min for news via Polygon API, runs sentiment analysis through Grok-3, applies sentiment kill threshold (-0.75), sends alerts to SM webhook and Telegram.",
+    "secrets_redacted": true,
+    "restore_notes": "Replace REDACTED_* placeholders with real credentials after import."
+  }
+}

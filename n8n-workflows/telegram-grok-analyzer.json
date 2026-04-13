@@ -1,0 +1,329 @@
+{
+  "name": "Telegram Signal \u2192 Grok Analyzer (Isolated)",
+  "nodes": [
+    {
+      "parameters": {
+        "updates": [
+          "channel_post"
+        ],
+        "additionalFields": {}
+      },
+      "id": "37f85f9d-062d-42d9-99dc-aa43ea302412",
+      "name": "Telegram Trigger",
+      "type": "n8n-nodes-base.telegramTrigger",
+      "typeVersion": 1.1,
+      "position": [
+        0,
+        0
+      ],
+      "webhookId": "tg-signal-grok-webhook-isolated-001",
+      "credentials": {
+        "telegramApi": {
+          "id": "bKUSv11L72oR2aNx",
+          "name": "Telegram account 2"
+        }
+      },
+      "notes": "ISOLATED \u2014 Listens for channel_post events only.\nUses the 'Grok Validation' bot (NOT the Trading Signals bot used by Scanner v3.0).\nThe Grok Validation bot must be an admin in the signals channel.\nThis webhook ID is unique \u2014 no conflict with any existing workflow."
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": false,
+            "leftValue": "",
+            "typeValidation": "loose"
+          },
+          "conditions": [
+            {
+              "id": "cond-buy",
+              "leftValue": "={{ $json.channel_post.text || $json.channel_post.caption || '' }}",
+              "rightValue": "BUY",
+              "operator": {
+                "type": "string",
+                "operation": "contains"
+              }
+            },
+            {
+              "id": "cond-sell",
+              "leftValue": "={{ $json.channel_post.text || $json.channel_post.caption || '' }}",
+              "rightValue": "SELL",
+              "operator": {
+                "type": "string",
+                "operation": "contains"
+              }
+            },
+            {
+              "id": "cond-long",
+              "leftValue": "={{ $json.channel_post.text || $json.channel_post.caption || '' }}",
+              "rightValue": "LONG",
+              "operator": {
+                "type": "string",
+                "operation": "contains"
+              }
+            },
+            {
+              "id": "cond-short",
+              "leftValue": "={{ $json.channel_post.text || $json.channel_post.caption || '' }}",
+              "rightValue": "SHORT",
+              "operator": {
+                "type": "string",
+                "operation": "contains"
+              }
+            },
+            {
+              "id": "cond-entry",
+              "leftValue": "={{ $json.channel_post.text || $json.channel_post.caption || '' }}",
+              "rightValue": "ENTRY",
+              "operator": {
+                "type": "string",
+                "operation": "contains"
+              }
+            },
+            {
+              "id": "cond-signal",
+              "leftValue": "={{ $json.channel_post.text || $json.channel_post.caption || '' }}",
+              "rightValue": "SIGNAL",
+              "operator": {
+                "type": "string",
+                "operation": "contains"
+              }
+            },
+            {
+              "id": "cond-alert",
+              "leftValue": "={{ $json.channel_post.text || $json.channel_post.caption || '' }}",
+              "rightValue": "ALERT",
+              "operator": {
+                "type": "string",
+                "operation": "contains"
+              }
+            },
+            {
+              "id": "cond-quantum",
+              "leftValue": "={{ $json.channel_post.text || $json.channel_post.caption || '' }}",
+              "rightValue": "QUANTUM",
+              "operator": {
+                "type": "string",
+                "operation": "contains"
+              }
+            },
+            {
+              "id": "cond-ticker-dollar",
+              "leftValue": "={{ $json.channel_post.text || $json.channel_post.caption || '' }}",
+              "rightValue": "\\$[A-Z]{1,5}",
+              "operator": {
+                "type": "string",
+                "operation": "regex"
+              }
+            },
+            {
+              "id": "cond-sl",
+              "leftValue": "={{ $json.channel_post.text || $json.channel_post.caption || '' }}",
+              "rightValue": "SL",
+              "operator": {
+                "type": "string",
+                "operation": "contains"
+              }
+            },
+            {
+              "id": "cond-tp",
+              "leftValue": "={{ $json.channel_post.text || $json.channel_post.caption || '' }}",
+              "rightValue": "TP",
+              "operator": {
+                "type": "string",
+                "operation": "contains"
+              }
+            },
+            {
+              "id": "cond-stand-aside",
+              "leftValue": "={{ $json.channel_post.text || $json.channel_post.caption || '' }}",
+              "rightValue": "STAND ASIDE",
+              "operator": {
+                "type": "string",
+                "operation": "contains"
+              }
+            }
+          ],
+          "combinator": "or"
+        },
+        "options": {
+          "looseTypeValidation": true
+        }
+      },
+      "id": "b2a955f5-a7d4-4c2a-890d-74717f29dc1a",
+      "name": "Filter Trading Signals",
+      "type": "n8n-nodes-base.filter",
+      "typeVersion": 2,
+      "position": [
+        288,
+        0
+      ],
+      "notes": "Filters channel posts to only pass trading signals.\nMatches (case-insensitive, OR logic): BUY, SELL, LONG, SHORT, ENTRY, SIGNAL, ALERT, QUANTUM, STAND ASIDE, SL, TP, or $TICKER patterns.\nCovers your Quantum Signal format (e.g., 'QUANTUM SIGNAL | TSLA | BUY').\nNon-signal chatter is silently dropped."
+    },
+    {
+      "parameters": {
+        "jsCode": "// ============================================================\n// ISOLATED WORKFLOW \u2014 Telegram Signal \u2192 Grok Analyzer\n// Extract & format the signal text from Telegram channel post\n// Build the Grok analysis prompt with real portfolio context\n// ============================================================\n\nconst item = $input.first().json;\n\n// Channel posts arrive as 'channel_post' (not 'message')\nconst post = item.channel_post || item.message || {};\nconst text = post.text || post.caption || '[No text content]';\n\n// Extract metadata for logging\nconst chatTitle = post.chat?.title || 'Signals Channel';\nconst chatType = post.chat?.type || 'channel';\nconst messageDate = post.date\n  ? new Date(post.date * 1000).toISOString()\n  : new Date().toISOString();\nconst messageId = post.message_id || 'N/A';\n\n// ============================================================\n// ACTIVE TICKERS \u2014 Santosh's current watchlist\n// Update this list as your portfolio changes\n// ============================================================\nconst activeTickers = [\n  'TSLA', 'NVDA', 'AMD', 'GILD', 'MSFT', 'CRWV', 'NBIS', 'SPY',\n  'CRM', 'META', 'GS', 'PYPL', 'DIS', 'GM', 'ARM', 'MU', 'ASML',\n  'QQQ', 'DIA', 'NTAP', 'NVTS', 'LITE', 'CVNA'\n];\n\n// Try to extract ticker from signal\nconst tickerMatch = text.match(/\\$([A-Z]{1,5})/)\n  || text.match(/\\b(TSLA|NVDA|AMD|GILD|MSFT|CRWV|NBIS|SPY|CRM|META|GS|PYPL|DIS|GM|ARM|MU|ASML|QQQ|DIA|NTAP|NVTS|LITE|CVNA)\\b/);\nconst ticker = tickerMatch ? tickerMatch[1] : 'UNKNOWN';\nconst isActiveTicker = activeTickers.includes(ticker);\n\n// ============================================================\n// PORTFOLIO CONTEXT \u2014 Real current state\n// Update these numbers periodically for accurate analysis\n// ============================================================\nconst portfolioContext = {\n  positions: 38,\n  exposure: '$190K',\n  exposureLimit: '$200K',\n  marginUsage: '95%',\n  marginCap: '50%',\n  bias: 'heavy AI/tech (NVDA, AMD, MSFT, META, ARM, MU, ASML)',\n  riskStatus: 'OVER LIMIT \u2014 no new positions until stops/targets close',\n  activeStrategy: 'Regime-first, Bayesian-weighted, 8-layer filter pipeline',\n  aiEngine: 'Grok-3 (primary), Perplexity (backup)',\n  killSwitchThresholds: 'Daily loss >2%, Margin >40%, Positions >25, Exposure >$200K'\n};\n\n// Build the analysis prompt\nconst analysisPrompt = `Here is a new trading signal from my Broad Scanner v3.0: ${text}.\n\nCurrent portfolio context:\n- ${portfolioContext.positions} open positions with ~${portfolioContext.exposure} total exposure (limit: ${portfolioContext.exposureLimit})\n- Margin usage: ${portfolioContext.marginUsage} (cap: ${portfolioContext.marginCap})\n- Heavy AI/tech bias: ${portfolioContext.bias}\n- Risk status: ${portfolioContext.riskStatus}\n- Kill switch thresholds: ${portfolioContext.killSwitchThresholds}\n- Signal ticker: ${ticker} (${isActiveTicker ? 'ACTIVE in portfolio' : 'NOT in current portfolio'})\n\nAnalyze the signal for:\n1. Fit with existing holdings and sector exposure\n2. Correlation risk with the 38 open AI/tech-heavy positions\n3. Potential overlap or redundancy with existing positions\n4. Risk level given current margin/exposure being over limits\n5. Whether this adds or reduces portfolio concentration\n6. Short actionable recommendation: TAKE IT / SKIP / WATCH\n\nBe direct. Keep response under 200 words.`;\n\nreturn [{\n  json: {\n    signalText: text,\n    analysisPrompt: analysisPrompt,\n    ticker: ticker,\n    isActiveTicker: isActiveTicker,\n    chatTitle: chatTitle,\n    chatType: chatType,\n    messageDate: messageDate,\n    messageId: messageId,\n    portfolioPositions: portfolioContext.positions,\n    portfolioExposure: portfolioContext.exposure\n  }\n}];"
+      },
+      "id": "0e040644-7cd6-46ab-b0f7-f4ef8ccf8112",
+      "name": "Format Signal Prompt",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        544,
+        0
+      ],
+      "notes": "Extracts channel_post text and builds the Grok prompt with REAL portfolio context.\n- Detects ticker from signal ($TICKER or bare TICKER format)\n- Checks if ticker is in your active watchlist\n- Includes current portfolio state: 38 positions, $190K exposure, 95% margin\n- Includes kill switch thresholds and risk status\n- UPDATE the portfolioContext object periodically as your portfolio changes."
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "={{ $json.analysisPrompt }}",
+        "options": {
+          "systemMessage": "You are a professional trading analyst for the Quantum Trading System. You analyze incoming trading signals against an existing portfolio that uses a regime-first architecture with Bayesian weighting, cross-asset correlation, and an 8-layer filter pipeline.\n\nThe portfolio is heavily concentrated in AI/tech stocks. Current risk status is OVER LIMIT (margin >50%, positions >25). No new positions should be opened unless existing ones close first.\n\nAlways structure your response as:\n\n1. SIGNAL SUMMARY: (ticker, direction, key levels if available)\n2. TICKER STATUS: (already in portfolio? same direction or conflict?)\n3. SECTOR/CORRELATION: (overlap with existing AI/tech positions, correlation risk)\n4. RISK ASSESSMENT: (Low / Medium / High / CRITICAL \u2014 given current over-limit status)\n5. PORTFOLIO IMPACT: (would this increase concentration? margin impact?)\n6. RECOMMENDATION: (TAKE IT / SKIP / WATCH \u2014 with brief reasoning)\n\nGiven the portfolio is currently over exposure and margin limits, default to SKIP or WATCH unless the signal is exceptional and would replace/hedge an existing position.\n\nKeep total response under 200 words. Be direct and actionable."
+        }
+      },
+      "id": "ef5fbcbb-bfd7-4be8-a76f-6612f59bc6c3",
+      "name": "Grok Signal Analyzer",
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 1.8,
+      "position": [
+        800,
+        0
+      ],
+      "onError": "continueRegularOutput",
+      "notes": "AI Agent node \u2014 sends the formatted signal to Grok-3 for analysis.\nSystem prompt is tuned for the Quantum Trading System context.\nKnows about the regime-first architecture, 8-layer pipeline, and current over-limit status.\nSet to 'Continue On Fail' \u2014 Grok API errors won't crash the workflow."
+    },
+    {
+      "parameters": {
+        "model": "grok-4-1-fast-reasoning",
+        "options": {
+          "maxTokens": 1024,
+          "temperature": 0.3
+        }
+      },
+      "id": "4fcad9df-a717-444b-8ff3-9af3d3ca053b",
+      "name": "xAI Grok Chat Model",
+      "type": "@n8n/n8n-nodes-langchain.lmChatXAiGrok",
+      "typeVersion": 1,
+      "position": [
+        832,
+        240
+      ],
+      "credentials": {
+        "xAiApi": {
+          "id": "qyUISF3PUWktrFtN",
+          "name": "xAi account"
+        }
+      },
+      "notes": "xAI Grok Chat Model sub-node \u2014 connected to the AI Agent as its LLM.\nModel: grok-3-fast-beta (matches your main pipeline's Grok-3 setup).\nTemperature: 0.3 (low \u2014 consistent, factual analysis).\nMax tokens: 1024.\nUses the SAME xAI credential as your main pipeline \u2014 no extra API key needed."
+    },
+    {
+      "parameters": {
+        "jsCode": "// ============================================================\n// ISOLATED WORKFLOW \u2014 Log the Grok analysis result\n// Structures output for execution history review\n// Optional: connect to Google Sheets for persistent logging\n// ============================================================\n\nconst input = $input.first().json;\nconst signalData = $('Format Signal Prompt').first().json;\n\nconst logEntry = {\n  timestamp: new Date().toISOString(),\n  ticker: signalData.ticker,\n  isActiveTicker: signalData.isActiveTicker,\n  messageId: signalData.messageId,\n  chatTitle: signalData.chatTitle,\n  originalSignal: signalData.signalText,\n  grokAnalysis: input.output || input.text || JSON.stringify(input),\n  portfolioPositions: signalData.portfolioPositions,\n  portfolioExposure: signalData.portfolioExposure,\n  messageDate: signalData.messageDate,\n  status: 'analyzed'\n};\n\n// Extract recommendation from Grok's response\nconst analysis = logEntry.grokAnalysis.toUpperCase();\nif (analysis.includes('TAKE IT')) {\n  logEntry.recommendation = 'TAKE IT';\n} else if (analysis.includes('SKIP')) {\n  logEntry.recommendation = 'SKIP';\n} else if (analysis.includes('WATCH')) {\n  logEntry.recommendation = 'WATCH';\n} else {\n  logEntry.recommendation = 'UNKNOWN';\n}\n\nconsole.log(`[Grok Signal Analyzer] ${signalData.ticker} | ${logEntry.recommendation} | ${signalData.signalText?.substring(0, 80)}`);\nconsole.log(`[Grok Signal Analyzer] Analysis: ${logEntry.grokAnalysis?.substring(0, 150)}`);\n\nreturn [{ json: logEntry }];"
+      },
+      "id": "75ccfa1a-c5f9-443c-8f46-0844de623324",
+      "name": "Log Analysis",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1104,
+        0
+      ],
+      "onError": "continueRegularOutput",
+      "notes": "Structures the final output with ticker, recommendation (TAKE IT / SKIP / WATCH), and full analysis.\nExtracts the recommendation from Grok's response for quick filtering in execution history.\nVisible in n8n Executions \u2014 filter by recommendation to review.\nOptional: connect output to Google Sheets node for persistent logging."
+    },
+    {
+      "parameters": {},
+      "id": "39dd26e3-663b-45f3-8201-5098c1fbad6a",
+      "name": "No Operation (End)",
+      "type": "n8n-nodes-base.noOp",
+      "typeVersion": 1,
+      "position": [
+        1360,
+        0
+      ],
+      "notes": "Terminal node \u2014 analysis is logged in execution history.\nTo extend: replace with Google Sheets, Slack, or Telegram Send Message node.\nDoes NOT send anything back to the signals channel."
+    }
+  ],
+  "connections": {
+    "Telegram Trigger": {
+      "main": [
+        [
+          {
+            "node": "Filter Trading Signals",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Filter Trading Signals": {
+      "main": [
+        [
+          {
+            "node": "Format Signal Prompt",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Format Signal Prompt": {
+      "main": [
+        [
+          {
+            "node": "Grok Signal Analyzer",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "xAI Grok Chat Model": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "Grok Signal Analyzer",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Grok Signal Analyzer": {
+      "main": [
+        [
+          {
+            "node": "Log Analysis",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Log Analysis": {
+      "main": [
+        [
+          {
+            "node": "No Operation (End)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate"
+  },
+  "meta": {
+    "n8n_workflow_id": "ZpiY9O8xpW3KV0nH",
+    "instance": "tradenextgen.app.n8n.cloud",
+    "exported_at": "2026-04-13T14:06:00Z",
+    "version": "v1.0",
+    "node_count": 7,
+    "description": "Telegram Grok Analyzer \u2014 receives Telegram messages with ticker queries, runs Grok-3 analysis, and responds with trading signals directly in the Telegram chat.",
+    "secrets_redacted": true,
+    "restore_notes": "Replace REDACTED_* placeholders with real credentials after import."
+  }
+}
