@@ -1,0 +1,336 @@
+{
+  "timestamp": "2026-04-15T05:10:18.080Z",
+  "summary": {
+    "total": 65,
+    "passed": 65,
+    "failed": 0
+  },
+  "results": [
+    {
+      "status": "PASS",
+      "name": "1.1a SMCI tight spread — quote valid",
+      "detail": ""
+    },
+    {
+      "status": "PASS",
+      "name": "1.1b SMCI buy limit = ask+1tick ($33.13)",
+      "detail": "33.13 ≈ 33.13 (±0.001)"
+    },
+    {
+      "status": "PASS",
+      "name": "1.1c SMCI spread < 0.5% → normal mode",
+      "detail": "spread=0.060%"
+    },
+    {
+      "status": "PASS",
+      "name": "1.1d SMCI spread = $0.02",
+      "detail": "0.02 ≈ 0.02 (±0.001)"
+    },
+    {
+      "status": "PASS",
+      "name": "1.2a SMCI wide spread detected ($0.40 spread)",
+      "detail": "spread=1.212%"
+    },
+    {
+      "status": "PASS",
+      "name": "1.2b SMCI buy limit = mid+1tick ($33.01)",
+      "detail": "33.01 ≈ 33.01 (±0.001)"
+    },
+    {
+      "status": "PASS",
+      "name": "1.2c Savings vs ask+tick = $0.20/share",
+      "detail": "guard saves $0.20"
+    },
+    {
+      "status": "PASS",
+      "name": "1.3a IONQ tight spread → normal mode",
+      "detail": ""
+    },
+    {
+      "status": "PASS",
+      "name": "1.3b IONQ buy limit = ask+1tick ($27.81)",
+      "detail": "27.81 ≈ 27.81 (±0.001)"
+    },
+    {
+      "status": "PASS",
+      "name": "1.4a IONQ wide spread detected ($0.50 spread)",
+      "detail": "spread=1.802%"
+    },
+    {
+      "status": "PASS",
+      "name": "1.4b IONQ buy limit = mid+1tick ($27.76)",
+      "detail": "27.76 ≈ 27.76 (±0.001)"
+    },
+    {
+      "status": "PASS",
+      "name": "1.4c Savings vs ask+tick = $0.25/share",
+      "detail": ""
+    },
+    {
+      "status": "PASS",
+      "name": "1.5a Sell limit = bid-1tick ($33.09)",
+      "detail": "33.09 ≈ 33.09 (±0.001)"
+    },
+    {
+      "status": "PASS",
+      "name": "1.6a Sell wide spread limit = mid-1tick ($32.99)",
+      "detail": "32.99 ≈ 32.99 (±0.001)"
+    },
+    {
+      "status": "PASS",
+      "name": "1.7a Invalid quote (bid > ask) → null",
+      "detail": ""
+    },
+    {
+      "status": "PASS",
+      "name": "1.8a Zero bid → null",
+      "detail": ""
+    },
+    {
+      "status": "PASS",
+      "name": "1.9a 0.5% boundary → normal mode (strict > threshold)",
+      "detail": "spreadPct=0.500%"
+    },
+    {
+      "status": "PASS",
+      "name": "1.9b Limit = ask+tick (normal mode)",
+      "detail": "100.26 ≈ 100.26 (±0.001)"
+    },
+    {
+      "status": "PASS",
+      "name": "1.10a Just under 0.5% → normal mode",
+      "detail": "spreadPct=0.480%"
+    },
+    {
+      "status": "PASS",
+      "name": "2.1a SMCI IOC filled successfully",
+      "detail": ""
+    },
+    {
+      "status": "PASS",
+      "name": "2.1b Entry type = limit (no fallback)",
+      "detail": ""
+    },
+    {
+      "status": "PASS",
+      "name": "2.1c No market fallback needed",
+      "detail": ""
+    },
+    {
+      "status": "PASS",
+      "name": "2.1d Limit price = $33.13 (ask+tick)",
+      "detail": "33.13 ≈ 33.13 (±0.001)"
+    },
+    {
+      "status": "PASS",
+      "name": "2.2a Market fallback succeeded",
+      "detail": ""
+    },
+    {
+      "status": "PASS",
+      "name": "2.2b Fallback was triggered",
+      "detail": ""
+    },
+    {
+      "status": "PASS",
+      "name": "2.2c Final type = market",
+      "detail": ""
+    },
+    {
+      "status": "PASS",
+      "name": "2.3a IONQ IOC filled",
+      "detail": ""
+    },
+    {
+      "status": "PASS",
+      "name": "2.3b No fallback",
+      "detail": ""
+    },
+    {
+      "status": "PASS",
+      "name": "2.3c Limit = $27.81",
+      "detail": "27.81 ≈ 27.81 (±0.001)"
+    },
+    {
+      "status": "PASS",
+      "name": "2.4a Fallback filled",
+      "detail": ""
+    },
+    {
+      "status": "PASS",
+      "name": "2.4b Fallback triggered",
+      "detail": ""
+    },
+    {
+      "status": "PASS",
+      "name": "2.4c Wide spread limit = mid+tick ($27.76)",
+      "detail": "27.76 ≈ 27.76 (±0.001)"
+    },
+    {
+      "status": "PASS",
+      "name": "2.5a Market order succeeded",
+      "detail": ""
+    },
+    {
+      "status": "PASS",
+      "name": "2.5b Direct market (no limit attempt)",
+      "detail": ""
+    },
+    {
+      "status": "PASS",
+      "name": "2.5c No limit price set",
+      "detail": ""
+    },
+    {
+      "status": "PASS",
+      "name": "3.1a AAPL limit bracket accepted",
+      "detail": ""
+    },
+    {
+      "status": "PASS",
+      "name": "3.1b Entry type = limit",
+      "detail": ""
+    },
+    {
+      "status": "PASS",
+      "name": "3.1c No fallback",
+      "detail": ""
+    },
+    {
+      "status": "PASS",
+      "name": "3.1d Limit = ask+tick ($178.53)",
+      "detail": "178.53 ≈ 178.53 (±0.001)"
+    },
+    {
+      "status": "PASS",
+      "name": "3.1e Bracket has 2 legs (SL + TP)",
+      "detail": "legs=2"
+    },
+    {
+      "status": "PASS",
+      "name": "3.2a Market bracket fallback succeeded",
+      "detail": ""
+    },
+    {
+      "status": "PASS",
+      "name": "3.2b Fallback was triggered",
+      "detail": ""
+    },
+    {
+      "status": "PASS",
+      "name": "3.2c Final type = market",
+      "detail": ""
+    },
+    {
+      "status": "PASS",
+      "name": "3.3a Direct market bracket succeeded",
+      "detail": ""
+    },
+    {
+      "status": "PASS",
+      "name": "3.3b Type = market (no quote)",
+      "detail": ""
+    },
+    {
+      "status": "PASS",
+      "name": "3.3c Not a fallback (direct market)",
+      "detail": ""
+    },
+    {
+      "status": "PASS",
+      "name": "4.1a Limit saves money vs market",
+      "detail": "saved=$1.00"
+    },
+    {
+      "status": "PASS",
+      "name": "4.1b Market VWAP > limit fill",
+      "detail": ""
+    },
+    {
+      "status": "PASS",
+      "name": "4.2a Wide spread guard triggered",
+      "detail": ""
+    },
+    {
+      "status": "PASS",
+      "name": "4.2b Significant savings on thin book",
+      "detail": "saved=$323.00"
+    },
+    {
+      "status": "PASS",
+      "name": "4.3a Limit saves money on IONQ",
+      "detail": "saved=$4.00"
+    },
+    {
+      "status": "PASS",
+      "name": "4.4a Minimal improvement on liquid stock",
+      "detail": "saved=$-1.00"
+    },
+    {
+      "status": "PASS",
+      "name": "5.1a Double failure detected",
+      "detail": ""
+    },
+    {
+      "status": "PASS",
+      "name": "5.1b Fallback not possible (null)",
+      "detail": "Should return ERROR to upstream"
+    },
+    {
+      "status": "PASS",
+      "name": "5.2a Partial fill is a success",
+      "detail": "filled 200 of 500"
+    },
+    {
+      "status": "PASS",
+      "name": "5.2b No fallback on partial fill",
+      "detail": ""
+    },
+    {
+      "status": "PASS",
+      "name": "5.3a Expired triggers fallback",
+      "detail": ""
+    },
+    {
+      "status": "PASS",
+      "name": "5.3b Market fallback succeeded",
+      "detail": ""
+    },
+    {
+      "status": "PASS",
+      "name": "5.4a Volatile limit path uses TIF=ioc",
+      "detail": "entryType === limit → time_in_force = ioc"
+    },
+    {
+      "status": "PASS",
+      "name": "5.4b Volatile market fallback uses TIF=gtc",
+      "detail": "fallback market → time_in_force = gtc"
+    },
+    {
+      "status": "PASS",
+      "name": "5.4c Bracket path always uses TIF=gtc",
+      "detail": "bracket order_class requires gtc or day"
+    },
+    {
+      "status": "PASS",
+      "name": "5.5a $0.02 spread on $2.50 stock is >0.5% → wide guard",
+      "detail": "spreadPct=0.800%"
+    },
+    {
+      "status": "PASS",
+      "name": "5.5b $2.50 stock limit = mid+tick ($2.51)",
+      "detail": "2.51 ≈ 2.51 (±0.001)"
+    },
+    {
+      "status": "PASS",
+      "name": "5.6a $500 stock limit = ask+tick ($500.06)",
+      "detail": "500.06 ≈ 500.06 (±0.001)"
+    },
+    {
+      "status": "PASS",
+      "name": "5.6b $0.10 spread on $500 stock is <0.5%",
+      "detail": "spreadPct=0.020%"
+    }
+  ],
+  "recommendation": "APPROVED"
+}
