@@ -47,12 +47,30 @@ let lastResults = [];
 const app = express();
 app.use(express.json());
 
-// CORS — allow browser calls from agilityserv.com and any origin
+// ── CORS (Audit C-3) ─────────────────────────────────────────
+// Restrict to known origins. Server-to-server calls (n8n, Alpaca)
+// don't send an Origin header, so CORS doesn't apply to them.
+// Override via CORS_ALLOWED_ORIGINS env var (comma-separated).
+const ALLOWED_ORIGINS = new Set(
+  (process.env.CORS_ALLOWED_ORIGINS ||
+    'https://agilityserv.com,https://www.agilityserv.com,http://localhost:3000,http://localhost:8080'
+  ).split(',').map(o => o.trim()).filter(Boolean)
+);
+
 app.use((req, res, next) => {
-  res.setHeader('Access-Control-Allow-Origin', '*');
+  const origin = req.headers.origin;
+  if (origin && ALLOWED_ORIGINS.has(origin)) {
+    res.setHeader('Access-Control-Allow-Origin', origin);
+    res.setHeader('Vary', 'Origin');
+  }
+  // If no Origin header (server-to-server) or unknown origin: no CORS header set → browser blocks it
   res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
-  if (req.method === 'OPTIONS') return res.sendStatus(204);
+  if (req.method === 'OPTIONS') {
+    // Only send 204 for preflight if origin is allowed
+    if (origin && ALLOWED_ORIGINS.has(origin)) return res.sendStatus(204);
+    return res.sendStatus(403);
+  }
   next();
 });
 
