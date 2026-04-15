@@ -31,7 +31,7 @@ WORKDIR /app
 COPY package.json ./
 RUN npm install --production
 
-COPY app.js ./
+COPY app.js sp500.js webhook-auth.js position-sizer.js limit-order-entry.js ./
 
 ENV PORT=8080
 EXPOSE 8080
