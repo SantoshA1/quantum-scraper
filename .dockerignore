@@ -1,0 +1,12 @@
+# Don't send non-runtime files to Docker
+n8n-workflows/
+quantum-dashboard/
+snapshots/
+agilityserv-site/
+*.md
+.git
+.gitignore
+trailing-stop-*.js
+test-*.js
+h2-test-results.json
+index.html
