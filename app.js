@@ -8,12 +8,25 @@ const { chromium } = require('playwright-core');
 const { google } = require('googleapis');
 const https = require('https');
 const http = require('http');
+const rateLimit = require('express-rate-limit');
+const { validateTicker } = require('./sp500');
 
 // ── ENV ───────────────────────────────────────────────────────
 const PORT = parseInt(process.env.PORT || '8080', 10);
-const XAI_API_KEY = process.env.XAI_API_KEY ||
-  Buffer.from('eGFpLWFUZWxsbmVmcWFIWVVYUzJ4YmZ4Z2FPSG9Kb3VzcWZucVFTdjNsM0k2ZlNaZ2QzUEVDd2xo' +
-    'QmJkczF0RVpmSEpPMmRwWVZLb3JBMGRKMmFh', 'base64').toString();
+// SECURITY FIX (Audit C-1): API key MUST come from environment variable.
+// No hardcoded fallback. Crash immediately if missing to prevent silent failure.
+// Set XAI_API_KEY in Railway dashboard → Variables, or in your .env file.
+const XAI_API_KEY = process.env.XAI_API_KEY;
+if (!XAI_API_KEY) {
+  console.error(
+    '\n╔══════════════════════════════════════════════════════════════╗\n' +
+    '║  FATAL: XAI_API_KEY environment variable is not set.       ║\n' +
+    '║  The server cannot start without a valid xAI API key.      ║\n' +
+    '║  Set it in Railway Variables or your local .env file.       ║\n' +
+    '╚══════════════════════════════════════════════════════════════╝\n'
+  );
+  process.exit(1);
+}
 const TV_USER = process.env.TRADINGVIEW_USERNAME || '';
 const TV_PASS = process.env.TRADINGVIEW_PASSWORD || '';
 const SHEET_ID = process.env.GOOGLE_SHEET_ID || '16QmkJdHUptjAxLkVpJ5bghVSKRup3KtjKyaHQtz6BoQ';
@@ -43,6 +56,42 @@ app.use((req, res, next) => {
   next();
 });
 
+// ── RATE LIMITING (Audit C-2) ────────────────────────────────
+// 20 requests per minute per IP for signal/analysis endpoints.
+const signalLimiter = rateLimit({
+  windowMs: 60 * 1000,
+  max: 20,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: {
+    error: 'Rate limit exceeded. Maximum 20 requests per minute.',
+    retryAfterSeconds: 60,
+  },
+  keyGenerator: (req) => {
+    return req.headers['x-forwarded-for']?.split(',')[0]?.trim()
+      || req.ip
+      || 'unknown';
+  },
+});
+
+// ── TICKER VALIDATION MIDDLEWARE (Audit C-2) ─────────────────
+// Validates ticker from body (POST) or query (GET) against S&P 500 whitelist.
+function tickerValidation(req, res, next) {
+  const raw = req.body?.ticker || req.query?.ticker;
+  const result = validateTicker(raw);
+  if (!result.valid) {
+    return res.status(400).json({
+      error: 'Invalid ticker',
+      detail: result.reason,
+      hint: 'Only S&P 500 constituents and approved ETFs are accepted.',
+    });
+  }
+  // Normalize ticker for downstream handlers
+  if (req.body?.ticker) req.body.ticker = result.ticker;
+  if (req.query?.ticker) req.query.ticker = result.ticker;
+  next();
+}
+
 app.get('/health', (_req, res) => {
   res.json({
     status: 'ok',
@@ -71,7 +120,7 @@ app.get('/', (_req, res) => res.json({ service: 'quantum-scraper', version: '2.7
  *            reasons[], tradePlan{}, standAsideConditions[],
  *            marketContext, meta{}, poweredBy }
  * ───────────────────────────────────────────────────────────── */
-app.post('/signal', async (req, res) => {
+app.post('/signal', signalLimiter, tickerValidation, async (req, res) => {
   const {
     ticker = 'UNKNOWN', price = 0,
     change = 0, changePct = 0,
@@ -180,7 +229,7 @@ Provide the Quantum Pipeline signal JSON for ${ticker}.`;
  *         vix, cross_asset, options, dark_pool, strategy_stats }
  *  Returns the parsed JSON analysis (no raw API object)
  * ───────────────────────────────────────────────────────────── */
-app.post('/ai-analysis', async (req, res) => {
+app.post('/ai-analysis', signalLimiter, tickerValidation, async (req, res) => {
   const {
     ticker = 'UNKNOWN',
     signal_type = 'UNKNOWN',
@@ -283,9 +332,8 @@ Return exactly this JSON structure:
  *  Returns { rsi, macd, macd_signal, macd_hist, adx,
  *            sma50, ema200, vwap, range, range_high, range_low }
  * ───────────────────────────────────────────────────────────── */
-app.get('/technical', async (req, res) => {
-  const ticker = (req.query.ticker || '').trim().toUpperCase();
-  if (!ticker) return res.status(400).json({ error: 'ticker query param required' });
+app.get('/technical', signalLimiter, tickerValidation, async (req, res) => {
+  const ticker = req.query.ticker; // Already validated & normalized by tickerValidation middleware
 
   try {
     // Fetch 250 days daily + today's 5-min intraday in parallel
