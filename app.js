@@ -10,6 +10,7 @@ const https = require('https');
 const http = require('http');
 const rateLimit = require('express-rate-limit');
 const { validateTicker } = require('./sp500');
+const { signPayload } = require('./webhook-auth');
 
 // ── ENV ───────────────────────────────────────────────────────
 const PORT = parseInt(process.env.PORT || '8080', 10);
@@ -922,7 +923,7 @@ async function pushToSheets(results) {
 }
 
 /* ─────────────────────────────────────────────────────────────
- *  Webhook — POST results to n8n
+ *  Webhook — POST results to n8n (Audit C-7: HMAC signed)
  * ───────────────────────────────────────────────────────────── */
 function sendWebhook(results) {
   return new Promise((resolve, reject) => {
@@ -930,16 +931,24 @@ function sendWebhook(results) {
     const parsed = new URL(WEBHOOK_URL);
     const transport = parsed.protocol === 'https:' ? https : http;
 
+    // Audit C-7: Sign payload with HMAC-SHA256
+    const headers = {
+      'Content-Type': 'application/json',
+      'Content-Length': Buffer.byteLength(payload),
+    };
+    try {
+      headers['X-Webhook-Signature'] = signPayload(payload);
+    } catch (err) {
+      console.warn('[WEBHOOK] Signing skipped:', err.message);
+    }
+
     const req = transport.request(
       {
         hostname: parsed.hostname,
         port: parsed.port || (parsed.protocol === 'https:' ? 443 : 80),
         path: parsed.pathname + parsed.search,
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Content-Length': Buffer.byteLength(payload),
-        },
+        headers,
         timeout: 30000,
       },
       (res) => {
