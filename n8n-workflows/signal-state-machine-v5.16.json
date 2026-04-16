@@ -1271,7 +1271,7 @@
       "retryOnFail": true,
       "maxTries": 3,
       "waitBetweenTries": 2000,
-      "onError": "continueRegularOutput"
+      "onError": "continueErrorOutput"
     },
     {
       "parameters": {
@@ -1286,6 +1286,42 @@
       ],
       "id": "unified-channel-gate-v1",
       "name": "Channel Gate"
+    },
+    {
+      "id": "21b076ff-cfe1-4440-b9d0-bf0effe88b23",
+      "name": "Format Sheet Fail Alert",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        4000,
+        1000
+      ],
+      "parameters": {
+        "jsCode": "// Format Sheet Fail Alert v1 \u2014 Telegram notification for missed Google Sheets log rows\n// Triggers when Sheet Writer HTTP fails after all 3 retry attempts\nconst item = $input.first().json;\nconst now = new Date().toLocaleString('en-US', { timeZone: 'America/New_York' });\n\n// Try to extract useful context from the failed item\nconst ticker = item._ticker || item.ticker || item.symbol || 'UNKNOWN';\nconst action = item._action || item.action || '?';\nconst errorMsg = item.error?.message || item.errorMessage || 'Google Sheets API unavailable after 3 retries';\n\nconst msg = [\n  '\u26a0\ufe0f <b>SHEET WRITER FAILED</b>',\n  '',\n  `<b>Ticker:</b> ${ticker}`,\n  `<b>Action:</b> ${action}`,\n  `<b>Error:</b> ${errorMsg}`,\n  `<b>Time:</b> ${now} ET`,\n  '',\n  '\ud83d\udccb <i>Trade log row was NOT written to Google Sheets.</i>',\n  '<i>Trading pipeline completed normally \u2014 only logging affected.</i>',\n  '<i>Manually check and backfill if needed.</i>'\n].join('\\n');\n\nreturn [{ json: { text: msg } }];"
+      }
+    },
+    {
+      "id": "0c8d22f4-e485-47be-9e75-484981b8bcb7",
+      "name": "Send Sheet Fail Alert",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [
+        4240,
+        1000
+      ],
+      "credentials": {
+        "telegramApi": {
+          "id": "GiUsUl7vX5HyzagN",
+          "name": "Telegram account"
+        }
+      },
+      "parameters": {
+        "chatId": "6648680513",
+        "text": "={{ $json.text }}",
+        "additionalFields": {
+          "parse_mode": "HTML"
+        }
+      }
     }
   ],
   "connections": {
@@ -1729,6 +1765,29 @@
           }
         ]
       ]
+    },
+    "Sheet Writer HTTP": {
+      "main": [
+        [],
+        [
+          {
+            "node": "Format Sheet Fail Alert",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Format Sheet Fail Alert": {
+      "main": [
+        [
+          {
+            "node": "Send Sheet Fail Alert",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
     }
   },
   "settings": {
@@ -1746,7 +1805,7 @@
           "execution": "STAND ASIDE",
           "signal": "NEUTRAL",
           "alertType": "SIGNAL_CHANGE",
-          "timestamp": 1776319246299,
+          "timestamp": 1776319545714,
           "price": "0",
           "qualityGate": "REVIEW",
           "maxConfidence": 5
@@ -14135,6 +14194,24 @@
         },
         {
           "ts": "2026-04-16T06:00:46.299Z",
+          "ticker": "",
+          "timeframe": "",
+          "direction": "NEUTRAL",
+          "confidence": 5,
+          "rawScore": 0,
+          "action": "FORWARD",
+          "route": "FAST_ONLY",
+          "isHeartbeat": false,
+          "heartbeatPromoted": false,
+          "hardCount": 0,
+          "softCount": 0,
+          "regime": "LOW_VIX_CHOP",
+          "reason": "New ticker signal: _UNK initial STAND ASIDE | NEUTRAL on   | Confidence 5/9",
+          "activePositions": 11,
+          "portfolioHeat": 0
+        },
+        {
+          "ts": "2026-04-16T06:05:45.714Z",
           "ticker": "",
           "timeframe": "",
           "direction": "NEUTRAL",
@@ -27839,6 +27916,20 @@
           "optRegime": "",
           "portfolioHeat": 0,
           "ddHaltTickers": "none"
+        },
+        {
+          "ts": "2026-04-16T06:05:45.714Z",
+          "ticker": "",
+          "direction": "NEUTRAL",
+          "contradictionCount": 0,
+          "maxConfidence": 5,
+          "gate": "REVIEW",
+          "details": "none",
+          "vix": 0,
+          "regime": "",
+          "optRegime": "",
+          "portfolioHeat": 0,
+          "ddHaltTickers": "none"
         }
       ],
       "activePositions": {
@@ -27905,10 +27996,10 @@
         "CCL": {
           "direction": "SELL",
           "entryPrice": 27.38,
-          "currentPrice": 28.87,
+          "currentPrice": 28.85,
           "qty": 135,
-          "unrealizedPnL": -201.15,
-          "marketValue": 3897.45,
+          "unrealizedPnL": -198.45,
+          "marketValue": 3894.75,
           "vixSizeMult": 1,
           "effPositionSize": 3696.975,
           "entryTime": "2026-04-13T17:25:54.619Z",
@@ -29284,17 +29375,17 @@
       "_killSwitchActive": false,
       "_dailyLossTriggered": false,
       "_lastResetDate": "4/16/2026",
-      "_lastPortfolioSync": 1776319245993,
+      "_lastPortfolioSync": 1776319545402,
       "_accountSnapshot": {
-        "equity": 107706.19,
+        "equity": 107708.89,
         "cash": 110239.9,
         "buyingPower": 346987.32,
-        "marginUsed": 10173.26,
-        "marginPct": 0.09445380994351392,
-        "dailyPnLPct": -0.3915027089734623,
+        "marginUsed": 10171.91,
+        "marginPct": 0.0944389084317924,
+        "dailyPnLPct": -0.38900570353036307,
         "positionCount": 11,
-        "totalExposure": 20346.510000000002,
-        "syncTime": 1776319245993
+        "totalExposure": 20343.809999999998,
+        "syncTime": 1776319545402
       },
       "_sheetThrottle": {
         "UNKNOWN": 1776297457099
