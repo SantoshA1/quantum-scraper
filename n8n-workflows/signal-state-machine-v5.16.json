@@ -1267,7 +1267,11 @@
           "id": "4JBjbFyLikLTrZtm",
           "name": "Google Sheets account"
         }
-      }
+      },
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 2000,
+      "onError": "continueRegularOutput"
     },
     {
       "parameters": {
@@ -1742,7 +1746,7 @@
           "execution": "STAND ASIDE",
           "signal": "NEUTRAL",
           "alertType": "SIGNAL_CHANGE",
-          "timestamp": 1776318646115,
+          "timestamp": 1776319246299,
           "price": "0",
           "qualityGate": "REVIEW",
           "maxConfidence": 5
@@ -14077,6 +14081,60 @@
         },
         {
           "ts": "2026-04-16T05:50:46.115Z",
+          "ticker": "",
+          "timeframe": "",
+          "direction": "NEUTRAL",
+          "confidence": 5,
+          "rawScore": 0,
+          "action": "FORWARD",
+          "route": "FAST_ONLY",
+          "isHeartbeat": false,
+          "heartbeatPromoted": false,
+          "hardCount": 0,
+          "softCount": 0,
+          "regime": "LOW_VIX_CHOP",
+          "reason": "New ticker signal: _UNK initial STAND ASIDE | NEUTRAL on   | Confidence 5/9",
+          "activePositions": 11,
+          "portfolioHeat": 0
+        },
+        {
+          "ts": "2026-04-16T05:55:45.700Z",
+          "ticker": "",
+          "timeframe": "",
+          "direction": "NEUTRAL",
+          "confidence": 5,
+          "rawScore": 0,
+          "action": "FORWARD",
+          "route": "FAST_ONLY",
+          "isHeartbeat": false,
+          "heartbeatPromoted": false,
+          "hardCount": 0,
+          "softCount": 0,
+          "regime": "LOW_VIX_CHOP",
+          "reason": "New ticker signal: _UNK initial STAND ASIDE | NEUTRAL on   | Confidence 5/9",
+          "activePositions": 11,
+          "portfolioHeat": 0
+        },
+        {
+          "ts": "2026-04-16T05:59:41.963Z",
+          "ticker": "",
+          "timeframe": "",
+          "direction": "NEUTRAL",
+          "confidence": 5,
+          "rawScore": 0,
+          "action": "FORWARD",
+          "route": "FAST_ONLY",
+          "isHeartbeat": false,
+          "heartbeatPromoted": false,
+          "hardCount": 0,
+          "softCount": 0,
+          "regime": "LOW_VIX_CHOP",
+          "reason": "New ticker signal: _UNK initial STAND ASIDE | NEUTRAL on   | Confidence 5/9",
+          "activePositions": 11,
+          "portfolioHeat": 0
+        },
+        {
+          "ts": "2026-04-16T06:00:46.299Z",
           "ticker": "",
           "timeframe": "",
           "direction": "NEUTRAL",
@@ -27739,16 +27797,58 @@
           "optRegime": "",
           "portfolioHeat": 0,
           "ddHaltTickers": "none"
+        },
+        {
+          "ts": "2026-04-16T05:55:45.700Z",
+          "ticker": "",
+          "direction": "NEUTRAL",
+          "contradictionCount": 0,
+          "maxConfidence": 5,
+          "gate": "REVIEW",
+          "details": "none",
+          "vix": 0,
+          "regime": "",
+          "optRegime": "",
+          "portfolioHeat": 0,
+          "ddHaltTickers": "none"
+        },
+        {
+          "ts": "2026-04-16T05:59:41.963Z",
+          "ticker": "",
+          "direction": "NEUTRAL",
+          "contradictionCount": 0,
+          "maxConfidence": 5,
+          "gate": "REVIEW",
+          "details": "none",
+          "vix": 0,
+          "regime": "",
+          "optRegime": "",
+          "portfolioHeat": 0,
+          "ddHaltTickers": "none"
+        },
+        {
+          "ts": "2026-04-16T06:00:46.299Z",
+          "ticker": "",
+          "direction": "NEUTRAL",
+          "contradictionCount": 0,
+          "maxConfidence": 5,
+          "gate": "REVIEW",
+          "details": "none",
+          "vix": 0,
+          "regime": "",
+          "optRegime": "",
+          "portfolioHeat": 0,
+          "ddHaltTickers": "none"
         }
       ],
       "activePositions": {
         "AAPL": {
           "direction": "BUY",
           "entryPrice": 259.17,
-          "currentPrice": 266.55,
+          "currentPrice": 266.54,
           "qty": 2,
-          "unrealizedPnL": 14.76,
-          "marketValue": 533.1,
+          "unrealizedPnL": 14.74,
+          "marketValue": 533.08,
           "vixSizeMult": 1,
           "effPositionSize": 517.5,
           "entryTime": 1776236242651,
@@ -27865,10 +27965,10 @@
         "SQQQ": {
           "direction": "SELL",
           "entryPrice": 81.910984,
-          "currentPrice": 58.84,
+          "currentPrice": 58.78,
           "qty": 61,
-          "unrealizedPnL": 1407.330024,
-          "marketValue": 3589.24,
+          "unrealizedPnL": 1410.990024,
+          "marketValue": 3585.58,
           "vixSizeMult": 1,
           "effPositionSize": 4257.19,
           "entryTime": 1775717416062,
@@ -29184,17 +29284,17 @@
       "_killSwitchActive": false,
       "_dailyLossTriggered": false,
       "_lastResetDate": "4/16/2026",
-      "_lastPortfolioSync": 1776318645514,
+      "_lastPortfolioSync": 1776319245993,
       "_accountSnapshot": {
-        "equity": 107702.55,
+        "equity": 107706.19,
         "cash": 110239.9,
         "buyingPower": 346987.32,
-        "marginUsed": 10175.1,
-        "marginPct": 0.09447408626815243,
-        "dailyPnLPct": -0.39486904223749547,
+        "marginUsed": 10173.26,
+        "marginPct": 0.09445380994351392,
+        "dailyPnLPct": -0.3915027089734623,
         "positionCount": 11,
-        "totalExposure": 20350.190000000002,
-        "syncTime": 1776318645514
+        "totalExposure": 20346.510000000002,
+        "syncTime": 1776319245993
       },
       "_sheetThrottle": {
         "UNKNOWN": 1776297457099
