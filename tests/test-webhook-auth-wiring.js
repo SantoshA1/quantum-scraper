@@ -72,6 +72,10 @@ function readWf(name) {
     code.includes('_WEBHOOK_SECRET'));
   check('rt-signal-agent: outgoing httpRequest body includes _secret',
     /body:\s*\{\s*_secret:\s*_WEBHOOK_SECRET,\s*ticker:/.test(code));
+  // SM-C4 regression: heartbeat (no-signal) return must carry _no_signals
+  // so Push to Pipeline short-circuits and never POSTs an unauth'd payload.
+  check('rt-signal-agent: heartbeat return carries _no_signals flag',
+    /return\s*\{\s*_no_signals:\s*true,\s*signalsFound,\s*tickersScanned/.test(code));
 }
 
 // Daily Testing Agent
