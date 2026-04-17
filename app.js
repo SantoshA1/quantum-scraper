@@ -36,6 +36,21 @@ const SA_B64 = process.env.GOOGLE_SERVICE_ACCOUNT_B64 || '';
 const WEBHOOK_URL = process.env.N8N_WEBHOOK_URL || 'https://tradenextgen.app.n8n.cloud/webhook/script-scraper-complete';
 const SCRIPTS_PER_CAT = parseInt(process.env.SCRIPTS_PER_CATEGORY || '30', 10);
 
+// SECURITY FIX (Audit SE-C5): shared token that protects mutating and
+// data-returning endpoints (/run, /signal, /ai-analysis, /technical,
+// /results). Missing token ⇒ startup warning + fail-closed on protected
+// routes. Health check stays open so Railway can probe liveness.
+const INTERNAL_API_TOKEN = process.env.INTERNAL_API_TOKEN || '';
+if (!INTERNAL_API_TOKEN) {
+  console.warn(
+    '\n╔══════════════════════════════════════════════════════════════╗\n' +
+    '║  WARN: INTERNAL_API_TOKEN not set — protected endpoints    ║\n' +
+    '║  (/run, /signal, /ai-analysis, /technical, /results)       ║\n' +
+    '║  will reject ALL requests until this env var is configured.║\n' +
+    '╚══════════════════════════════════════════════════════════════╝\n'
+  );
+}
+
 // ── STATE ─────────────────────────────────────────────────────
 let lastRun = null;
 let lastStatus = 'idle';
@@ -93,6 +108,43 @@ const signalLimiter = rateLimit({
   },
 });
 
+// ── INTERNAL TOKEN AUTH MIDDLEWARE (Audit SE-C5) ─────────────
+// Fail-closed authentication for internal/service-to-service endpoints.
+// Accepts the token via:
+//   1. x-internal-token header (preferred, server-to-server)
+//   2. Authorization: Bearer <token>
+//   3. ?token=<value> query string (only for GETs that a human may curl)
+// Comparisons are constant-time to prevent timing attacks.
+function constantTimeEq(a, b) {
+  const sa = String(a || '');
+  const sb = String(b || '');
+  if (sa.length !== sb.length) return false;
+  let diff = 0;
+  for (let i = 0; i < sa.length; i++) diff |= sa.charCodeAt(i) ^ sb.charCodeAt(i);
+  return diff === 0;
+}
+
+function requireInternalToken(req, res, next) {
+  // Missing env var ⇒ fail-closed (safer default than open)
+  if (!INTERNAL_API_TOKEN) {
+    return res.status(503).json({
+      error: 'Service not configured',
+      detail: 'INTERNAL_API_TOKEN is not set on the server.',
+    });
+  }
+  const headerToken = req.headers['x-internal-token'];
+  const authHeader  = req.headers['authorization'] || '';
+  const bearer      = authHeader.startsWith('Bearer ') ? authHeader.slice(7) : '';
+  const queryToken  = (req.method === 'GET' && req.query && req.query.token) || '';
+  const presented   = headerToken || bearer || queryToken || '';
+  if (!presented || !constantTimeEq(presented, INTERNAL_API_TOKEN)) {
+    const ip = (req.headers['x-forwarded-for'] || '').toString().split(',')[0].trim() || req.ip || 'unknown';
+    console.warn(`[AUTH] REJECTED ${req.method} ${req.path} from ${ip}`);
+    return res.status(401).json({ error: 'Unauthorized' });
+  }
+  next();
+}
+
 // ── TICKER VALIDATION MIDDLEWARE (Audit C-2) ─────────────────
 // Validates ticker from body (POST) or query (GET) against S&P 500 whitelist.
 function tickerValidation(req, res, next) {
@@ -123,7 +175,7 @@ app.get('/health', (_req, res) => {
   });
 });
 
-app.post('/run', (_req, res) => {
+app.post('/run', requireInternalToken, (_req, res) => {
   if (running) return res.status(409).json({ error: 'Scrape already in progress' });
   res.json({ message: 'Scrape started — check /health for status or watch logs' });
   runScrape().catch(err => console.error('[FATAL]', err));
@@ -139,7 +191,7 @@ app.get('/', (_req, res) => res.json({ service: 'quantum-scraper', version: '2.7
  *            reasons[], tradePlan{}, standAsideConditions[],
  *            marketContext, meta{}, poweredBy }
  * ───────────────────────────────────────────────────────────── */
-app.post('/signal', signalLimiter, tickerValidation, async (req, res) => {
+app.post('/signal', requireInternalToken, signalLimiter, tickerValidation, async (req, res) => {
   const {
     ticker = 'UNKNOWN', price = 0,
     change = 0, changePct = 0,
@@ -248,7 +300,7 @@ Provide the Quantum Pipeline signal JSON for ${ticker}.`;
  *         vix, cross_asset, options, dark_pool, strategy_stats }
  *  Returns the parsed JSON analysis (no raw API object)
  * ───────────────────────────────────────────────────────────── */
-app.post('/ai-analysis', signalLimiter, tickerValidation, async (req, res) => {
+app.post('/ai-analysis', requireInternalToken, signalLimiter, tickerValidation, async (req, res) => {
   const {
     ticker = 'UNKNOWN',
     signal_type = 'UNKNOWN',
@@ -351,7 +403,7 @@ Return exactly this JSON structure:
  *  Returns { rsi, macd, macd_signal, macd_hist, adx,
  *            sma50, ema200, vwap, range, range_high, range_low }
  * ───────────────────────────────────────────────────────────── */
-app.get('/technical', signalLimiter, tickerValidation, async (req, res) => {
+app.get('/technical', requireInternalToken, signalLimiter, tickerValidation, async (req, res) => {
   const ticker = req.query.ticker; // Already validated & normalized by tickerValidation middleware
 
   try {
@@ -403,7 +455,7 @@ app.get('/technical', signalLimiter, tickerValidation, async (req, res) => {
 });
 
 // Return last scrape results (for debugging)
-app.get('/results', (_req, res) => {
+app.get('/results', requireInternalToken, (_req, res) => {
   const summary = lastResults.map(r => ({
     title: r.title,
     author: r.author,
