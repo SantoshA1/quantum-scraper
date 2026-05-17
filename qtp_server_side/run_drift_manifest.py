@@ -143,6 +143,34 @@ MODULES: dict[str, tuple[str, Callable, dict]] = {
     "quantum_swing_v83_adaptive_multi_ticker.pine":     ("quantum_swing_v83",         _compute_swing,    drift.TOLERANCES_SWING),
 }
 
+ACCEPTED_DRIFT_FIELDS: dict[str, set[str]] = {
+    # Ensemble v1 manual score terms depend on TradingView input settings
+    # (i_execution, i_signal, i_smart_money, i_fvg, i_order_block, etc.).
+    # The Python port cannot observe those UI-only values from exported OHLCV.
+    # These fields are filtered from actionable shadow notifications by design.
+    "ensemble_engine_v1": {"raw_bull_score", "raw_bear_score", "final_score"},
+    # Swing v8.3 gaps are documented in DRIFT_VERDICT.md / DEPLOYMENT_PROMPT.md:
+    # Pine's PSAR seed is not bit-replicable without Pine instrumentation, and
+    # weekly_dd_pct depends on strategy.equity simulation that the shadow port
+    # intentionally does not perform.
+    "quantum_swing_v83": {"psar", "weekly_dd_pct"},
+}
+
+ACCEPTED_SKIPS: dict[str, set[str]] = {
+    # User has not imported the Pine source into TradingView yet, so no fixture
+    # exists. This must remain non-blocking for the shadow validator deploy.
+    "quantum_scalp_strategy_v5": {"missing_ohlcv_csv", "missing_reference_csv"},
+}
+
+
+def _unexpected_drift_fields(module_name: str, results: dict) -> list[str]:
+    accepted = ACCEPTED_DRIFT_FIELDS.get(module_name, set())
+    return sorted(
+        field
+        for field, result in results.items()
+        if not result.get("pass") and field not in accepted
+    )
+
 
 def _load_close(path: Path | None) -> pd.Series | None:
     """Load a CSV's close column with a DatetimeIndex, suitable for cross-asset feed.
@@ -246,10 +274,19 @@ def run(manifest: Path, ohlcv_dir: Path, reference_dir: Path, out: Path, skip_wa
         python_df = compute_fn(ohlcv, cross)
         fields = {k: v for k, v in tolerances.items() if k in python_df.columns and k in reference.columns}
         results = drift.drift_report(python_df, reference, fields=fields, skip_warmup=skip_warmup)
+        drift_fields = sorted(field for field, result in results.items() if not result.get("pass"))
+        accepted_drift_fields = sorted(set(drift_fields) & ACCEPTED_DRIFT_FIELDS.get(module_name, set()))
+        unexpected_drift_fields = _unexpected_drift_fields(module_name, results)
+        status = "PASS" if not drift_fields else (
+            "ACCEPTED_DRIFT" if not unexpected_drift_fields else "DRIFT"
+        )
         module_report.update({
-            "status": "PASS" if all(r["pass"] for r in results.values()) else "DRIFT",
+            "status": status,
             "fields_tested": len(results),
             "field_results": results,
+            "drift_fields": drift_fields,
+            "accepted_drift_fields": accepted_drift_fields,
+            "unexpected_drift_fields": unexpected_drift_fields,
         })
         report["modules"].append(module_report)
 
@@ -273,10 +310,26 @@ def main() -> int:
     report = run(args.manifest, args.ohlcv_dir, args.reference_dir, args.out, args.skip_warmup,
                  vix_csv=args.vix_csv, spy_csv=args.spy_csv, qqq_csv=args.qqq_csv)
     passed = sum(1 for m in report["modules"] if m.get("status") == "PASS")
+    accepted_drift = sum(1 for m in report["modules"] if m.get("status") == "ACCEPTED_DRIFT")
     drifted = sum(1 for m in report["modules"] if m.get("status") == "DRIFT")
     skipped = sum(1 for m in report["modules"] if m.get("status") == "SKIPPED")
-    print(json.dumps({"PASS": passed, "DRIFT": drifted, "SKIPPED": skipped, "out": str(args.out)}, indent=2))
-    return 1 if drifted else 0
+    accepted_skips = sum(
+        1
+        for m in report["modules"]
+        if m.get("status") == "SKIPPED"
+        and m.get("reason") in ACCEPTED_SKIPS.get(m.get("module"), set())
+    )
+    unexpected_skips = skipped - accepted_skips
+    print(json.dumps({
+        "PASS": passed,
+        "ACCEPTED_DRIFT": accepted_drift,
+        "DRIFT": drifted,
+        "SKIPPED": skipped,
+        "ACCEPTED_SKIPS": accepted_skips,
+        "UNEXPECTED_SKIPS": unexpected_skips,
+        "out": str(args.out),
+    }, indent=2))
+    return 1 if drifted or unexpected_skips else 0
 
 
 if __name__ == "__main__":
