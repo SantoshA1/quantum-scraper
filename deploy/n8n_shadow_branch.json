@@ -1,0 +1,58 @@
+{
+  "_comment": "Reference shape for the n8n parallel branch that calls the shadow validator. NOT an importable workflow — adapt to your existing workflow's structure. The Shadow Validate node forks off your TradingView Webhook node in parallel with your existing trade-routing branch. Continue On Fail must be true so a validator hiccup never blocks live trades.",
+  "shadow_branch_nodes": [
+    {
+      "name": "Shadow Validate",
+      "type": "n8n-nodes-base.httpRequest",
+      "parameters": {
+        "method": "POST",
+        "url": "http://127.0.0.1:8088/shadow-validate",
+        "sendBody": true,
+        "contentType": "json",
+        "jsonBody": "={{ JSON.stringify({ module: $json.signal_source, ohlcv: $json.ohlcv_recent_bars, cross_asset: $json.cross_asset || {}, pine_payload: $json, alert_bar_time: $json.timestamp }) }}",
+        "options": {
+          "timeout": 5000,
+          "continueOnFail": true
+        }
+      },
+      "_notes": "continueOnFail=true is CRITICAL — must never block trade routing"
+    },
+    {
+      "name": "IF Drift Detected",
+      "type": "n8n-nodes-base.if",
+      "parameters": {
+        "conditions": {
+          "string": [
+            {
+              "value1": "={{ $json.overall_verdict }}",
+              "operation": "equal",
+              "value2": "DRIFT"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "name": "Filter Ensemble Manual-Score Drifts",
+      "type": "n8n-nodes-base.code",
+      "parameters": {
+        "jsCode": "// Ensemble v1's raw_bull_score / raw_bear_score / final_score drift is EXPECTED — those scores depend on user-configured TradingView inputs (i_execution, i_signal, etc.) that aren't portable to the Python compute(). Filter them out so the Slack channel only surfaces actionable drift.\nconst module = items[0].json.module;\nconst suppressed_fields = (module === 'ensemble_engine_v1')\n  ? new Set(['raw_bull_score','raw_bear_score','final_score'])\n  : new Set();\nconst real_drift = items[0].json.fields.filter(f =>\n  f.verdict === 'DRIFT' && !suppressed_fields.has(f.field));\nif (real_drift.length === 0) return [];  // nothing actionable\nreturn [{ json: { ...items[0].json, real_drift } }];"
+      }
+    },
+    {
+      "name": "Notify Slack",
+      "type": "n8n-nodes-base.slack",
+      "parameters": {
+        "channel": "#qtp-shadow-drift",
+        "text": "=Drift on {{ $json.module }} @ {{ $json.bar_time }}\\nPass rate: {{ $json.pass_rate }}\\nFields: {{ $json.real_drift.map(f => `${f.field}(pine=${f.pine}, py=${f.python}, Δ=${f.diff.toFixed(3)})`).join(', ') }}"
+      }
+    }
+  ],
+  "wiring_instructions": [
+    "1. Place the Shadow Validate node so its INPUT comes from your TradingView Webhook node, NOT in series with your Alpaca/Telegram/Supabase routing nodes.",
+    "2. The Shadow Validate node should have NO downstream connection back to the trade-routing chain. It is read-only.",
+    "3. Chain Shadow Validate → IF Drift Detected (true branch) → Filter Ensemble Manual-Score Drifts → Notify Slack.",
+    "4. The IF's false branch and the Filter's empty-output should end the branch (no further nodes).",
+    "5. Test in Execute Workflow mode before saving to production: trigger a known-good alert, confirm both branches execute, confirm the original trade-routing chain produces the same output as before."
+  ]
+}

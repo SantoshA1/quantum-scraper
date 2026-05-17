@@ -1,0 +1,325 @@
+//@version=5
+indicator("AI Super Score Ensemble Engine v1", overlay=true, max_labels_count=500)
+
+// =========================
+// HELPERS
+// =========================
+score_bool(cond, pts) =>
+    cond ? pts : 0.0
+
+clamp_0_100(x) =>
+    math.min(100.0, math.max(0.0, x))
+
+grade_from_score(score) =>
+    string g = "F"
+    if score >= 95
+        g := "A+"
+    else if score >= 90
+        g := "A"
+    else if score >= 85
+        g := "B+"
+    else if score >= 80
+        g := "B"
+    else if score >= 70
+        g := "C+"
+    else if score >= 60
+        g := "C"
+    else if score >= 50
+        g := "D"
+    g
+
+// =========================
+// MIRRORED AI SUPER SCORE INPUTS
+// =========================
+i_execution   = input.string("STAND ASIDE", "AI Super Score - Current Execution", options=["BUY", "SELL", "STAND ASIDE"])
+i_signal      = input.string("NEUTRAL", "AI Super Score - Current Signal", options=["BULLISH", "BEARISH", "NEUTRAL"])
+i_regime      = input.string("NEUTRAL", "AI Super Score - Current Regime", options=["TRENDING", "MEAN REVERTING", "NEUTRAL"])
+i_bias_score  = input.float(50.0, "AI Super Score - Bias Score (%)", minval=0, maxval=100)
+i_exec_score  = input.float(50.0, "AI Super Score - Exec Score (%)", minval=0, maxval=100)
+i_grade       = input.string("C", "AI Super Score - Grade", options=["A+", "A", "B+", "B", "C+", "C", "D", "F"])
+i_smart_money = input.string("NEUTRAL", "AI Super Score - Smart Money", options=["BULLISH", "BEARISH", "NEUTRAL"])
+i_liquidity   = input.string("NONE", "AI Super Score - Liquidity")
+i_fvg         = input.string("NONE", "AI Super Score - FVG")
+i_order_block = input.string("NONE", "AI Super Score - Order Block")
+
+// =========================
+// ENGINE INPUTS
+// =========================
+active_session       = input.session("0940-1545", "Active Session Filter")
+tf_1                 = input.string("15", "HTF 1")
+tf_2                 = input.string("60", "HTF 2")
+tf_3                 = input.string("240", "HTF 3")
+tf_4                 = input.string("D", "HTF 4")
+market_symbol        = input.string("AMEX:SPY", "Market Symbol")
+leader_symbol        = input.string("NASDAQ:QQQ", "Leader / Sector Symbol")
+min_tf_confirm       = input.int(3, "Minimum HTF Confirmations", minval=1, maxval=4)
+min_market_confirm   = input.int(2, "Minimum Market Confirmations", minval=1, maxval=3)
+min_adx              = input.float(20.0, "Min ADX")
+strong_adx           = input.float(30.0, "Strong ADX")
+max_vix              = input.float(35.0, "Max VIX")
+min_rel_vol          = input.float(1.10, "Min Relative Volume", minval=0.1, step=0.05)
+disp_body_mult       = input.float(1.40, "Displacement Body Multiplier", minval=0.5, step=0.05)
+wick_body_max        = input.float(0.60, "Max Wick / Body Ratio", minval=0.1, step=0.05)
+location_atr_buffer  = input.float(0.35, "PDH / PDL ATR Near Buffer", minval=0.05, step=0.05)
+min_action_score     = input.float(80.0, "Minimum Action Score", minval=0, maxval=100)
+min_directional_edge = input.float(5.0, "Minimum Bull/Bear Score Edge", minval=0, maxval=50)
+cooldown_bars        = input.int(1, "Alert Cooldown Bars", minval=1)
+alert_on_change_only = input.bool(true, "Alert Only On Execution Change")
+show_markers         = input.bool(true, "Show Buy / Sell Markers")
+
+// =========================
+// MARKET DATA
+// =========================
+current_price  = close
+current_volume = volume
+avg_volume     = ta.sma(volume, 30)
+rel_vol        = avg_volume > 0 ? volume / avg_volume : 0.0
+
+rsi_14         = ta.rsi(close, 14)
+[macd_line, macd_signal, macd_hist] = ta.macd(close, 12, 26, 9)
+ema_21         = ta.ema(close, 21)
+ema_50         = ta.ema(close, 50)
+ema_200        = ta.ema(close, 200)
+vwap_val       = ta.vwap(close)
+atr_14         = ta.atr(14)
+[diplus, diminus, adx_value] = ta.dmi(14, 14)
+
+day_high       = request.security(syminfo.tickerid, "D", high)
+day_low        = request.security(syminfo.tickerid, "D", low)
+prev_day_high  = request.security(syminfo.tickerid, "D", high[1])
+prev_day_low   = request.security(syminfo.tickerid, "D", low[1])
+
+vix_close      = request.security("CBOE:VIX", "D", close)
+
+// =========================
+// HTF CONFLUENCE
+// =========================
+htf_ema_1 = request.security(syminfo.tickerid, tf_1, ta.ema(close, 21))
+htf_ema_2 = request.security(syminfo.tickerid, tf_2, ta.ema(close, 21))
+htf_ema_3 = request.security(syminfo.tickerid, tf_3, ta.ema(close, 50))
+htf_ema_4 = request.security(syminfo.tickerid, tf_4, ta.ema(close, 50))
+
+bull_count = (close > htf_ema_1 ? 1 : 0) + (close > htf_ema_2 ? 1 : 0) + (close > htf_ema_3 ? 1 : 0) + (close > htf_ema_4 ? 1 : 0)
+bear_count = (close < htf_ema_1 ? 1 : 0) + (close < htf_ema_2 ? 1 : 0) + (close < htf_ema_3 ? 1 : 0) + (close < htf_ema_4 ? 1 : 0)
+
+// =========================
+// MARKET / LEADER ALIGNMENT
+// =========================
+market_close = request.security(market_symbol, timeframe.period, close)
+market_ema   = request.security(market_symbol, timeframe.period, ta.ema(close, 21))
+leader_close = request.security(leader_symbol, timeframe.period, close)
+leader_ema   = request.security(leader_symbol, timeframe.period, ta.ema(close, 21))
+
+market_bull_count = (market_close > market_ema ? 1 : 0) + (leader_close > leader_ema ? 1 : 0) + (close > vwap_val ? 1 : 0)
+market_bear_count = (market_close < market_ema ? 1 : 0) + (leader_close < leader_ema ? 1 : 0) + (close < vwap_val ? 1 : 0)
+
+// =========================
+// SESSION / REGIME
+// =========================
+session_ok = not na(time(timeframe.period, active_session))
+vix_regime = vix_close < 15 ? "LOW_VOL" : vix_close < 20 ? "NORMAL" : vix_close < 25 ? "ELEVATED" : vix_close < 30 ? "HIGH" : "EXTREME"
+tradeable_environment = session_ok and adx_value >= min_adx and vix_close < max_vix
+
+// =========================
+// PRICE ACTION / LOCATION
+// =========================
+body_size   = math.abs(close - open)
+avg_body    = ta.sma(math.abs(close - open), 20)
+upper_wick  = high - math.max(open, close)
+lower_wick  = math.min(open, close) - low
+
+bull_displacement = close > open and body_size > avg_body * disp_body_mult and upper_wick <= body_size * wick_body_max and body_size > atr_14 * 0.20
+bear_displacement = close < open and body_size > avg_body * disp_body_mult and lower_wick <= body_size * wick_body_max and body_size > atr_14 * 0.20
+
+near_pdl = math.abs(close - prev_day_low) <= atr_14 * location_atr_buffer
+near_pdh = math.abs(close - prev_day_high) <= atr_14 * location_atr_buffer
+
+bull_pdl_sweep = low < prev_day_low and close > prev_day_low
+bear_pdh_sweep = high > prev_day_high and close < prev_day_high
+
+price_lower_low   = low < ta.lowest(low[1], 10)
+price_higher_high = high > ta.highest(high[1], 10)
+rsi_higher_low    = rsi_14 > ta.lowest(rsi_14[1], 10)
+rsi_lower_high    = rsi_14 < ta.highest(rsi_14[1], 10)
+
+bull_divergence = price_lower_low and rsi_higher_low
+bear_divergence = price_higher_high and rsi_lower_high
+
+// =========================
+// MANUAL HINTS FROM AI SUPER SCORE
+// =========================
+manual_bull_exec = i_execution == "BUY"
+manual_bear_exec = i_execution == "SELL"
+manual_bull_sig  = i_signal == "BULLISH"
+manual_bear_sig  = i_signal == "BEARISH"
+manual_bull_sm   = i_smart_money == "BULLISH"
+manual_bear_sm   = i_smart_money == "BEARISH"
+manual_ssl       = str.contains(i_liquidity, "SSL")
+manual_bsl       = str.contains(i_liquidity, "BSL")
+manual_bull_fvg  = str.contains(i_fvg, "BULL")
+manual_bear_fvg  = str.contains(i_fvg, "BEAR")
+manual_bull_ob   = str.contains(i_order_block, "BULL")
+manual_bear_ob   = str.contains(i_order_block, "BEAR")
+
+// =========================
+// COMPONENT SCORES
+// =========================
+manual_bull_score = score_bool(manual_bull_exec, 8.0) + score_bool(manual_bull_sig, 5.0) + score_bool(manual_bull_sm, 4.0) + score_bool(manual_bull_ob, 2.0) + score_bool(manual_ssl, 1.0)
+manual_bear_score = score_bool(manual_bear_exec, 8.0) + score_bool(manual_bear_sig, 5.0) + score_bool(manual_bear_sm, 4.0) + score_bool(manual_bear_ob, 2.0) + score_bool(manual_bsl, 1.0)
+
+mtf_bull_score = bull_count / 4.0 * 25.0
+mtf_bear_score = bear_count / 4.0 * 25.0
+
+regime_base_score = adx_value >= strong_adx ? 15.0 : adx_value >= 25 ? 12.0 : adx_value >= min_adx ? 8.0 : 0.0
+regime_penalty = vix_close < 20 ? 0.0 : vix_close < 25 ? 2.0 : vix_close < 30 ? 5.0 : 8.0
+regime_score = tradeable_environment ? math.max(0.0, regime_base_score - regime_penalty) : 0.0
+
+volume_score = rel_vol >= 2.0 ? 10.0 : rel_vol >= 1.5 ? 8.0 : rel_vol >= 1.2 ? 6.0 : rel_vol >= min_rel_vol ? 4.0 : 0.0
+
+momentum_bull_score = score_bool(rsi_14 > 52, 3.0) + score_bool(macd_line > macd_signal and macd_hist > macd_hist[1], 4.0) + score_bool(close > vwap_val, 3.0)
+momentum_bear_score = score_bool(rsi_14 < 48, 3.0) + score_bool(macd_line < macd_signal and macd_hist < macd_hist[1], 4.0) + score_bool(close < vwap_val, 3.0)
+
+location_bull_score = score_bool(bull_pdl_sweep, 5.0) + score_bool(near_pdl, 1.0) + score_bool(manual_ssl, 1.5) + score_bool(manual_bull_ob, 1.5) + score_bool(manual_bull_fvg, 1.0)
+location_bear_score = score_bool(bear_pdh_sweep, 5.0) + score_bool(near_pdh, 1.0) + score_bool(manual_bsl, 1.5) + score_bool(manual_bear_ob, 1.5) + score_bool(manual_bear_fvg, 1.0)
+
+market_bull_score = market_bull_count / 3.0 * 10.0
+market_bear_score = market_bear_count / 3.0 * 10.0
+
+divergence_bull_bonus = score_bool(bull_divergence, 5.0)
+divergence_bear_bonus = score_bool(bear_divergence, 5.0)
+
+// =========================
+// RAW ENSEMBLE SCORES
+// =========================
+raw_bull_score = clamp_0_100(manual_bull_score + mtf_bull_score + regime_score + volume_score + momentum_bull_score + location_bull_score + market_bull_score + divergence_bull_bonus)
+raw_bear_score = clamp_0_100(manual_bear_score + mtf_bear_score + regime_score + volume_score + momentum_bear_score + location_bear_score + market_bear_score + divergence_bear_bonus)
+
+// =========================
+// HARD GATES
+// =========================
+bull_mtf_gate      = bull_count >= min_tf_confirm
+bear_mtf_gate      = bear_count >= min_tf_confirm
+bull_market_gate   = market_bull_count >= min_market_confirm
+bear_market_gate   = market_bear_count >= min_market_confirm
+bull_location_gate = bull_pdl_sweep or (manual_ssl and (manual_bull_ob or manual_bull_fvg))
+bear_location_gate = bear_pdh_sweep or (manual_bsl and (manual_bear_ob or manual_bear_fvg))
+bull_confirm_gate  = bull_displacement and close > vwap_val and rel_vol >= min_rel_vol
+bear_confirm_gate  = bear_displacement and close < vwap_val and rel_vol >= min_rel_vol
+
+bull_hard_ok = barstate.isconfirmed and tradeable_environment and bull_mtf_gate and bull_market_gate and bull_location_gate and bull_confirm_gate
+bear_hard_ok = barstate.isconfirmed and tradeable_environment and bear_mtf_gate and bear_market_gate and bear_location_gate and bear_confirm_gate
+
+bull_ready = bull_hard_ok and raw_bull_score >= min_action_score and raw_bull_score > raw_bear_score + min_directional_edge
+bear_ready = bear_hard_ok and raw_bear_score >= min_action_score and raw_bear_score > raw_bull_score + min_directional_edge
+
+final_execution = bull_ready ? "BUY" : bear_ready ? "SELL" : "STAND ASIDE"
+final_signal    = bull_ready ? "BULLISH" : bear_ready ? "BEARISH" : "NEUTRAL"
+final_regime    = adx_value > 25 ? "TRENDING" : adx_value < 18 ? "MEAN REVERTING" : "NEUTRAL"
+final_score     = bull_ready ? raw_bull_score : bear_ready ? raw_bear_score : math.max(raw_bull_score, raw_bear_score)
+final_grade     = grade_from_score(final_score)
+ensemble_bias   = raw_bull_score > raw_bear_score ? "BULLISH" : raw_bear_score > raw_bull_score ? "BEARISH" : "NEUTRAL"
+
+// =========================
+// ALERT STATE
+// =========================
+var string prev_final_execution = ""
+var int last_alert_bar = na
+
+prev_execution_for_payload = prev_final_execution
+new_actionable_signal = final_execution != "STAND ASIDE" and final_execution != prev_final_execution
+execution_changed     = final_execution != prev_final_execution and prev_final_execution != ""
+can_alert             = na(last_alert_bar) or (bar_index - last_alert_bar >= cooldown_bars)
+
+should_alert = barstate.isconfirmed and can_alert and (
+     (alert_on_change_only and new_actionable_signal) or
+     (not alert_on_change_only and (new_actionable_signal or execution_changed))
+     )
+
+if should_alert
+    string msg = "{"
+    msg += '"timestamp":"' + str.tostring(timenow) + '"'
+    msg += ',"ticker":"' + syminfo.ticker + '"'
+    msg += ',"exchange":"' + syminfo.prefix + '"'
+    msg += ',"timeframe":"' + timeframe.period + '"'
+    msg += ',"price":' + str.tostring(close, "#.##")
+    msg += ',"day_high":' + str.tostring(day_high, "#.##")
+    msg += ',"day_low":' + str.tostring(day_low, "#.##")
+    msg += ',"prev_day_high":' + str.tostring(prev_day_high, "#.##")
+    msg += ',"prev_day_low":' + str.tostring(prev_day_low, "#.##")
+    msg += ',"volume":' + str.tostring(volume)
+    msg += ',"relative_volume":' + str.tostring(rel_vol, "#.##")
+    msg += ',"vix":' + str.tostring(vix_close, "#.##")
+    msg += ',"vix_regime":"' + vix_regime + '"'
+    msg += ',"adx":' + str.tostring(adx_value, "#.##")
+    msg += ',"ensemble":{'
+    msg += '"execution":"' + final_execution + '"'
+    msg += ',"signal":"' + final_signal + '"'
+    msg += ',"regime":"' + final_regime + '"'
+    msg += ',"bias":"' + ensemble_bias + '"'
+    msg += ',"score":' + str.tostring(final_score, "#.##")
+    msg += ',"grade":"' + final_grade + '"'
+    msg += ',"bull_score":' + str.tostring(raw_bull_score, "#.##")
+    msg += ',"bear_score":' + str.tostring(raw_bear_score, "#.##")
+    msg += ',"previous_execution":"' + prev_execution_for_payload + '"'
+    msg += '}'
+    msg += ',"components":{'
+    msg += '"manual_bull":' + str.tostring(manual_bull_score, "#.##")
+    msg += ',"manual_bear":' + str.tostring(manual_bear_score, "#.##")
+    msg += ',"mtf_bull":' + str.tostring(mtf_bull_score, "#.##")
+    msg += ',"mtf_bear":' + str.tostring(mtf_bear_score, "#.##")
+    msg += ',"regime":' + str.tostring(regime_score, "#.##")
+    msg += ',"volume":' + str.tostring(volume_score, "#.##")
+    msg += ',"momentum_bull":' + str.tostring(momentum_bull_score, "#.##")
+    msg += ',"momentum_bear":' + str.tostring(momentum_bear_score, "#.##")
+    msg += ',"location_bull":' + str.tostring(location_bull_score, "#.##")
+    msg += ',"location_bear":' + str.tostring(location_bear_score, "#.##")
+    msg += ',"market_bull":' + str.tostring(market_bull_score, "#.##")
+    msg += ',"market_bear":' + str.tostring(market_bear_score, "#.##")
+    msg += ',"div_bull":' + str.tostring(divergence_bull_bonus, "#.##")
+    msg += ',"div_bear":' + str.tostring(divergence_bear_bonus, "#.##")
+    msg += '}'
+    msg += ',"gates":{'
+    msg += '"tradeable_environment":' + (tradeable_environment ? "true" : "false")
+    msg += ',"bull_mtf_gate":' + (bull_mtf_gate ? "true" : "false")
+    msg += ',"bear_mtf_gate":' + (bear_mtf_gate ? "true" : "false")
+    msg += ',"bull_market_gate":' + (bull_market_gate ? "true" : "false")
+    msg += ',"bear_market_gate":' + (bear_market_gate ? "true" : "false")
+    msg += ',"bull_location_gate":' + (bull_location_gate ? "true" : "false")
+    msg += ',"bear_location_gate":' + (bear_location_gate ? "true" : "false")
+    msg += ',"bull_confirm_gate":' + (bull_confirm_gate ? "true" : "false")
+    msg += ',"bear_confirm_gate":' + (bear_confirm_gate ? "true" : "false")
+    msg += '}'
+    msg += ',"mirrored_ai_super_score":{'
+    msg += '"execution":"' + i_execution + '"'
+    msg += ',"signal":"' + i_signal + '"'
+    msg += ',"regime":"' + i_regime + '"'
+    msg += ',"bias_score":' + str.tostring(i_bias_score, "#.##")
+    msg += ',"exec_score":' + str.tostring(i_exec_score, "#.##")
+    msg += ',"grade":"' + i_grade + '"'
+    msg += ',"smart_money":"' + i_smart_money + '"'
+    msg += ',"liquidity":"' + i_liquidity + '"'
+    msg += ',"fvg":"' + i_fvg + '"'
+    msg += ',"order_block":"' + i_order_block + '"'
+    msg += '}'
+    msg += "}"
+    alert(msg, alert.freq_once_per_bar_close)
+    last_alert_bar := bar_index
+
+if barstate.isconfirmed
+    prev_final_execution := final_execution
+
+// =========================
+// VISUALS
+// =========================
+plot(final_score, "Ensemble Score", color=color.white, display=display.data_window)
+plot(raw_bull_score, "Bull Score", color=color.lime, display=display.data_window)
+plot(raw_bear_score, "Bear Score", color=color.red, display=display.data_window)
+plot(adx_value, "ADX", color=color.orange, display=display.data_window)
+plot(vix_close, "VIX", color=color.aqua, display=display.data_window)
+
+plotshape(show_markers and new_actionable_signal and final_execution == "BUY", title="Ensemble BUY", style=shape.labelup, text="BUY", color=color.lime, textcolor=color.black, location=location.belowbar, size=size.tiny)
+plotshape(show_markers and new_actionable_signal and final_execution == "SELL", title="Ensemble SELL", style=shape.labeldown, text="SELL", color=color.red, textcolor=color.white, location=location.abovebar, size=size.tiny)
+
+alertcondition(new_actionable_signal and final_execution == "BUY", title="Ensemble BUY", message="Ensemble BUY")
+alertcondition(new_actionable_signal and final_execution == "SELL", title="Ensemble SELL", message="Ensemble SELL")
+alertcondition(execution_changed and final_execution == "STAND ASIDE", title="Ensemble Stand Aside", message="Ensemble Stand Aside")
