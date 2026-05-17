@@ -1,0 +1,839 @@
+//@version=5
+strategy("Quantum Swing v8.3 — Adaptive Multi-Ticker", overlay=true,
+     default_qty_type=strategy.percent_of_equity, default_qty_value=10,
+     initial_capital=100000, commission_type=strategy.commission.percent, commission_value=0.05,
+     slippage=2, use_bar_magnifier=true, calc_on_every_tick=false,
+     max_bars_back=5000, fill_orders_on_standard_ohlc=false,
+     pyramiding=0)
+
+// ============================================================
+// v8.3 FIX: Fresh Support Breakdown Detection
+// - Added td_fresh_breakdown: close crosses below SMA50 with volume > 1.3x avg
+//   Catches trend-change / liquidation shorts where price breaks through
+//   support rather than pulling back to resistance
+// - Added td_fresh_breakout (symmetrical): close crosses above SMA50 with volume
+// - td_short_signal now fires on td_pb_bear OR td_fresh_breakdown
+// - td_long_signal now fires on td_pb_bull OR td_fresh_breakout
+// - No thresholds lowered, no gates loosened, no Engine C changes
+//
+// v8.1 HOTFIX: RSI Gate for Shorts
+// - auto_rsi_os: 28/30 → 18/20 (MR engine short gate)
+// - TD engine: split td_rsi_ok into td_rsi_ok_long (<=70) and td_rsi_ok_short (>=18)
+// - TD was blocking shorts when RSI < 30 — exactly during bearish momentum
+// - Manual i_rsi_os default: 30 → 18
+//
+// v8 CHANGES vs v7 (Phase 1 Dynamic Risk Management):
+//
+// 1. DAILY DRAWDOWN CIRCUIT BREAKER
+//    - Tracks day_start_equity, resets on new day via ta.change(time("D"))
+//    - daily_dd_pct = (day_start_equity - strategy.equity) / day_start_equity * 100
+//    - Input: i_max_daily_dd (default 2%, range 0.5-10%)
+//    - If daily_dd_pct >= i_max_daily_dd → daily_dd_halt = true → blocks ALL new entries
+//    - Resets daily_dd_halt on new day
+//
+// 2. WEEKLY DRAWDOWN TRACKING
+//    - Tracks week_start_equity, resets on new week via ta.change(time("W"))
+//    - weekly_dd_pct = (week_start_equity - strategy.equity) / week_start_equity * 100
+//    - Input: i_max_weekly_dd (default 5%, range 1-20%)
+//    - If weekly_dd_pct >= i_max_weekly_dd → weekly_dd_reduce = true → halves position size
+//
+// 3. VIX-ADAPTIVE POSITION SIZING
+//    - vix_size_mult: VIX<18→1.0, VIX 18-25→0.7, VIX 25-30→0.5, VIX>30→0.3
+//    - Combined: eff_size = base_size * vix_size_mult * weekly_dd_mult
+//    - Applied to BOTH MR and TD engines via eff_mr_size_adj and eff_td_size_adj
+//    - Forward-reference pattern: var float weekly_dd_mult_ref = 1.0 declared early
+//
+// 4. VIX-ADAPTIVE STOP WIDENING
+//    - vix_stop_mult: VIX<18→1.0, VIX 18-25→1.15, VIX 25-30→1.3, VIX>30→1.5
+//    - Applied to ALL stop-loss calculations in both MR and TD entry blocks
+//    - MR long:  sl_price = bb_lower - atr_14 * eff_mr_sl * vix_stop_mult
+//    - MR short: sl_price = bb_upper + atr_14 * eff_mr_sl * vix_stop_mult
+//    - TD long:  sl_price = close - atr_14 * eff_td_sl * vix_stop_mult
+//    - TD short: sl_price = close + atr_14 * eff_td_sl * vix_stop_mult
+//
+// 5. TIME-NORMALIZED VOLUME (day-of-week adjustment for daily charts)
+//    - For daily charts: no intraday normalization needed (each bar = full day)
+//    - dow_vol_adj: Monday=1.3, Tue-Thu=1.0, Friday=1.2
+//    - rel_vol = raw_rel_vol * dow_vol_adj
+//    - vol_confirm threshold kept at 0.8
+//
+// 6. WEBHOOK PAYLOAD UPDATES
+//    - Added p14 chunk with new v8 fields: daily_dd_pct, daily_dd_halt,
+//      weekly_dd_pct, vix_size_mult, eff_position_size, vix_stop_mult
+//    - Pattern: p13 stripped of closing "}", p14 appended + "}"
+//
+// 7. PERFORMANCE TABLE UPDATE
+//    - Row 14 now shows RISK: DD halt status, weekly DD status,
+//      effective size %, VIX multiplier
+//    - Color: red if daily_dd_halt, orange if weekly_dd_reduce, lime if OK
+//
+// 8. ENTRY GATE UPDATES
+//    - Added `and not daily_dd_halt` to long_signal and short_signal conditions
+//    - Weekly DD effect is via position sizing only (not gating)
+//
+// KEPT from v7 (all proven logic intact):
+// - Both MR and TD engines, all scoring, all exits
+// - Heartbeat alerts, visuals, consecutive loss / month pause
+// - SPY/QQQ market health gates, VIX spike/collapse exits
+// ============================================================
+
+// ============================================================
+// AUTO-ADAPTIVE ENGINE SELECTOR (Ticker Agnostic)
+// ============================================================
+group_mode = "=== MODE ==="
+i_mode = input.string("AUTO", "Parameter Mode", options=["AUTO", "MANUAL"], group=group_mode, tooltip="AUTO: volatility selects engine & params. MANUAL: you choose.")
+i_force_engine = input.string("MR", "Manual Engine", options=["MR", "TD"], group=group_mode, tooltip="Only used when Mode = MANUAL. MR = Mean-Reversion, TD = Trend-Drift.")
+
+group_mr = "=== MEAN-REVERSION ENGINE (MANUAL) ==="
+i_bb_len     = input.int(20, "BB Period", minval=10, maxval=50, group=group_mr)
+i_bb_mult    = input.float(2.0, "BB StdDev", minval=1.0, maxval=3.0, step=0.1, group=group_mr)
+i_rsi_os     = input.int(18, "RSI Oversold", minval=10, maxval=40, group=group_mr)  // v8.1: default 30→18
+i_rsi_ob     = input.int(70, "RSI Overbought", minval=60, maxval=85, group=group_mr)
+i_mr_sl      = input.float(1.0, "MR Stop Loss ATR Mult", minval=0.3, maxval=3.0, step=0.1, group=group_mr)
+i_mr_size    = input.float(10.0, "MR Position Size %", minval=1, maxval=30, group=group_mr)
+i_mr_hold    = input.int(15, "MR Max Hold Days", minval=3, maxval=50, group=group_mr)
+i_mr_cool    = input.int(5, "MR Cooldown Days", minval=0, maxval=20, group=group_mr)
+
+group_td = "=== TREND-DRIFT ENGINE (MANUAL) ==="
+i_td_pb_len  = input.int(50, "TD Pullback MA Period", minval=20, maxval=100, group=group_td)
+i_td_sl      = input.float(2.0, "TD Stop Loss ATR Mult", minval=0.5, maxval=4.0, step=0.1, group=group_td)
+i_td_trail   = input.float(1.5, "TD Trailing Stop ATR Mult", minval=0.5, maxval=4.0, step=0.1, group=group_td)
+i_td_size    = input.float(10.0, "TD Position Size %", minval=1, maxval=30, group=group_td)
+i_td_hold    = input.int(35, "TD Max Hold Days", minval=5, maxval=100, group=group_td)
+i_td_cool    = input.int(5, "TD Cooldown Days", minval=0, maxval=20, group=group_td)
+i_td_pb_buf  = input.float(0.5, "TD Pullback Buffer (ATR)", minval=0.1, maxval=2.0, step=0.05, group=group_td)
+
+// --- Auto-adaptive volatility classification ---
+atr_14_auto    = ta.atr(14)
+atr_pct_auto   = close > 0 ? (atr_14_auto / close) * 100 : 2.0
+atr_pct_smooth = ta.sma(atr_pct_auto, 20)
+
+// HIGH vol → Mean-Reversion (catches NVDA, AMD, TSLA type)
+// LOW vol  → Trend-Drift (catches GILD, MSFT type)
+is_high_vol = atr_pct_smooth >= 2.5
+is_low_vol  = not is_high_vol
+
+vol_label = is_high_vol ? "HIGH" : "LOW"
+
+// Engine selection
+eff_engine = i_mode == "AUTO" ? (is_high_vol ? "MR" : "TD") : i_force_engine
+is_mr = eff_engine == "MR"
+is_td = eff_engine == "TD"
+
+// AUTO MR params (tuned from NVDA/AMD backtests)
+auto_bb_len  = 20
+auto_bb_mult = 2.0
+auto_rsi_os  = is_high_vol ? 18 : 20  // v8.1: widened from 28/30 → 18/20 — was blocking shorts in deep bearish momentum
+auto_rsi_ob  = is_high_vol ? 72 : 70
+auto_mr_sl   = is_high_vol ? 1.2 : 1.0
+auto_mr_size = 10.0
+auto_mr_hold = is_high_vol ? 12 : 15
+auto_mr_cool = is_high_vol ? 4 : 5
+
+// AUTO TD params (tuned from GILD/MSFT backtests)
+auto_td_pb_len = 50
+auto_td_sl     = is_low_vol ? 2.0 : 2.5
+auto_td_trail  = is_low_vol ? 1.5 : 2.0
+auto_td_size   = is_low_vol ? 12.0 : 10.0
+auto_td_hold   = is_low_vol ? 40 : 30
+auto_td_cool   = 5
+auto_td_pb_buf = is_low_vol ? 0.5 : 0.4
+
+// Resolve effective values
+eff_bb_len   = i_mode == "AUTO" ? auto_bb_len  : i_bb_len
+eff_bb_mult  = i_mode == "AUTO" ? auto_bb_mult : i_bb_mult
+eff_rsi_os   = i_mode == "AUTO" ? auto_rsi_os  : i_rsi_os
+eff_rsi_ob   = i_mode == "AUTO" ? auto_rsi_ob  : i_rsi_ob
+eff_mr_sl    = i_mode == "AUTO" ? auto_mr_sl   : i_mr_sl
+eff_mr_size  = i_mode == "AUTO" ? auto_mr_size : i_mr_size
+eff_mr_hold  = i_mode == "AUTO" ? auto_mr_hold : i_mr_hold
+eff_mr_cool  = i_mode == "AUTO" ? auto_mr_cool : i_mr_cool
+
+eff_td_pb_len  = i_mode == "AUTO" ? auto_td_pb_len : i_td_pb_len
+eff_td_sl      = i_mode == "AUTO" ? auto_td_sl     : i_td_sl
+eff_td_trail   = i_mode == "AUTO" ? auto_td_trail  : i_td_trail
+eff_td_size    = i_mode == "AUTO" ? auto_td_size   : i_td_size
+eff_td_hold    = i_mode == "AUTO" ? auto_td_hold   : i_td_hold
+eff_td_cool    = i_mode == "AUTO" ? auto_td_cool   : i_td_cool
+eff_td_pb_buf  = i_mode == "AUTO" ? auto_td_pb_buf : i_td_pb_buf
+
+// ============================================================
+// MARKET SAFETY (shared by both engines)
+// ============================================================
+group_mkt = "=== MARKET SAFETY ==="
+i_spy_symbol    = input.string("AMEX:SPY", "SPY Symbol", group=group_mkt)
+i_qqq_symbol    = input.string("NASDAQ:QQQ", "QQQ Symbol", group=group_mkt)
+i_vix_symbol    = input.string("CBOE:VIX", "VIX Symbol", group=group_mkt)
+i_max_vix       = input.float(30.0, "Max VIX", group=group_mkt)
+i_require_mkt   = input.bool(true, "Require SPY/QQQ Not Breaking Down", group=group_mkt)
+i_max_consec    = input.int(3, "Consec Losses → Month Pause", minval=1, maxval=5, group=group_mkt)
+
+// ============================================================
+// v8: RISK MANAGEMENT INPUTS
+// ============================================================
+group_risk = "=== RISK MANAGEMENT ==="
+i_max_daily_dd  = input.float(2.0, "Max Daily Drawdown %", minval=0.5, maxval=10.0, step=0.5, group=group_risk, tooltip="v8: Halt all new entries if daily loss exceeds this % of start-of-day equity")
+i_max_weekly_dd = input.float(5.0, "Max Weekly Drawdown %", minval=1.0, maxval=20.0, step=1.0, group=group_risk, tooltip="v8: Reduce position size 50% if weekly loss exceeds this %")
+
+// ============================================================
+// v8: FORWARD-DECLARE weekly_dd_mult_ref (used in eff size before weekly DD computed)
+// Pattern from Scalp v5: declare var float early, update after weekly DD section
+// ============================================================
+var float weekly_dd_mult_ref = 1.0
+
+// ============================================================
+// v8: VIX-ADAPTIVE MULTIPLIERS (computed early — needed for eff sizes)
+// vix_close fetched below in MARKET HEALTH section; these are computed
+// after vix_close is available (Pine evaluates sequentially)
+// ============================================================
+
+// ============================================================
+// CORE INDICATORS
+// ============================================================
+rsi_14  = ta.rsi(close, 14)
+atr_14  = ta.atr(14)
+[macdLine, sigLine, histLine] = ta.macd(close, 12, 26, 9)
+
+// Moving averages
+sma_20  = ta.sma(close, 20)
+sma_50  = ta.sma(close, 50)
+sma_100 = ta.sma(close, 100)
+sma_200 = ta.sma(close, 200)
+ema_9   = ta.ema(close, 9)
+ema_21  = ta.ema(close, 21)
+ema_50  = ta.ema(close, 50)
+ema_200 = ta.ema(close, 200)
+
+// Bollinger Bands
+[bb_mid, bb_upper, bb_lower] = ta.bb(close, eff_bb_len, eff_bb_mult)
+bb_width_pct = (bb_upper - bb_lower) / close * 100
+
+// ADX
+[diPlus, diMinus, adx_val] = ta.dmi(14, 14)
+
+// ============================================================
+// v8: TIME-NORMALIZED VOLUME (day-of-week adjustment for daily charts)
+// On daily charts each bar = full day, no intraday time normalization needed.
+// Day-of-week: Monday/Friday tend to have lower volume → adjust upward
+// so the vol_confirm gate doesn't under-fire on those days.
+// dayofweek: 1=Sunday, 2=Monday, 3=Tuesday, 4=Wednesday, 5=Thursday, 6=Friday, 7=Saturday
+// ============================================================
+avg_vol     = ta.sma(volume, 30)
+raw_rel_vol = avg_vol > 0 ? volume / avg_vol : 1.0
+
+// Day-of-week volume adjustment
+dow_vol_adj = dayofweek == dayofweek.monday ? 1.3 : dayofweek == dayofweek.friday ? 1.2 : 1.0
+rel_vol     = raw_rel_vol * dow_vol_adj
+
+// ============================================================
+// MARKET HEALTH (shared)
+// ============================================================
+spy_close  = request.security(i_spy_symbol, "D", close)
+spy_prev   = request.security(i_spy_symbol, "D", close[1])
+spy_sma20  = request.security(i_spy_symbol, "D", ta.sma(close, 20))
+spy_ema50  = request.security(i_spy_symbol, "D", ta.ema(close, 50))
+
+qqq_close  = request.security(i_qqq_symbol, "D", close)
+qqq_prev   = request.security(i_qqq_symbol, "D", close[1])
+qqq_sma20  = request.security(i_qqq_symbol, "D", ta.sma(close, 20))
+qqq_ema50  = request.security(i_qqq_symbol, "D", ta.ema(close, 50))
+
+vix_close  = request.security(i_vix_symbol, "D", close)
+
+spy_healthy       = spy_close > spy_sma20 and spy_close > spy_ema50
+qqq_healthy       = qqq_close > qqq_sma20 and qqq_close > qqq_ema50
+spy_breaking_down = spy_close < spy_sma20 and spy_close < spy_ema50 and (spy_close - spy_prev) < 0
+qqq_breaking_down = qqq_close < qqq_sma20 and qqq_close < qqq_ema50 and (qqq_close - qqq_prev) < 0
+spy_weak          = spy_close < spy_sma20 or spy_close < spy_ema50
+qqq_weak          = qqq_close < qqq_sma20 or qqq_close < qqq_ema50
+
+// SPLIT MARKET GATE: longs need healthy market, shorts BENEFIT from weak/breaking market
+mkt_ok_long       = not i_require_mkt or (not spy_breaking_down and not qqq_breaking_down)
+mkt_ok_short      = not i_require_mkt or (spy_weak or qqq_weak or spy_breaking_down or qqq_breaking_down)
+vix_ok_long       = vix_close < i_max_vix
+vix_ok_short      = true  // High VIX confirms bearish sentiment — don't block shorts
+
+// ============================================================
+// v8: VIX-ADAPTIVE MULTIPLIERS
+// Computed after vix_close is available
+// ============================================================
+// Position sizing multiplier: scale down in high-fear regimes
+vix_size_mult = vix_close < 18 ? 1.0 : vix_close < 25 ? 0.7 : vix_close < 30 ? 0.5 : 0.3
+
+// Stop widening multiplier: wider stops in high-fear to avoid noise-driven stopouts
+vix_stop_mult = vix_close < 18 ? 1.0 : vix_close < 25 ? 1.15 : vix_close < 30 ? 1.3 : 1.5
+
+// Effective adjusted position sizes: base * VIX mult * weekly DD mult (forward-ref)
+eff_mr_size_adj = eff_mr_size * vix_size_mult * weekly_dd_mult_ref
+eff_td_size_adj = eff_td_size * vix_size_mult * weekly_dd_mult_ref
+
+// ============================================================
+// RISK MANAGEMENT (shared — consecutive loss / month pause)
+// ============================================================
+var int bars_since_loss = 999
+var bool last_loss = false
+var int consec_losses = 0
+var bool month_paused = false
+
+new_month = ta.change(time("M")) != 0
+if new_month
+    month_paused := false
+    consec_losses := 0
+
+if strategy.closedtrades > 0
+    lp = strategy.closedtrades.profit(strategy.closedtrades - 1)
+    if lp < 0 and not last_loss
+        last_loss := true
+        bars_since_loss := 0
+        consec_losses += 1
+        if consec_losses >= i_max_consec
+            month_paused := true
+    else if lp >= 0
+        consec_losses := 0
+
+eff_cooldown = is_mr ? eff_mr_cool : eff_td_cool
+
+if strategy.position_size == 0 and last_loss
+    bars_since_loss += 1
+    if bars_since_loss > eff_cooldown
+        last_loss := false
+
+risk_ok = (not last_loss or bars_since_loss >= eff_cooldown) and not month_paused
+
+var int bars_in_trade = 0
+if strategy.position_size != 0
+    bars_in_trade += 1
+else
+    bars_in_trade := 0
+
+eff_max_hold = is_mr ? eff_mr_hold : eff_td_hold
+
+// ============================================================
+// v8: DAILY DRAWDOWN CIRCUIT BREAKER
+// Pattern from Scalp v5: var float for persistent equity tracking
+// Reset on new day, halt all new entries if threshold breached
+// ============================================================
+var float day_start_equity = strategy.initial_capital
+var bool daily_dd_halt = false
+
+new_day = ta.change(time("D")) != 0
+if new_day
+    day_start_equity := strategy.equity
+    daily_dd_halt    := false
+
+daily_dd_pct = day_start_equity > 0 ? (day_start_equity - strategy.equity) / day_start_equity * 100 : 0.0
+if daily_dd_pct >= i_max_daily_dd
+    daily_dd_halt := true
+
+// ============================================================
+// v8: WEEKLY DRAWDOWN TRACKING
+// Reset on new week, halve position size if threshold breached
+// ============================================================
+var float week_start_equity = strategy.initial_capital
+
+new_week = ta.change(time("W")) != 0
+if new_week
+    week_start_equity := strategy.equity
+
+weekly_dd_pct    = week_start_equity > 0 ? (week_start_equity - strategy.equity) / week_start_equity * 100 : 0.0
+weekly_dd_reduce = weekly_dd_pct >= i_max_weekly_dd  // true = halve position size
+weekly_dd_mult   = weekly_dd_reduce ? 0.5 : 1.0
+
+// Update forward-reference so eff_mr_size_adj / eff_td_size_adj pick it up on next bar
+weekly_dd_mult_ref := weekly_dd_mult
+
+// ============================================================
+// ENGINE A: MEAN-REVERSION (NVDA, AMD)
+// ============================================================
+
+// Reversal candle patterns
+bull_reversal = close > open and low < low[1] and close > (open + close[1]) / 2
+bear_reversal = close < open and high > high[1] and close < (open + close[1]) / 2
+
+// Hammer-like: long lower wick, small body near top
+body       = math.abs(close - open)
+lower_wick = math.min(open, close) - low
+upper_wick = high - math.max(open, close)
+hammer     = lower_wick > body * 2 and upper_wick < body * 0.5 and close > open
+inv_hammer = upper_wick > body * 2 and lower_wick < body * 0.5 and close < open
+
+// BB touch conditions
+touch_lower_bb = low <= bb_lower or (close <= bb_lower * 1.005)
+touch_upper_bb = high >= bb_upper or (close >= bb_upper * 0.995)
+
+// RSI extremes
+rsi_oversold   = rsi_14 <= eff_rsi_os
+rsi_overbought = rsi_14 >= eff_rsi_ob
+
+// RSI turning (divergence from extreme)
+rsi_turning_up   = rsi_14 > rsi_14[1] and rsi_14[1] <= eff_rsi_os + 5
+rsi_turning_down = rsi_14 < rsi_14[1] and rsi_14[1] >= eff_rsi_ob - 5
+
+// v8: Volume confirmation uses DOW-adjusted rel_vol (threshold kept at 0.8)
+vol_confirm = rel_vol >= 0.8
+
+// MR Long: price at/below lower BB + RSI oversold/turning + reversal candle
+// v8: added `and not daily_dd_halt` to gate on circuit breaker
+mr_long_signal = is_mr and touch_lower_bb and (rsi_oversold or rsi_turning_up) and
+     (bull_reversal or hammer or close > open) and vol_confirm and
+     mkt_ok_long and vix_ok_long and risk_ok and not daily_dd_halt and barstate.isconfirmed
+
+// MR Short: price at/above upper BB + RSI overbought/turning + reversal candle
+// v8: added `and not daily_dd_halt` to gate on circuit breaker
+mr_short_signal = is_mr and touch_upper_bb and (rsi_overbought or rsi_turning_down) and
+     (bear_reversal or inv_hammer or close < open) and vol_confirm and
+     mkt_ok_short and vix_ok_short and risk_ok and not daily_dd_halt and barstate.isconfirmed
+
+// ============================================================
+// ENGINE B: TREND-DRIFT (GILD, MSFT)
+// ============================================================
+
+// Trend direction: SMA50 slope (rising = bull, falling = bear)
+sma50_slope   = sma_50 - sma_50[20]
+sma50_rising  = sma50_slope > 0
+sma50_falling = sma50_slope < 0
+
+// Monthly confirmation: close vs SMA100 for longer-term direction
+monthly_bull = close > sma_100
+monthly_bear = close < sma_100
+
+// Overall trend gate
+td_bull_trend = sma50_rising and monthly_bull
+td_bear_trend = sma50_falling and monthly_bear
+
+// Pullback to SMA50 (wider buffer than v6's EMA21 pullback)
+td_pullback_ma = eff_td_pb_len == 50 ? sma_50 : ema_50
+td_pb_zone     = atr_14 * eff_td_pb_buf
+
+// Long pullback: price dips near SMA50 and holds
+td_pb_bull = td_bull_trend and (low <= td_pullback_ma + td_pb_zone) and (close > td_pullback_ma) and (close > open)
+
+// Short pullback: price rallies to SMA50 and fails
+td_pb_bear = td_bear_trend and (high >= td_pullback_ma - td_pb_zone) and (close < td_pullback_ma) and (close < open)
+
+// v8.3: Fresh support breakdown — price crosses below SMA50 for the first time
+// Catches trend-change / liquidation days where price breaks THROUGH support
+// rather than pulling back TO resistance (which td_pb_bear handles)
+// Requirements: close crossed below SMA50 this bar + volume confirms conviction
+td_fresh_breakdown = (close < td_pullback_ma) and (close[1] >= td_pullback_ma) and (volume > avg_vol * 1.3) and (close < open)
+
+// v8.3: Fresh resistance breakout (symmetrical long-side)
+// Price crosses above SMA50 for the first time with volume confirmation
+td_fresh_breakout = (close > td_pullback_ma) and (close[1] <= td_pullback_ma) and (volume > avg_vol * 1.3) and (close > open)
+
+// RSI filter: asymmetric for long vs short
+// v8.1: Long blocked when RSI > 70 (overbought), Short blocked only when RSI < 18 (extreme)
+td_rsi_ok_long  = rsi_14 <= 70
+td_rsi_ok_short = rsi_14 >= 18  // v8.1: widened from 30→18 — allow shorts in deep bearish momentum
+
+// ADX must be rising (trend strengthening, not weakening)
+adx_rising = adx_val > adx_val[3]
+
+// MACD histogram agreement
+td_macd_bull = histLine > histLine[1]
+td_macd_bear = histLine < histLine[1]
+
+// Structure: for longs, price still above EMA200; for shorts, below
+td_structure_bull = close > ema_200
+td_structure_bear = close < ema_200
+
+// TD Long signal
+// v8: added `and not daily_dd_halt` to gate on circuit breaker
+// v8.3: td_pb_bull OR td_fresh_breakout (fresh resistance breakout)
+td_long_signal = is_td and (td_pb_bull or td_fresh_breakout) and td_rsi_ok_long and td_macd_bull and
+     (td_structure_bull or close > sma_50) and
+     mkt_ok_long and vix_ok_long and risk_ok and not daily_dd_halt and barstate.isconfirmed
+
+// TD Short signal
+// v8: added `and not daily_dd_halt` to gate on circuit breaker
+// v8.3: td_pb_bear OR td_fresh_breakdown (fresh support breakdown)
+td_short_signal = is_td and (td_pb_bear or td_fresh_breakdown) and td_rsi_ok_short and td_macd_bear and
+     (td_structure_bear or close < sma_50) and
+     mkt_ok_short and vix_ok_short and risk_ok and not daily_dd_halt and barstate.isconfirmed
+
+// ============================================================
+// v8.2: MOMENTUM OVERRIDE ENGINE (ENGINE C) — DAILY TIMEFRAME
+// Catches multi-day breakdowns, gap-down continuations,
+// and panic moves that MR/TD engines can't see
+// ============================================================
+
+// Gap detection: today's open vs yesterday's close
+gap_pct = close[1] > 0 ? (open - close[1]) / close[1] * 100 : 0.0
+gap_down = gap_pct <= -1.0  // Opened 1%+ below prev close
+gap_up   = gap_pct >= 1.0
+
+// Multi-day momentum: 3+ consecutive bearish/bullish daily closes
+day_bear = close < open
+day_bull = close > open
+consec_bear_days = day_bear and (day_bear[1] or false) and (day_bear[2] or false)
+consec_bull_days = day_bull and (day_bull[1] or false) and (day_bull[2] or false)
+
+// New lows/highs being made
+daily_new_low  = low < low[1] and low[1] < low[2]
+daily_new_high = high > high[1] and high[1] > high[2]
+
+// Volume confirming (above average)
+daily_vol_ok = rel_vol >= 1.2
+
+// Price below/above key MAs (breakdown/breakout confirmation)
+below_sma50_ema200 = close < sma_50 and close < ema_200
+above_sma50_ema200 = close > sma_50 and close > ema_200
+
+// Momentum SHORT combos:
+// A) Gap-down continuation: gapped down + closed lower + volume
+swing_mom_short_a = gap_down and close < open and daily_vol_ok
+// B) Multi-day breakdown: 3 bear days + making new lows
+swing_mom_short_b = consec_bear_days and daily_new_low and daily_vol_ok
+// C) Breakdown below key MAs with momentum
+swing_mom_short_c = below_sma50_ema200 and day_bear and (spy_weak or spy_breaking_down) and daily_vol_ok
+
+// Momentum LONG combos:
+swing_mom_long_a = gap_up and close > open and daily_vol_ok
+swing_mom_long_b = consec_bull_days and daily_new_high and daily_vol_ok
+swing_mom_long_c = above_sma50_ema200 and day_bull and spy_healthy and daily_vol_ok
+
+// R:R for momentum swing trades
+swing_mom_sl = atr_14 * 1.5 * vix_stop_mult
+swing_mom_tp = math.max(atr_14 * 3.0, swing_mom_sl * 2.0)  // Minimum 2:1 R:R
+swing_mom_rr = swing_mom_sl > 0 ? swing_mom_tp / swing_mom_sl : 0.0
+swing_mom_rr_ok = swing_mom_rr >= 2.0
+
+// Position sizing: smaller for momentum (higher vol environment)
+swing_mom_size = (is_mr ? eff_mr_size_adj : eff_td_size_adj) * 0.6  // 60% of normal size
+
+// Combined momentum signals
+swing_momentum_short = (swing_mom_short_a or swing_mom_short_b or swing_mom_short_c) and swing_mom_rr_ok and not daily_dd_halt and barstate.isconfirmed
+swing_momentum_long  = (swing_mom_long_a or swing_mom_long_b or swing_mom_long_c) and swing_mom_rr_ok and vix_ok_long and not daily_dd_halt and barstate.isconfirmed
+
+// Momentum type label
+var string swing_mom_type = ""
+if swing_mom_short_a
+    swing_mom_type := "gap-down"
+else if swing_mom_short_b
+    swing_mom_type := "multi-day-breakdown"
+else if swing_mom_short_c
+    swing_mom_type := "MA-breakdown"
+else if swing_mom_long_a
+    swing_mom_type := "gap-up"
+else if swing_mom_long_b
+    swing_mom_type := "multi-day-breakout"
+else if swing_mom_long_c
+    swing_mom_type := "MA-breakout"
+
+var bool swing_is_momentum = false
+
+// ============================================================
+// COMBINED ENTRY SIGNALS
+// v8.2: MR OR TD OR Momentum Override (any can fire)
+// ============================================================
+long_signal  = mr_long_signal or td_long_signal or swing_momentum_long
+short_signal = mr_short_signal or td_short_signal or swing_momentum_short
+
+// Track which engine
+if swing_momentum_short and not mr_short_signal and not td_short_signal
+    swing_is_momentum := true
+else if swing_momentum_long and not mr_long_signal and not td_long_signal
+    swing_is_momentum := true
+else
+    swing_is_momentum := false
+
+// ============================================================
+// WEBHOOK ALERT HELPERS
+// ============================================================
+// Derive SPY/QQQ status strings
+spy_chg_pct = spy_prev != 0 ? (spy_close - spy_prev) / spy_prev * 100 : 0.0
+qqq_chg_pct = qqq_prev != 0 ? (qqq_close - qqq_prev) / qqq_prev * 100 : 0.0
+spy_status_str = spy_breaking_down ? "BREAKDOWN" : spy_healthy ? "HEALTHY" : "WEAK"
+qqq_status_str = qqq_breaking_down ? "BREAKDOWN" : qqq_healthy ? "HEALTHY" : "WEAK"
+
+// Regime label (engine-aware)
+regime_str = is_mr ? (adx_val < 18 ? "RANGE_BOUND" : "MID_RANGE") : (sma50_rising ? "TRENDING_BULL" : sma50_falling ? "TRENDING_BEAR" : "NEUTRAL")
+
+// TV recommendation approximation
+tv_rec_str = is_mr ? (rsi_14 < 30 ? "STRONG_BUY" : rsi_14 > 70 ? "STRONG_SELL" : rsi_14 < 45 ? "BUY" : rsi_14 > 55 ? "SELL" : "NEUTRAL") : (sma50_rising and rsi_14 < 50 ? "BUY" : sma50_falling and rsi_14 > 50 ? "SELL" : "NEUTRAL")
+
+// Stochastic
+stoch_k = ta.sma(ta.stoch(close, high, low, 14), 3)
+stoch_d = ta.sma(stoch_k, 3)
+
+// CCI
+cci_val = ta.cci(close, 20)
+
+// Momentum
+mom_val = ta.mom(close, 10)
+
+// Pivot (classic: (H+L+C)/3)
+pivot_classic = (high[1] + low[1] + close[1]) / 3
+
+// Parabolic SAR
+psar_val = ta.sar(0.02, 0.02, 0.2)
+
+// Cross-asset status (direction-aware)
+cross_asset_str = spy_healthy and qqq_healthy ? "BULL_CONFIRMED" : spy_breaking_down or qqq_breaking_down ? "BEAR_CONFIRMED" : spy_weak or qqq_weak ? "WEAKENING" : "PARTIAL"
+
+// ============================================================
+// STRATEGY PERFORMANCE (computed globally for payload + table)
+// ============================================================
+strat_np     = strategy.netprofit / strategy.initial_capital * 100
+strat_tt     = strategy.wintrades + strategy.losstrades
+strat_wr     = strat_tt > 0 ? strategy.wintrades / strat_tt * 100 : 0.0
+strat_pf     = strategy.grossloss != 0 ? strategy.grossprofit / math.abs(strategy.grossloss) : 0.0
+strat_dd     = strategy.max_drawdown / strategy.initial_capital * 100
+strat_at     = strategy.closedtrades > 0 ? strategy.netprofit / strategy.closedtrades : 0.0
+strat_wins   = strategy.wintrades
+strat_losses = strategy.losstrades
+
+// JSON payload builder — uses chunked strings to avoid Pine v5 line-continuation limits
+kv(string k, string v) =>
+    '"' + k + '":"' + v + '"'
+
+// v8: buildPayload adds p14 with new risk management fields
+// Pattern: p13 ends with "}" — strip it via str.replace, append p14 + "}"
+buildPayload(string exec, string sig, string alertType, string comment) =>
+    // Effective position size actually used this bar (MR or TD engine, with v8 adj)
+    string eff_pos_str = str.tostring(is_mr ? eff_mr_size_adj : eff_td_size_adj, "#.#")
+    string p1 = '{' + kv("ticker", syminfo.ticker) + ',' + kv("price", str.tostring(close, "#.##")) + ',' + kv("execution", exec) + ',' + kv("signal", sig) + ','
+    string p2 = kv("bias_score", str.tostring(math.round(rsi_14))) + ',' + kv("regime", regime_str) + ',' + kv("adx", str.tostring(adx_val, "#.#")) + ',' + kv("rsi", str.tostring(rsi_14, "#.#")) + ','
+    string p3 = kv("macd_hist", str.tostring(histLine, "#.###")) + ',' + kv("atr", str.tostring(atr_14, "#.##")) + ',' + kv("volume_ratio", str.tostring(rel_vol, "#.##")) + ','
+    string p4 = kv("vix", str.tostring(vix_close, "#.#")) + ',' + kv("timeframe", "1D") + ',' + kv("alert_type", alertType) + ','
+    string p5 = kv("spy_price", str.tostring(spy_close, "#.##")) + ',' + kv("spy_change_pct", str.tostring(spy_chg_pct, "#.##")) + ',' + kv("spy_status", spy_status_str) + ','
+    string p6 = kv("qqq_price", str.tostring(qqq_close, "#.##")) + ',' + kv("qqq_change_pct", str.tostring(qqq_chg_pct, "#.##")) + ',' + kv("qqq_status", qqq_status_str) + ','
+    string p7 = kv("cross_asset_status", cross_asset_str) + ',' + kv("tv_recommendation", tv_rec_str) + ',' + kv("sma50", str.tostring(sma_50, "#.##")) + ','
+    string p8 = kv("ema200", str.tostring(ema_200, "#.##")) + ',' + kv("sma200", str.tostring(sma_200, "#.##")) + ',' + kv("bb_upper", str.tostring(bb_upper, "#.##")) + ',' + kv("bb_lower", str.tostring(bb_lower, "#.##")) + ','
+    string p9 = kv("bb_mid", str.tostring(bb_mid, "#.##")) + ',' + kv("bb_width_pct", str.tostring(bb_width_pct, "#.##")) + ',' + kv("stoch_k", str.tostring(stoch_k, "#.#")) + ',' + kv("stoch_d", str.tostring(stoch_d, "#.#")) + ','
+    string p10 = kv("cci", str.tostring(cci_val, "#.#")) + ',' + kv("momentum", str.tostring(mom_val, "#.##")) + ',' + kv("pivot_classic", str.tostring(pivot_classic, "#.##")) + ',' + kv("psar", str.tostring(psar_val, "#.##")) + ','
+    string p11 = kv("engine", eff_engine) + ',' + kv("comment", comment) + ','
+    string p12 = kv("strat_net_pct", str.tostring(strat_np, "#.##")) + ',' + kv("strat_win_rate", str.tostring(strat_wr, "#.#")) + ',' + kv("strat_wins", str.tostring(strat_wins)) + ',' + kv("strat_losses", str.tostring(strat_losses)) + ','
+    string p13 = kv("strat_profit_factor", str.tostring(strat_pf, "#.##")) + ',' + kv("strat_max_dd", str.tostring(strat_dd, "#.##")) + ',' + kv("strat_avg_trade", str.tostring(strat_at, "#.##")) + ',' + kv("strat_total_trades", str.tostring(strat_tt)) + '}'
+    string p14 = ',' + kv("daily_dd_pct", str.tostring(daily_dd_pct, "#.##")) + ',' + kv("daily_dd_halt", daily_dd_halt ? "true" : "false") + ',' + kv("weekly_dd_pct", str.tostring(weekly_dd_pct, "#.##")) + ',' + kv("vix_size_mult", str.tostring(vix_size_mult, "#.##")) + ',' + kv("eff_position_size", eff_pos_str) + ',' + kv("vix_stop_mult", str.tostring(vix_stop_mult, "#.##"))
+    // v8.2: Momentum Override fields
+    string p15 = ',' + kv("momentum_engine", swing_is_momentum ? "true" : "false") + ',' + kv("momentum_type", swing_mom_type) + ',' + kv("gap_pct", str.tostring(gap_pct, "#.##")) + ',' + kv("momentum_rr", str.tostring(swing_mom_rr, "#.#"))
+    p1 + p2 + p3 + p4 + p5 + p6 + p7 + p8 + p9 + p10 + p11 + p12 + str.replace(p13, "}", "") + p14 + p15 + "}"
+
+// ============================================================
+// ENTRIES
+// v8.2: VIX-adaptive sizing + Momentum Override entries
+// Variables declared at outer scope to avoid Pine v5 scoping errors
+// ============================================================
+var float entry_qty = 0.0
+var float entry_sl = 0.0
+var float entry_tp = 0.0
+var float entry_trail_pts = na
+var float entry_trail_off = na
+var string entry_comment = ""
+var bool entry_use_trail = false
+
+if long_signal and strategy.position_size == 0
+    if swing_is_momentum
+        entry_qty := strategy.equity * (swing_mom_size / 100) / close
+        entry_sl := close - swing_mom_sl
+        entry_tp := close + swing_mom_tp
+        entry_use_trail := false
+        entry_comment := "MOMENTUM long [" + swing_mom_type + "] R:R=" + str.tostring(swing_mom_rr, "#.#") + " gap=" + str.tostring(gap_pct, "#.#") + "%"
+    else if is_mr
+        entry_qty := strategy.equity * (eff_mr_size_adj / 100) / close
+        entry_sl := bb_lower - atr_14 * eff_mr_sl * vix_stop_mult
+        entry_tp := bb_mid
+        entry_use_trail := false
+        entry_comment := "Long entry — MR BB bounce"
+    else
+        entry_qty := strategy.equity * (eff_td_size_adj / 100) / close
+        entry_sl := close - atr_14 * eff_td_sl * vix_stop_mult
+        entry_tp := na
+        entry_trail_pts := eff_td_trail * atr_14 / syminfo.mintick
+        entry_trail_off := eff_td_trail * atr_14 * 0.4 / syminfo.mintick
+        entry_use_trail := true
+        entry_comment := td_fresh_breakout ? "Long entry — TD SMA50 breakout (v8.3)" : "Long entry — TD SMA50 pullback"
+    strategy.entry("Long", strategy.long, qty=entry_qty)
+    if entry_use_trail
+        strategy.exit("Long X", "Long", stop=entry_sl, trail_points=entry_trail_pts, trail_offset=entry_trail_off)
+    else
+        strategy.exit("Long X", "Long", stop=entry_sl, limit=entry_tp)
+    alert(buildPayload("BUY", "BULLISH", "SIGNAL_CHANGE", entry_comment), alert.freq_once_per_bar_close)
+
+if short_signal and strategy.position_size == 0
+    if swing_is_momentum
+        entry_qty := strategy.equity * (swing_mom_size / 100) / close
+        entry_sl := close + swing_mom_sl
+        entry_tp := close - swing_mom_tp
+        entry_use_trail := false
+        entry_comment := "MOMENTUM short [" + swing_mom_type + "] R:R=" + str.tostring(swing_mom_rr, "#.#") + " gap=" + str.tostring(gap_pct, "#.#") + "%"
+    else if is_mr
+        entry_qty := strategy.equity * (eff_mr_size_adj / 100) / close
+        entry_sl := bb_upper + atr_14 * eff_mr_sl * vix_stop_mult
+        entry_tp := bb_mid
+        entry_use_trail := false
+        entry_comment := "Short entry — MR BB rejection"
+    else
+        entry_qty := strategy.equity * (eff_td_size_adj / 100) / close
+        entry_sl := close + atr_14 * eff_td_sl * vix_stop_mult
+        entry_tp := na
+        entry_trail_pts := eff_td_trail * atr_14 / syminfo.mintick
+        entry_trail_off := eff_td_trail * atr_14 * 0.4 / syminfo.mintick
+        entry_use_trail := true
+        entry_comment := td_fresh_breakdown ? "Short entry — TD SMA50 breakdown (v8.3)" : "Short entry — TD SMA50 rejection"
+    strategy.entry("Short", strategy.short, qty=entry_qty)
+    if entry_use_trail
+        strategy.exit("Short X", "Short", stop=entry_sl, trail_points=entry_trail_pts, trail_offset=entry_trail_off)
+    else
+        strategy.exit("Short X", "Short", stop=entry_sl, limit=entry_tp)
+    alert(buildPayload("SELL", "BEARISH", "SIGNAL_CHANGE", entry_comment), alert.freq_once_per_bar_close)
+
+// ============================================================
+// EXITS (shared — all v7 exits preserved intact)
+// ============================================================
+// Max hold
+if bars_in_trade >= eff_max_hold and strategy.position_size != 0
+    strategy.close_all(comment="Max Hold (" + str.tostring(eff_max_hold) + "d)")
+    alert(buildPayload("STAND ASIDE", "NEUTRAL", "SIGNAL_CHANGE", "Exit — max hold " + str.tostring(eff_max_hold) + " days reached"), alert.freq_once_per_bar_close)
+
+// Market breakdown — exit LONGS only (breakdown CONFIRMS shorts)
+if i_require_mkt and (spy_breaking_down or qqq_breaking_down) and strategy.position_size > 0
+    strategy.close("Long", comment="Mkt Breakdown")
+    alert(buildPayload("STAND ASIDE", "NEUTRAL", "SIGNAL_CHANGE", "Exit long — SPY/QQQ market breakdown"), alert.freq_once_per_bar_close)
+
+// Market recovery — exit SHORTS if market turns healthy (bearish thesis invalidated)
+if i_require_mkt and spy_healthy and qqq_healthy and strategy.position_size < 0
+    strategy.close("Short", comment="Mkt Recovery")
+    alert(buildPayload("STAND ASIDE", "NEUTRAL", "SIGNAL_CHANGE", "Exit short — SPY/QQQ recovered above SMA20+EMA50"), alert.freq_once_per_bar_close)
+
+// VIX spike — exit LONGS only (high VIX confirms shorts)
+if vix_close >= i_max_vix and strategy.position_size > 0
+    strategy.close("Long", comment="VIX > " + str.tostring(i_max_vix))
+    alert(buildPayload("STAND ASIDE", "NEUTRAL", "SIGNAL_CHANGE", "Exit long — VIX spike above " + str.tostring(i_max_vix, "#.#")), alert.freq_once_per_bar_close)
+
+// VIX collapse — exit SHORTS (fear subsiding = bearish thesis weakening)
+if vix_close < 15.0 and strategy.position_size < 0
+    strategy.close("Short", comment="VIX Collapse")
+    alert(buildPayload("STAND ASIDE", "NEUTRAL", "SIGNAL_CHANGE", "Exit short — VIX collapsed below 15 (fear gone)"), alert.freq_once_per_bar_close)
+
+// MR-specific: if price crosses back through midline (take profit zone reached)
+if is_mr and strategy.position_size > 0 and close > bb_mid and close[1] <= bb_mid and barstate.isconfirmed
+    strategy.close("Long", comment="MR Target Hit")
+    alert(buildPayload("STAND ASIDE", "NEUTRAL", "SIGNAL_CHANGE", "Exit long — MR target hit (BB midline)"), alert.freq_once_per_bar_close)
+if is_mr and strategy.position_size < 0 and close < bb_mid and close[1] >= bb_mid and barstate.isconfirmed
+    strategy.close("Short", comment="MR Target Hit")
+    alert(buildPayload("STAND ASIDE", "NEUTRAL", "SIGNAL_CHANGE", "Exit short — MR target hit (BB midline)"), alert.freq_once_per_bar_close)
+
+// TD-specific: trend reversal (SMA50 slope flips)
+if is_td and strategy.position_size > 0 and sma50_falling and barstate.isconfirmed
+    strategy.close("Long", comment="Trend Flip Bear")
+    alert(buildPayload("STAND ASIDE", "NEUTRAL", "SIGNAL_CHANGE", "Exit long — SMA50 slope flipped bearish"), alert.freq_once_per_bar_close)
+if is_td and strategy.position_size < 0 and sma50_rising and barstate.isconfirmed
+    strategy.close("Short", comment="Trend Flip Bull")
+    alert(buildPayload("STAND ASIDE", "NEUTRAL", "SIGNAL_CHANGE", "Exit short — SMA50 slope flipped bullish"), alert.freq_once_per_bar_close)
+
+// Price breaks SMA200 against position (major structure break)
+if strategy.position_size > 0 and close < sma_200 and barstate.isconfirmed
+    strategy.close("Long", comment="Below SMA200")
+    alert(buildPayload("STAND ASIDE", "NEUTRAL", "SIGNAL_CHANGE", "Exit long — price broke below SMA200"), alert.freq_once_per_bar_close)
+if strategy.position_size < 0 and close > sma_200 and barstate.isconfirmed
+    strategy.close("Short", comment="Above SMA200")
+    alert(buildPayload("STAND ASIDE", "NEUTRAL", "SIGNAL_CHANGE", "Exit short — price broke above SMA200"), alert.freq_once_per_bar_close)
+
+// ============================================================
+// EVERY-BAR HEARTBEAT ALERT
+// Sends current state to webhook on EVERY bar close, even when
+// no entry/exit event occurred. This ensures the pipeline always
+// receives the latest indicator readings for every ticker.
+// Without this, alerts only fire on state changes (entries/exits),
+// leaving the pipeline blind during STAND ASIDE / CHOP periods.
+// ============================================================
+string hb_exec = strategy.position_size > 0 ? "LONG" : strategy.position_size < 0 ? "SHORT" : "STAND ASIDE"
+string hb_sig  = strategy.position_size > 0 ? "BULLISH" : strategy.position_size < 0 ? "BEARISH" : "NEUTRAL"
+if barstate.isconfirmed
+    alert(buildPayload(hb_exec, hb_sig, "SIGNAL_CHANGE", "Heartbeat — bar close update"), alert.freq_once_per_bar_close)
+
+// ============================================================
+// VISUALS
+// ============================================================
+// Bollinger Bands (MR engine)
+p_upper = plot(is_mr ? bb_upper : na, "BB Upper", color=color.new(color.red, 60), linewidth=1)
+p_lower = plot(is_mr ? bb_lower : na, "BB Lower", color=color.new(color.green, 60), linewidth=1)
+p_mid   = plot(is_mr ? bb_mid : na, "BB Mid", color=color.new(color.gray, 60), linewidth=1, style=plot.style_circles)
+fill(p_upper, p_lower, color=is_mr ? color.new(color.purple, 95) : na, title="BB Fill")
+
+// Trend-Drift MAs
+plot(is_td ? sma_50 : na, "SMA 50 (TD pullback)", color=color.orange, linewidth=2)
+plot(is_td ? sma_100 : na, "SMA 100", color=color.new(color.yellow, 60), linewidth=1)
+
+// Shared
+plot(sma_200, "SMA 200", color=color.new(color.gray, 40), linewidth=1)
+plot(ema_21, "EMA 21", color=color.new(color.aqua, 60), linewidth=1)
+
+// Signals
+plotshape(long_signal and strategy.position_size == 0, style=shape.triangleup, location=location.belowbar, color=color.lime, size=size.normal, title="Long")
+plotshape(short_signal and strategy.position_size == 0, style=shape.triangledown, location=location.abovebar, color=color.red, size=size.normal, title="Short")
+
+// Background: engine mode
+bgcolor(is_mr ? color.new(color.purple, 97) : color.new(color.blue, 97))
+bgcolor(strategy.position_size > 0 ? color.new(color.green, 92) : strategy.position_size < 0 ? color.new(color.red, 92) : na)
+
+// ============================================================
+// PERFORMANCE TABLE
+// v8: Row 14 updated to show dynamic risk status (daily DD, weekly DD,
+//     effective position size, VIX multiplier)
+// ============================================================
+var table t = table.new(position.top_right, 2, 15, bgcolor=color.new(color.black, 80), border_width=1)
+
+if barstate.islastconfirmedhistory or barstate.islast
+    np = strat_np
+    tt = strat_tt
+    wr = strat_wr
+    pf = strat_pf
+    dd = strat_dd
+    at = strat_at
+
+    table.cell(t, 0, 0, "SWING v8", text_color=color.white, text_size=size.small)
+    table.cell(t, 1, 0, syminfo.ticker + " DAILY [" + vol_label + " VOL | ATR" + str.tostring(atr_pct_smooth, "#.#") + "%] " + eff_engine, text_color=color.yellow, text_size=size.small)
+
+    table.cell(t, 0, 1, "Engine", text_color=color.gray, text_size=size.tiny)
+    table.cell(t, 1, 1, is_mr ? "MEAN-REVERSION (BB bounce)" : "TREND-DRIFT (SMA50 pullback)", text_color=is_mr ? color.purple : color.blue, text_size=size.tiny)
+
+    table.cell(t, 0, 2, "Net Profit", text_color=color.gray, text_size=size.tiny)
+    table.cell(t, 1, 2, str.tostring(np, "#.##") + "%", text_color=np >= 0 ? color.lime : color.red, text_size=size.tiny)
+
+    table.cell(t, 0, 3, "Win Rate", text_color=color.gray, text_size=size.tiny)
+    table.cell(t, 1, 3, str.tostring(wr, "#.#") + "% (" + str.tostring(strategy.wintrades) + "W/" + str.tostring(strategy.losstrades) + "L)", text_color=wr >= 50 ? color.lime : color.orange, text_size=size.tiny)
+
+    table.cell(t, 0, 4, "Profit Factor", text_color=color.gray, text_size=size.tiny)
+    table.cell(t, 1, 4, str.tostring(pf, "#.##"), text_color=pf >= 1.5 ? color.lime : pf >= 1.0 ? color.yellow : color.red, text_size=size.tiny)
+
+    table.cell(t, 0, 5, "Max Drawdown", text_color=color.gray, text_size=size.tiny)
+    table.cell(t, 1, 5, str.tostring(dd, "#.##") + "%", text_color=dd < 5 ? color.lime : dd < 10 ? color.yellow : color.red, text_size=size.tiny)
+
+    table.cell(t, 0, 6, "Avg Trade", text_color=color.gray, text_size=size.tiny)
+    table.cell(t, 1, 6, "$" + str.tostring(at, "#.##"), text_color=at >= 0 ? color.lime : color.red, text_size=size.tiny)
+
+    table.cell(t, 0, 7, "Total Trades", text_color=color.gray, text_size=size.tiny)
+    table.cell(t, 1, 7, str.tostring(strategy.closedtrades), text_color=color.white, text_size=size.tiny)
+
+    table.cell(t, 0, 8, "BB Width", text_color=color.gray, text_size=size.tiny)
+    table.cell(t, 1, 8, str.tostring(bb_width_pct, "#.##") + "%", text_color=bb_width_pct > 10 ? color.yellow : color.gray, text_size=size.tiny)
+
+    table.cell(t, 0, 9, "ADX", text_color=color.gray, text_size=size.tiny)
+    table.cell(t, 1, 9, str.tostring(adx_val, "#.#") + (adx_val > 25 ? " TRENDING" : adx_val < 18 ? " RANGE" : " MID"), text_color=adx_val > 25 ? color.lime : adx_val < 18 ? color.purple : color.yellow, text_size=size.tiny)
+
+    table.cell(t, 0, 10, "RSI", text_color=color.gray, text_size=size.tiny)
+    table.cell(t, 1, 10, str.tostring(rsi_14, "#.#"), text_color=rsi_14 < 30 ? color.lime : rsi_14 > 70 ? color.red : color.gray, text_size=size.tiny)
+
+    table.cell(t, 0, 11, "SMA50 Slope", text_color=color.gray, text_size=size.tiny)
+    table.cell(t, 1, 11, sma50_rising ? "RISING ↑" : sma50_falling ? "FALLING ↓" : "FLAT →", text_color=sma50_rising ? color.lime : sma50_falling ? color.red : color.gray, text_size=size.tiny)
+
+    table.cell(t, 0, 12, "SPY / QQQ", text_color=color.gray, text_size=size.tiny)
+    s_l = spy_breaking_down ? "SPY DN" : spy_healthy ? "SPY OK" : "SPY WK"
+    q_l = qqq_breaking_down ? "QQQ DN" : qqq_healthy ? "QQQ OK" : "QQQ WK"
+    table.cell(t, 1, 12, s_l + " | " + q_l, text_color=spy_breaking_down or qqq_breaking_down ? color.red : spy_healthy and qqq_healthy ? color.lime : color.yellow, text_size=size.tiny)
+
+    table.cell(t, 0, 13, "VIX", text_color=color.gray, text_size=size.tiny)
+    table.cell(t, 1, 13, str.tostring(vix_close, "#.#"), text_color=vix_close < 20 ? color.lime : vix_close < 30 ? color.yellow : color.red, text_size=size.tiny)
+
+    // v8: Row 14 — Dynamic risk status
+    // Shows: DD halt, weekly DD reduce, effective position size, VIX size/stop multipliers
+    // Red = daily halt active, orange = weekly DD reducing size, lime = all clear
+    eff_size_display = is_mr ? eff_mr_size_adj : eff_td_size_adj
+    risk_label = daily_dd_halt ? "DD HALT " + str.tostring(daily_dd_pct, "#.#") + "% | VIX×" + str.tostring(vix_stop_mult, "#.##") : weekly_dd_reduce ? "WEEK DD " + str.tostring(weekly_dd_pct, "#.#") + "% | Size " + str.tostring(eff_size_display, "#.#") + "% | VIX×" + str.tostring(vix_size_mult, "#.##") : "OK | Size " + str.tostring(eff_size_display, "#.#") + "% | VIX×" + str.tostring(vix_size_mult, "#.##")
+    risk_color = daily_dd_halt ? color.red : weekly_dd_reduce ? color.orange : color.lime
+    table.cell(t, 0, 14, "RISK", text_color=color.gray, text_size=size.tiny)
+    table.cell(t, 1, 14, risk_label, text_color=risk_color, text_size=size.tiny)
+    

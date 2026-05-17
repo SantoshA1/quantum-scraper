@@ -1,0 +1,1961 @@
+{
+  "updatedAt": "2026-05-16T21:21:35.064Z",
+  "createdAt": "2026-03-31T03:23:14.422Z",
+  "id": "975pZZEtxeUbzI22",
+  "name": "Broad Scanner (Real-Time Agent)",
+  "description": null,
+  "active": true,
+  "isArchived": false,
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "cronExpression",
+              "expression": "*/5 * * * 1-5"
+            }
+          ]
+        }
+      },
+      "name": "Every 5 Minutes",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        -80,
+        0
+      ],
+      "id": "521da29d-fca2-451e-8ee3-2329cc47ba97"
+    },
+    {
+      "parameters": {
+        "jsCode": "// SM-C2: env-driven Alpaca base URL (default paper, flip via staticData)\nconst _creds_AB = ($getWorkflowStaticData('global')._credentials) || {};\nconst ALPACA_BASE = _creds_AB.alpaca_base\n  || (_creds_AB.alpaca_env === 'live'\n    ? 'https://api.alpaca.markets'\n    : 'https://paper-api.alpaca.markets');\n\n// ================================================\n// BROAD SCANNER v3.4 \u2014 Fix #14 off-by-one \u2014 Fix #9 N/A indicators, Fix #13 session hours \u2014 Time-Adjusted Volume Fix \u2014 Enhanced Filters + AI View\n// v3.1: Min relative volume, entry deviation check, enhanced AI context\n// v3.0: Max 4 entries per cycle + pre-entry risk simulation\n// v2.3: Kill switch, VIX fix, direction flips\n// ================================================\n\n// \u2500\u2500\u2500 CONFIGURATION (edit these to tune) \u2500\u2500\u2500\nconst MOMENTUM_THRESHOLD  = 0.7;   // Min % change to trigger signal\nconst PROFILE_IMBALANCE   = 1.8;   // Volume imbalance for structure break\nconst VOLUME_MIN          = 0.25;  // Min volume ratio vs prev day (original threshold)\nconst MIN_RR              = 2.0;   // Min risk:reward ratio\n\n// \u2500\u2500\u2500 NEW v3.1 FILTERS \u2500\u2500\u2500\nconst MIN_RELATIVE_VOLUME    = 0.8;   // Min relative volume (today vs prev day) \u2014 rejects thin/quiet tickers\nconst MAX_ENTRY_DEVIATION_PCT = 2.5;  // v3.2: widened from 1.5 \u2014 was too tight for midday\n\n// \u2500\u2500\u2500 POSITION BLOAT SAFEGUARDS \u2500\u2500\u2500\nconst MAX_NEW_ENTRIES_PER_CYCLE = 4;    // Max new signals per 5-min scan\nconst MAX_POSITIONS       = 20;         // Kill switch: max open positions\nconst MAX_EXPOSURE        = 150000;     // Kill switch: max notional $\nconst MAX_MARGIN_PCT      = 0.35;       // Kill switch: max margin % of equity\nconst MAX_DAILY_LOSS_PCT  = -2.5;       // Kill switch: max daily loss %\nconst EST_POSITION_SIZE   = 5000;\n// \u2500\u2500 C-3 auth: load webhook_secret for outgoing payloads \u2500\u2500\u2500\nconst _WEBHOOK_SECRET = ($getWorkflowStaticData('global')._credentials || {}).webhook_secret || '';\n       // Estimated $ per new position (for simulation)\n\n// \u2500\u2500\u2500 Gap A Phase A-2: strat_cache lookup (fail-closed) \u2500\u2500\u2500\n// Read the strat_cache sheet that Read strat_cache node loaded before us.\n// If cache is missing/stale/non-OK, emit empty strat_* fields so downstream\n// consumers can see the absence and route around it (NO FAKE DEFAULTS).\nconst STRAT_STALENESS_MS = 48 * 60 * 60 * 1000; // 48h max age\nconst _STRAT_CACHE = {};\ntry {\n  const cacheItems = $('Read strat_cache').all() || [];\n  const nowMs = Date.now();\n  for (const it of cacheItems) {\n    const r = it.json || {};\n    const t = (r.ticker || '').toString().toUpperCase().trim();\n    if (!t) continue;\n    const asof = r.asof_utc ? Date.parse(r.asof_utc) : NaN;\n    const fresh = Number.isFinite(asof) && (nowMs - asof) <= STRAT_STALENESS_MS;\n    const ok = (r.status || '').toString().toUpperCase() === 'OK';\n    _STRAT_CACHE[t] = { r, fresh, ok, asof };\n  }\n} catch (e) {\n  console.log('[strat_cache] read failed (fail-closed):', e.message);\n}\nfunction stratFields(ticker) {\n  // Fail-closed default: empty strings signal \"no backtest data available\"\n  const empty = {\n    strat_net_pct: '', strat_win_rate: '', strat_wins: '', strat_losses: '',\n    strat_profit_factor: '', strat_max_dd: '', strat_avg_trade: '', strat_total_trades: ''\n  };\n  const t = (ticker || '').toString().toUpperCase().trim();\n  const entry = _STRAT_CACHE[t];\n  if (!entry || !entry.fresh || !entry.ok) return empty;\n  const r = entry.r;\n  const totalTrades = Number(r.strat_total_trades) || 0;\n  const winRate = Number(r.strat_win_rate) || 0;\n  const netPct = Number(r.strat_net_pct) || 0;\n  const wins = totalTrades > 0 ? Math.round(totalTrades * winRate / 100) : 0;\n  const losses = totalTrades > 0 ? Math.max(0, totalTrades - wins) : 0;\n  const avgTrade = totalTrades > 0 ? (netPct / totalTrades) : 0;\n  return {\n    strat_net_pct: (r.strat_net_pct ?? '').toString(),\n    strat_win_rate: (r.strat_win_rate ?? '').toString(),\n    strat_wins: wins.toString(),\n    strat_losses: losses.toString(),\n    strat_profit_factor: (r.strat_profit_factor ?? '').toString(),\n    strat_max_dd: (r.strat_max_dd ?? '').toString(),\n    strat_avg_trade: avgTrade.toFixed(2),\n    strat_total_trades: totalTrades.toString()\n  };\n}\nconsole.log('[strat_cache] loaded entries:', Object.keys(_STRAT_CACHE).length);\n\n// \u2500\u2500\u2500 SECTOR MAP (for enhanced AI view) \u2500\u2500\u2500\nconst SECTOR_MAP = {\n  AAPL:'Technology', MSFT:'Technology', GOOG:'Technology', GOOGL:'Technology', AMZN:'Consumer Cyclical',\n  META:'Technology', NVDA:'Technology', TSLA:'Consumer Cyclical', AMD:'Technology', INTC:'Technology',\n  AVGO:'Technology', QCOM:'Technology', MU:'Technology', MRVL:'Technology', LRCX:'Technology',\n  AMAT:'Technology', KLAC:'Technology', SNPS:'Technology', CDNS:'Technology', NXPI:'Technology',\n  ON:'Technology', MCHP:'Technology', TXN:'Technology', ADI:'Technology', SMCI:'Technology',\n  ARM:'Technology', ASML:'Technology', TSM:'Technology', DELL:'Technology', HPQ:'Technology',\n  CRM:'Technology', ORCL:'Technology', NOW:'Technology', ADBE:'Technology', PANW:'Technology',\n  CRWD:'Technology', FTNT:'Technology', ZS:'Technology', NET:'Technology', DDOG:'Technology',\n  SNOW:'Technology', PLTR:'Technology', COIN:'Financial Services', SHOP:'Technology',\n  SQ:'Financial Services', PYPL:'Financial Services', V:'Financial Services', MA:'Financial Services',\n  JPM:'Financial Services', BAC:'Financial Services', GS:'Financial Services', MS:'Financial Services',\n  WFC:'Financial Services', C:'Financial Services', SCHW:'Financial Services', BX:'Financial Services',\n  KKR:'Financial Services', APO:'Financial Services',\n  JNJ:'Healthcare', UNH:'Healthcare', PFE:'Healthcare', ABBV:'Healthcare', LLY:'Healthcare',\n  MRK:'Healthcare', BMY:'Healthcare', AMGN:'Healthcare', GILD:'Healthcare', ISRG:'Healthcare',\n  DXCM:'Healthcare', MRNA:'Healthcare', BNTX:'Healthcare',\n  XOM:'Energy', CVX:'Energy', COP:'Energy', SLB:'Energy', EOG:'Energy', MPC:'Energy',\n  VLO:'Energy', PSX:'Energy', OXY:'Energy', DVN:'Energy', HAL:'Energy', FANG:'Energy',\n  PG:'Consumer Defensive', KO:'Consumer Defensive', PEP:'Consumer Defensive', WMT:'Consumer Defensive',\n  COST:'Consumer Defensive', TGT:'Consumer Defensive', HD:'Consumer Cyclical', LOW:'Consumer Cyclical',\n  NKE:'Consumer Cyclical', SBUX:'Consumer Cyclical', MCD:'Consumer Cyclical', CMG:'Consumer Cyclical',\n  DIS:'Communication Services', NFLX:'Communication Services', CMCSA:'Communication Services',\n  T:'Communication Services', VZ:'Communication Services', TMUS:'Communication Services',\n  LMT:'Industrials', RTX:'Industrials', GE:'Industrials', BA:'Industrials', CAT:'Industrials',\n  DE:'Industrials', HON:'Industrials', UPS:'Industrials', FDX:'Industrials', UNP:'Industrials',\n  UBER:'Technology', LYFT:'Technology', ABNB:'Consumer Cyclical', BKNG:'Consumer Cyclical',\n  RIVN:'Consumer Cyclical', LCID:'Consumer Cyclical', F:'Consumer Cyclical', GM:'Consumer Cyclical',\n  LI:'Consumer Cyclical', NIO:'Consumer Cyclical', XPEV:'Consumer Cyclical',\n  SPY:'ETF-Index', QQQ:'ETF-Index', IWM:'ETF-Index', DIA:'ETF-Index',\n  XLF:'ETF-Financials', XLE:'ETF-Energy', XLK:'ETF-Technology', XLV:'ETF-Healthcare',\n  XLY:'ETF-Consumer', XLP:'ETF-Staples', XLI:'ETF-Industrials', XLU:'ETF-Utilities',\n  LITE:'Technology', CIEN:'Technology', ANET:'Technology', KEYS:'Technology',\n  WOLF:'Technology', ENPH:'Technology', SEDG:'Technology', FSLR:'Technology',\n  SOFI:'Financial Services', HOOD:'Financial Services', AFRM:'Financial Services',\n  ROKU:'Communication Services', TTD:'Technology', PINS:'Communication Services',\n  SNAP:'Communication Services', RBLX:'Communication Services', U:'Technology',\n  ZM:'Technology', DOCU:'Technology', OKTA:'Technology', TEAM:'Technology',\n  WDAY:'Technology', VEEV:'Healthcare', BILL:'Technology', HUBS:'Technology'\n};\n\nconst state = $getWorkflowStaticData('global');\n// ENTRY_CONTRACT_PATCH_20260501: prefer n8n variables; retain static fallback.\nconst ALPACA_KEY    = $vars.ALPACA_API_KEY || $vars.ALPACA_KEY_ID || state._alpaca_key || '';\nconst ALPACA_SECRET = $vars.ALPACA_SECRET_KEY || $vars.ALPACA_SECRET || state._alpaca_secret || '';\nif (!state.signalsSent) state.signalsSent = {};\nif (!state.lastDate) state.lastDate = '';\nif (!state.scanCount) state.scanCount = 0;\n\nconst now = new Date();\nconst etHour = parseInt(now.toLocaleTimeString('en-US',{timeZone:'America/New_York',hour12:false,hour:'2-digit'}));\nconst etMin = parseInt(now.toLocaleTimeString('en-US',{timeZone:'America/New_York',hour12:false,minute:'2-digit'}));\nconst today = now.toLocaleDateString('en-US',{timeZone:'America/New_York'});\n\n// Daily reset\nif (state.lastDate !== today) {\n  state.signalsSent = {};\n  state.lastDate = today;\n  state.scanCount = 0;\n    state._killSwitch = {}; // KILL SWITCH MANUALLY RESET \u2014 Trading enabled for next session\n    console.log('KILL SWITCH MANUALLY RESET \u2014 Trading enabled for next session');\n}\n\n// Session check: 9:45 AM - 3:45 PM ET\nconst inSession = (etHour > 9 || (etHour === 9 && etMin >= 30)) && (etHour < 16);\nif (!inSession) return [];\n\nstate.scanCount++;\n// --- v3.2: Session progress for time-adjusted volume ---\nfunction getSessionProgress() {\n  const sessionStart = 9 * 60 + 30; // 9:30 AM ET in minutes\n  const sessionEnd = 16 * 60;       // 4:00 PM ET in minutes\n  const nowMin = etHour * 60 + etMin;\n  const elapsed = Math.max(0, nowMin - sessionStart);\n  const total = sessionEnd - sessionStart; // 390 minutes\n  return Math.min(1.0, Math.max(0.05, elapsed / total));\n}\n\n// \u2500\u2500\u2500 GLOBAL KILL SWITCH \u2500\u2500\u2500\nconst _ks = state._killSwitch || {};\nif (_ks.manualHalt && _ks.date === today) {\n  console.log('[KILL SWITCH] Manual halt active \u2014 skipping scan');\n  return [];\n}\n\n// Fetch portfolio state for kill switch + risk simulation\nlet _posCount = 0;\nlet _exposure = 0;\nlet _equity = 100000;\nlet _marginPct = 0;\nlet _dailyPnLPct = 0;\n\ntry {\n  const _posResp = await this.helpers.httpRequest({\n    method: 'GET', url: ALPACA_BASE + '/v2/positions',\n    headers: { 'APCA-API-KEY-ID': ALPACA_KEY, 'APCA-API-SECRET-KEY': ALPACA_SECRET },\n    json: true\n  });\n  const _acctResp = await this.helpers.httpRequest({\n    method: 'GET', url: ALPACA_BASE + '/v2/account',\n    headers: { 'APCA-API-KEY-ID': ALPACA_KEY, 'APCA-API-SECRET-KEY': ALPACA_SECRET },\n    json: true\n  });\n\n  _posCount = _posResp.length;\n  for (const p of _posResp) _exposure += Math.abs(parseFloat(p.market_value) || 0);\n  _equity = parseFloat(_acctResp.equity) || 100000;\n  const _lastEquity = parseFloat(_acctResp.last_equity) || _equity;\n  const _margin = parseFloat(_acctResp.initial_margin) || 0;\n  _marginPct = _margin / _equity;\n  _dailyPnLPct = (_equity - _lastEquity) / _lastEquity * 100;\n\n  // Kill switch check\n  const _triggers = [];\n  if (_dailyPnLPct < MAX_DAILY_LOSS_PCT) _triggers.push('Daily Loss ' + _dailyPnLPct.toFixed(1) + '%');\n  if (_marginPct > MAX_MARGIN_PCT) _triggers.push('Margin ' + (_marginPct * 100).toFixed(0) + '%/' + (MAX_MARGIN_PCT*100) + '%');\n  if (_posCount >= MAX_POSITIONS) _triggers.push('Positions ' + _posCount + '/' + MAX_POSITIONS);\n  if (_exposure > MAX_EXPOSURE) _triggers.push('Exposure $' + (_exposure/1000).toFixed(0) + 'K/$' + (MAX_EXPOSURE/1000) + 'K');\n\n  if (_triggers.length > 0) {\n    const _reason = _triggers.join(' | ');\n    console.log('[KILL SWITCH] ACTIVATED: ' + _reason);\n    const _alertKey = 'killswitch_' + today;\n    if (!state[_alertKey]) {\n      state[_alertKey] = true;\n      try {\n        await this.helpers.httpRequest({\n          method: 'POST',\n          url: 'https://api.telegram.org/botREDACTED_TELEGRAM_BOT_TOKEN/sendMessage',\n          headers: { 'Content-Type': 'application/json' },\n          body: JSON.stringify({\n            chat_id: REDACTED_CHAT_ID,\n            text: '\\uD83D\\uDEA8 <b>QUANTUM GLOBAL KILL SWITCH ACTIVATED</b>\\n\\nReason: ' + _reason + '\\n\\nAll new trading paused.\\nOpen positions remain protected.\\nManual reset required.',\n            parse_mode: 'HTML'\n          }),\n          json: true\n        });\n      } catch(tgErr) {}\n    }\n    return [];\n  }\n\n  console.log('[SCAN] Risk OK: $' + _exposure.toFixed(0) + '/$' + (MAX_EXPOSURE/1000) + 'K | Margin ' + (_marginPct * 100).toFixed(0) + '%/' + (MAX_MARGIN_PCT*100) + '% | ' + _posCount + '/' + MAX_POSITIONS + ' pos | Day ' + _dailyPnLPct.toFixed(1) + '%');\n} catch(e) {\n  console.log('[SCAN] Risk check error: ' + e.message);\n}\n\n// \u2500\u2500\u2500 LOAD TICKERS \u2500\u2500\u2500\nlet tickers = $input.all()\n  .map(item => {\n    const row = item.json;\n    return row.COST || row.Ticker || row.ticker || Object.values(row).find(v => typeof v === 'string' && v.length <= 6 && /^[A-Z]+$/.test(v));\n  })\n  .filter(t => t && typeof t === 'string' && t.length >= 1 && t.length <= 6 && /^[A-Z]+$/.test(t.toUpperCase()))\n  .map(t => t.toUpperCase());\n\n// BATCH_PATCH_20260430: n8n Code task runner has a 60s ceiling.\n// Process the Databricks Quantum Watchlist in rotating batches so every run completes safely.\n// This preserves source-of-truth behavior and avoids changing order/risk logic.\nconst FULL_WATCHLIST_COUNT = tickers.length;\nconst SCANNER_BATCH_SIZE = 125;\nif (!state.quantumWatchlistBatchOffset || state.quantumWatchlistBatchOffset >= FULL_WATCHLIST_COUNT) {\n  state.quantumWatchlistBatchOffset = 0;\n}\nconst batchStart = state.quantumWatchlistBatchOffset;\nlet batchEnd = Math.min(batchStart + SCANNER_BATCH_SIZE, FULL_WATCHLIST_COUNT);\nlet batch = tickers.slice(batchStart, batchEnd);\nif (batch.length === 0) {\n  state.quantumWatchlistBatchOffset = 0;\n  batch = tickers.slice(0, Math.min(SCANNER_BATCH_SIZE, FULL_WATCHLIST_COUNT));\n  batchEnd = batch.length;\n}\nstate.quantumWatchlistBatchOffset = batchEnd >= FULL_WATCHLIST_COUNT ? 0 : batchEnd;\ntickers = batch;\nconsole.log('[SCAN] #' + state.scanCount + ' | Quantum Watchlist batch ' + batchStart + '-' + (batchEnd - 1) + ' of ' + FULL_WATCHLIST_COUNT + ' | processing ' + tickers.length + ' tickers | nextOffset=' + state.quantumWatchlistBatchOffset + ' | ' + etHour + ':' + etMin + ' ET');\n\n// \u2500\u2500\u2500 FETCH MARKET DATA \u2500\u2500\u2500\nconst allSnapshots = {};\nconst batchSize = 100;\nfor (let i = 0; i < tickers.length; i += batchSize) {\n  const batch = tickers.slice(i, i + batchSize);\n  try {\n    const resp = await this.helpers.httpRequest({\n      method: 'GET',\n      url: 'https://data.alpaca.markets/v2/stocks/snapshots?symbols=' + batch.join(',') + '&feed=iex',\n      headers: { 'APCA-API-KEY-ID': ALPACA_KEY, 'APCA-API-SECRET-KEY': ALPACA_SECRET },\n      json: true\n    });\n    Object.assign(allSnapshots, resp);\n  } catch(e) {\n    console.log('[ALPACA] Batch error: ' + e.message);\n  }\n}\n\nconst spySnap = allSnapshots['SPY'];\nconst qqqSnap = allSnapshots['QQQ'];\nlet spyChange = 0, qqqChange = 0;\ntry { spyChange = (spySnap.latestTrade.p - spySnap.prevDailyBar.c) / spySnap.prevDailyBar.c * 100; } catch(e) {}\ntry { qqqChange = (qqqSnap.latestTrade.p - qqqSnap.prevDailyBar.c) / qqqSnap.prevDailyBar.c * 100; } catch(e) {}\n\n// Market context for AI view\nconst marketBias = spyChange < -1 ? 'BEARISH' : spyChange < -0.3 ? 'CAUTIOUS' : spyChange > 1 ? 'BULLISH' : spyChange > 0.3 ? 'RISK-ON' : 'NEUTRAL';\n\n// VIX proxy: only DOWN moves = high VIX\nconst spyDown = Math.min(spyChange, 0);\nconst vix = spyDown < -2 ? 30 : spyDown < -1 ? 27 : 24;\n\n// \u2500\u2500\u2500 EVALUATE TICKERS \u2500\u2500\u2500\nconst signals = [];\nconst scanTime = new Date().toLocaleTimeString('en-US', {timeZone: 'America/New_York'});\nlet tickersScanned = 0;\nlet signalsFound = 0;\nlet momentumPassedButDeduped = [];\nlet newEntriesThisCycle = 0;  // Safeguard 1: counter for this cycle\nlet filteredVolume = 0;       // v3.1 tracking\nlet filteredDeviation = 0;    // v3.1 tracking\n\n// Running simulation state (Safeguard 2)\nlet simPositions = _posCount;\nlet simExposure  = _exposure;\nlet simMargin    = _marginPct * _equity;\n\nfor (const ticker of tickers) {\n  // \u2500\u2500\u2500 SAFEGUARD 1: Max entries per cycle \u2500\u2500\u2500\n  if (newEntriesThisCycle >= MAX_NEW_ENTRIES_PER_CYCLE) {\n    console.log('[SCAN] Cycle limit reached (' + MAX_NEW_ENTRIES_PER_CYCLE + ' entries) \u2014 skipping remaining tickers');\n    break;\n  }\n\n  const snap = allSnapshots[ticker];\n  if (!snap || !snap.latestTrade || !snap.dailyBar || !snap.prevDailyBar) continue;\n\n  const price = snap.latestTrade.p;\n  const prevClose = snap.prevDailyBar.c;\n  const dayHigh = snap.dailyBar.h;\n  const dayLow = snap.dailyBar.l;\n  const volume = snap.dailyBar.v;\n  const prevVol = snap.prevDailyBar.v;\n\n  const changePct = (price - prevClose) / prevClose * 100;\n  const sessionPct = getSessionProgress();\n  const projectedVol = sessionPct > 0.1 ? volume / sessionPct : volume;\n  const volRatio = prevVol > 0 ? projectedVol / prevVol : 0;\n  const atr = Math.max(dayHigh - dayLow, price * 0.005);\n\n  // \u2500\u2500\u2500 v3.1 FILTER 1: Minimum Relative Volume \u2500\u2500\u2500\n  if (volRatio < MIN_RELATIVE_VOLUME) {\n    filteredVolume++;\n    continue;\n  }\n\n  // \u2500\u2500\u2500 v3.1 FILTER 2: Entry Deviation Check \u2500\u2500\u2500\n  const deviationPct = Math.abs(changePct);\n  if (deviationPct > MAX_ENTRY_DEVIATION_PCT) {\n    filteredDeviation++;\n    console.log('[SKIP] ' + ticker + ': deviation ' + deviationPct.toFixed(1) + '% > ' + MAX_ENTRY_DEVIATION_PCT + '% limit \u2014 too extended');\n    continue;\n  }\n\n  let signal = null, reason = '', signalType = '';\n\n  if (changePct <= -MOMENTUM_THRESHOLD && volRatio >= VOLUME_MIN) {\n    signal = 'SELL';\n    signalType = 'MOMENTUM SHORT';\n    reason = 'MOMENTUM SHORT: ' + changePct.toFixed(1) + '% | vol ' + volRatio.toFixed(1) + 'x';\n  } else if (changePct >= MOMENTUM_THRESHOLD && volRatio >= VOLUME_MIN && vix < 30) {\n    signal = 'BUY';\n    signalType = 'MOMENTUM LONG';\n    reason = 'MOMENTUM LONG: +' + changePct.toFixed(1) + '% | vol ' + volRatio.toFixed(1) + 'x';\n  } else if (volRatio >= PROFILE_IMBALANCE && changePct < -0.8) {\n    signal = 'SELL';\n    signalType = 'STRUCTURE BREAK';\n    reason = 'STRUCTURE BREAK: vol ' + volRatio.toFixed(1) + 'x | ' + changePct.toFixed(1) + '%';\n  }\n\n  if (!signal) continue;\n\n  tickersScanned++;\n\n  // Dedup: skip if same ticker+direction already sent today\n  const prevSignal = state.signalsSent[ticker];\n  if (prevSignal && prevSignal.signal === signal) {\n    momentumPassedButDeduped.push(ticker + ' (' + changePct.toFixed(1) + '%)');\n    continue;\n  }\n\n  // \u2500\u2500\u2500 SAFEGUARD 2: Pre-entry risk simulation \u2500\u2500\u2500\n  const projPositions = simPositions + 1;\n  const projExposure  = simExposure + EST_POSITION_SIZE;\n  const projMarginPct = (simMargin + EST_POSITION_SIZE * 0.25) / _equity;\n\n  const simBreaches = [];\n  if (projPositions >= MAX_POSITIONS) simBreaches.push('Positions ' + projPositions + '/' + MAX_POSITIONS);\n  if (projExposure > MAX_EXPOSURE) simBreaches.push('Exposure $' + (projExposure/1000).toFixed(0) + 'K/$' + (MAX_EXPOSURE/1000) + 'K');\n  if (projMarginPct > MAX_MARGIN_PCT) simBreaches.push('Margin ' + (projMarginPct * 100).toFixed(0) + '%/' + (MAX_MARGIN_PCT*100) + '%');\n\n  if (simBreaches.length > 0) {\n    console.log('[REJECTED] ' + ticker + ' ' + signal + ': would breach ' + simBreaches.join(' | '));\n    continue;\n  }\n\n  // \u2500\u2500\u2500 SIGNAL PASSES ALL CHECKS \u2500\u2500\u2500\n  const vixSM = vix >= 30 ? 1.5 : vix >= 25 ? 1.3 : vix >= 18 ? 1.15 : 1.0;\n  const slDist = atr * 1.5 * vixSM;\n  const tpDist = Math.max(atr * 3.0, slDist * MIN_RR);\n  if (tpDist / slDist < MIN_RR) continue;\n  const rr = (tpDist / slDist).toFixed(1);\n  const conf = Math.min(100, Math.round(Math.abs(changePct) * 25 + volRatio * 15));\n  if (conf < 30) continue;\n\n  const stopP = signal === 'SELL' ? (price + slDist).toFixed(2) : (price - slDist).toFixed(2);\n  const targP = signal === 'SELL' ? (price - tpDist).toFixed(2) : (price + tpDist).toFixed(2);\n  const vixSize = vix >= 30 ? '0.3' : vix >= 25 ? '0.5' : vix >= 18 ? '0.7' : '1.0';\n\n  // \u2500\u2500\u2500 v3.1: ENHANCED AI VIEW (real context) \u2500\u2500\u2500\n  const sector = SECTOR_MAP[ticker] || 'Other';\n  const volDescription = volRatio >= 3.0 ? 'EXTREME' : volRatio >= 2.0 ? 'HEAVY' : volRatio >= 1.5 ? 'ELEVATED' : volRatio >= 1.0 ? 'AVERAGE' : 'LIGHT';\n  const priceAction = changePct < -2 ? 'sharp selloff' : changePct < -1 ? 'steady decline' : changePct < -0.5 ? 'mild weakness' : changePct > 2 ? 'strong rally' : changePct > 1 ? 'steady advance' : changePct > 0.5 ? 'mild strength' : 'flat';\n\n  const aiView = signalType + ' on ' + ticker + ' (' + sector + '). '\n    + 'Price ' + (changePct > 0 ? '+' : '') + changePct.toFixed(1) + '% from prev close ($' + prevClose.toFixed(2) + ' \u2192 $' + price.toFixed(2) + ') \u2014 ' + priceAction + '. '\n    + volDescription + ' volume at ' + volRatio.toFixed(1) + 'x avg. '\n    + 'Market: SPY ' + (spyChange > 0 ? '+' : '') + spyChange.toFixed(1) + '% (' + marketBias + '), QQQ ' + (qqqChange > 0 ? '+' : '') + qqqChange.toFixed(1) + '%. '\n    + 'R:R=' + rr + ' | Stop $' + stopP + ' | Target $' + targP;\n\n  // Update simulation state\n  simPositions++;\n  simExposure += EST_POSITION_SIZE;\n  simMargin += EST_POSITION_SIZE * 0.25;\n  newEntriesThisCycle++;\n\n  state.signalsSent[ticker] = { signal, price, time: now.toISOString() };\n  console.log('[SIGNAL ' + newEntriesThisCycle + '/' + MAX_NEW_ENTRIES_PER_CYCLE + '] ' + ticker + ' ' + signal + ' @ $' + price.toFixed(2) + ' | ' + reason + ' | RelVol=' + volRatio.toFixed(1) + 'x | Dev=' + deviationPct.toFixed(1) + '% | SimPos=' + simPositions + ' SimExp=$' + (simExposure/1000).toFixed(0) + 'K');\n\n  signalsFound++;\n  signals.push({ json: {\n    _secret: _WEBHOOK_SECRET,\n    ticker, price: price.toFixed(2), execution: signal,\n    signal: signal === 'SELL' ? 'BEARISH' : 'BULLISH',\n    bias_score: conf.toString(), score: conf.toString(), raw_score: conf.toString(), composite_score: conf.toString(), ai_super_score: conf.toString(), regime: Math.abs(changePct) > 2 ? 'TRENDING' : 'NEUTRAL',\n    adx: 'N/A', rsi: 'N/A', macd_hist: 'N/A', atr: atr.toFixed(2),\n    volume_ratio: volRatio.toFixed(2), vix: vix.toString(), timeframe: '5',\n    alert_type: 'BROAD_SCANNER',\n    spy_price: (spySnap?.latestTrade?.p || 0).toFixed(2),\n    spy_change_pct: spyChange.toFixed(2),\n    spy_status: spyChange < -0.5 ? 'WEAK' : spyChange > 0.5 ? 'HEALTHY' : 'NEUTRAL',\n    qqq_price: '', qqq_change_pct: qqqChange.toFixed(2),\n    qqq_status: qqqChange < -0.5 ? 'WEAK' : 'NEUTRAL',\n    xly_status: 'N/A', cross_asset_status: spyChange < -1 ? 'WEAKENING' : 'NEUTRAL',\n    tv_recommendation: 'N/A', sma50: 'N/A', ema200: 'N/A', sma200: 'N/A',\n    bb_upper: 'N/A', bb_lower: 'N/A', stoch_k: 'N/A', stoch_d: 'N/A',\n    cci: 'N/A', momentum: 'N/A', pivot_classic: 'N/A', psar: 'N/A',\n    daily_trend: changePct < -1 ? 'BEAR' : changePct > 1 ? 'BULL' : 'MIXED',\n    bull_score: signal === 'BUY' ? conf.toString() : '0',\n    bear_score: signal === 'SELL' ? conf.toString() : '0',\n    comment: 'BROAD SCANNER v3.1: ' + aiView,\n    ...stratFields(ticker),\n    daily_dd_pct: '0', daily_dd_halt: 'false', weekly_dd_pct: '0',\n    vix_size_mult: vixSize, eff_position_size: '5', vix_stop_mult: vixSM.toString(),\n    momentum_engine: 'true', momentum_type: 'broad_scanner',\n    gap_pct: changePct.toFixed(2), momentum_rr: rr\n  }});\n}\n\nconsole.log('Scanner run at ' + scanTime + ' \u2013 tickers scanned: ' + tickersScanned + ' \u2013 signals found: ' + signalsFound);\nif (momentumPassedButDeduped.length > 0) {\n  console.log('Momentum passed but DEDUPED: ' + momentumPassedButDeduped.join(', '));\n}\nconsole.log('[DONE] v3.2 | ' + tickers.length + ' tickers | ' + signals.length + ' signals (max ' + MAX_NEW_ENTRIES_PER_CYCLE + '/cycle) | Filtered: ' + filteredVolume + ' low-vol, ' + filteredDeviation + ' extended | Scan #' + state.scanCount);\nreturn signals;\n"
+      },
+      "name": "Scan All Tickers",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        368,
+        0
+      ],
+      "id": "f60a8e82-8f2c-4bd4-9d04-e4e5a7b959b4",
+      "alwaysOutputData": false,
+      "notes": "\n\nPATCH 2026-04-30: Rotating batch processing for Databricks Quantum Watchlist to avoid n8n 60s Code-node timeout. Batch size=125; no order/risk logic changed."
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "=https://tradenextgen.app.n8n.cloud/webhook/tradingview-signal?_secret=<REDACTED_SECRET>",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "x-webhook-secret",
+              "value": "<REDACTED_SECRET>"
+            }
+          ]
+        },
+        "sendBody": true,
+        "contentType": "raw",
+        "rawContentType": "application/json",
+        "body": "={{ JSON.stringify(Object.assign({}, $json || {}, {_secret: '<REDACTED_SECRET>'})) }}",
+        "options": {
+          "batching": {
+            "batch": {
+              "batchSize": 1,
+              "batchInterval": 2000
+            }
+          }
+        }
+      },
+      "name": "Push to Pipeline",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        592,
+        0
+      ],
+      "id": "9352e656-f0d8-48f5-a2ef-2d8d95d25b82"
+    },
+    {
+      "parameters": {
+        "content": "## Broad Scanner (Real-Time Agent)\n\nLoads 100+ tickers from Google Sheet:\nhttps://docs.google.com/spreadsheets/d/1gMSYFW6ZsJpIkyXQQZOxczfr1ryLC3pb1TI3C_-2v-E\n\nRuns every 5 min during market hours (9:45-3:45 ET).\nBatches Alpaca snapshots in groups of 100.\nMax 1 signal per ticker per day.\nPushes to AI Super Score pipeline via webhook.\n\nSignal types:\n- MOMENTUM SHORT: -1%+ with volume\n- MOMENTUM LONG: +1%+ with volume (VIX<30)\n- STRUCTURE BREAK: 1.8x+ volume with -0.8%+"
+      },
+      "name": "Scanner Notes",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        -208,
+        -208
+      ],
+      "id": "0011a857-2dcd-43ce-ae66-be57f649bcfa"
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "\n// QTP Supabase Broad Scanner watchlist formatter v4.2.1\n// Output shape mirrors old Google Sheets/Databricks watchlist rows.\nconst rows = $input.all().map(i => i.json || {});\nif (!rows.length) {\n  throw new Error('Supabase quantum_watchlist_raw returned 0 tickers; refusing to fall back silently');\n}\nreturn rows.map(r => {\n  const ticker = String(r.ticker || '').toUpperCase().trim();\n  return {\n    json: {\n      A: ticker,\n      Ticker: ticker,\n      ticker,\n      symbol: ticker,\n      __source: 'supabase.quantum_watchlist_raw',\n      _migration_version: 'QTP_SUPABASE_BROAD_SCANNER_v4.2.1'\n    }\n  };\n});\n"
+      },
+      "name": "Load Tickers",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        144,
+        -128
+      ],
+      "id": "3a0d8086-9776-4acb-995c-228d212f784d"
+    },
+    {
+      "parameters": {
+        "jsCode": "const state = $getWorkflowStaticData('global');\nstate._credentials = state._credentials || {};\nstate._credentials.webhook_secret = '876a59793c91a728aa6991b72ccc9b7bb872c17d9cda29459d3d3b8c87b3bf7c';\nreturn [{ json: { set: true, len: state._credentials.webhook_secret.length }}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        144,
+        144
+      ],
+      "id": "1dbda107-4fbb-4024-be91-3db6071f6f92",
+      "name": "Code in JavaScript"
+    },
+    {
+      "parameters": {
+        "jsCode": "const creds = $getWorkflowStaticData('global')._credentials || {};\nreturn [{ json: {\n  has_webhook_secret: !!creds.webhook_secret,\n  length: (creds.webhook_secret || '').length,\n  prefix: (creds.webhook_secret || '').slice(0, 8)\n}}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1040,
+        -160
+      ],
+      "id": "eb441cf9-61a5-4065-bc71-95447aab8513",
+      "name": "Code in JavaScript1"
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "\n// QTP Supabase Broad Scanner strat_cache formatter v4.2.1\n// Output shape mirrors the old Databricks/GSheets strat cache rows.\nconst rows = $input.all().map(i => i.json || {});\nif (!rows.length) {\n  throw new Error('Supabase quantum_strat_cache_raw returned 0 rows; refusing to provide stale empty cache');\n}\nreturn rows.map(r => {\n  let payload = {};\n  try {\n    payload = typeof r.raw_payload_json === 'string' && r.raw_payload_json ? JSON.parse(r.raw_payload_json) : {};\n  } catch (_) {\n    payload = {};\n  }\n  const ticker = String(r.ticker || payload.ticker || payload.symbol || '').toUpperCase();\n  return {\n    json: {\n      ...payload,\n      ticker,\n      symbol: ticker,\n      asof_utc: payload.asof_utc || r.asof_utc || r.migrated_at,\n      status: payload.status || r.status || 'OK',\n      __source: 'supabase.quantum_strat_cache_raw',\n      _migration_version: 'QTP_SUPABASE_BROAD_SCANNER_v4.2.1'\n    }\n  };\n});\n"
+      },
+      "id": "fa1a54d7-1016-453f-942c-4f2cb36abffe",
+      "name": "Read strat_cache",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -176,
+        256
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Collapse: return single empty item so downstream runs once.\n// Scan All Tickers reads cache via $('Read strat_cache').all()\nreturn [{ json: { _cache_rows: $('Read strat_cache').all().length } }];"
+      },
+      "id": "0f14139a-cd1a-4d8f-a954-406186926336",
+      "name": "Collapse Cache",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        368,
+        208
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "\n// QTP Supabase Broad Scanner strat_cache query v4.2.1\nreturn [{\n  json: {\n    __supabase_query: `\n      SELECT\n        UPPER(TRIM(COALESCE(symbol, ticker))) AS ticker,\n        raw_payload_json,\n        asof_utc::text AS asof_utc,\n        migrated_at::text AS migrated_at,\n        status\n      FROM quantum.quantum_strat_cache_raw\n      WHERE COALESCE(symbol, ticker) IS NOT NULL\n        AND TRIM(COALESCE(symbol, ticker)) <> ''\n    `,\n    _migration_version: 'QTP_SUPABASE_BROAD_SCANNER_v4.2.1'\n  }\n}];\n"
+      },
+      "id": "df1e8204-1712-477d-b239-cec166cf6862",
+      "name": "Prepare Supabase Strat Cache Query",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -736,
+        256
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "={{$json.__supabase_query}}",
+        "options": {}
+      },
+      "id": "686e4068-4ab4-4e65-8ae5-349dbc24a02a",
+      "name": "Query Supabase Strat Cache",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [
+        -456,
+        256
+      ],
+      "credentials": {
+        "postgres": {
+          "id": "<N8N_CREDENTIAL_ID_REDACTED>",
+          "name": "Postgres account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "\n// QTP Supabase Broad Scanner watchlist query v4.2.1\nreturn [{\n  json: {\n    __supabase_query: `\n      SELECT DISTINCT UPPER(TRIM(COALESCE(symbol, ticker))) AS ticker\n      FROM quantum.quantum_watchlist_raw\n      WHERE COALESCE(symbol, ticker) IS NOT NULL\n        AND TRIM(COALESCE(symbol, ticker)) <> ''\n      ORDER BY ticker\n    `,\n    _migration_version: 'QTP_SUPABASE_BROAD_SCANNER_v4.2.1'\n  }\n}];\n"
+      },
+      "id": "1be27673-328a-4b8e-b2d3-15b9fe7f819f",
+      "name": "Prepare Supabase Watchlist Query",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -416,
+        -128
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "={{$json.__supabase_query}}",
+        "options": {}
+      },
+      "id": "d17f2930-9616-4d22-ae9f-ad5654334ba9",
+      "name": "Query Supabase Watchlist",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [
+        -136,
+        -128
+      ],
+      "credentials": {
+        "postgres": {
+          "id": "<N8N_CREDENTIAL_ID_REDACTED>",
+          "name": "Postgres account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// QTP TEST_FIRST_CANDIDATE \u2014 FULLY SELF-CONTAINED SHADOW ONLY\n// Deterministic synthetic OHLCV smoke test. No local imports, no external HTTP, no credentials.\n// No Alpaca. No Telegram. No Supabase production writes. Manual/test execution only.\n\nconst MODULES = ['super_score_pro_v25', 'ensemble_engine_v1', 'webhook_bridge_v8', 'quantum_scalp_v5'];\n\nfunction sma(values, period) {\n  if (values.length < period) return null;\n  const slice = values.slice(-period);\n  return slice.reduce((a, b) => a + b, 0) / period;\n}\nfunction ema(values, period) {\n  if (values.length < period) return null;\n  const k = 2 / (period + 1);\n  let e = values.slice(0, period).reduce((a, b) => a + b, 0) / period;\n  for (let i = period; i < values.length; i++) e = values[i] * k + e * (1 - k);\n  return e;\n}\nfunction rsi(values, period = 14) {\n  if (values.length < period + 1) return null;\n  let gains = 0, losses = 0;\n  for (let i = 1; i <= period; i++) {\n    const d = values[i] - values[i - 1];\n    if (d > 0) gains += d; else losses -= d;\n  }\n  let ag = gains / period, al = losses / period;\n  for (let i = period + 1; i < values.length; i++) {\n    const d = values[i] - values[i - 1];\n    ag = (ag * (period - 1) + (d > 0 ? d : 0)) / period;\n    al = (al * (period - 1) + (d < 0 ? -d : 0)) / period;\n  }\n  return al === 0 ? 100 : 100 - 100 / (1 + ag / al);\n}\nfunction macdHist(values) {\n  if (values.length < 40) return null;\n  const macdSeries = [];\n  for (let i = 26; i <= values.length; i++) {\n    const sub = values.slice(0, i);\n    const e12 = ema(sub, 12), e26 = ema(sub, 26);\n    if (e12 != null && e26 != null) macdSeries.push(e12 - e26);\n  }\n  const sig = ema(macdSeries, 9);\n  return sig == null ? null : macdSeries[macdSeries.length - 1] - sig;\n}\nfunction clamp(x, lo, hi) { return Math.max(lo, Math.min(hi, x)); }\nfunction exchangeFor(ticker) {\n  const nasdaq = new Set(['AAPL','MSFT','NVDA','AMZN','META','GOOGL','GOOG','TSLA','AVGO','COST','NFLX','AMD','ADBE','PEP','CSCO','TMUS','INTU','QCOM','AMAT','TXN','ISRG','BKNG','VRTX','PANW','MU','LRCX','ADI','KLAC','MELI','CRWD','CDNS','SNPS','MRVL','ORLY','MAR','ABNB','PYPL','FTNT','REGN','ASML','NTNX','OLED','NDAQ']);\n  return nasdaq.has(String(ticker).toUpperCase()) ? 'NASDAQ' : 'NYSE';\n}\nfunction chartUrl(ticker, exchange) {\n  return `https://www.tradingview.com/chart/00rMdbml/?symbol=${exchange}%3A${String(ticker).toUpperCase()}`;\n}\nfunction syntheticRows(ticker, n = 260) {\n  const rows = [];\n  const seed = String(ticker).split('').reduce((a, c) => a + c.charCodeAt(0), 0);\n  const start = Date.now() - n * 5 * 60 * 1000;\n  for (let i = 0; i < n; i++) {\n    const base = 300 + Math.sin((i + seed) / 11) * 1.9 + i * 0.004;\n    const wave = Math.sin((i + seed) / 5) * 0.08;\n    const open = base - wave;\n    const close = base + wave;\n    rows.push({\n      t: start + i * 5 * 60 * 1000,\n      o: open,\n      h: Math.max(open, close) + 0.22,\n      l: Math.min(open, close) - 0.22,\n      c: close,\n      v: 100000 + ((i * 997 + seed) % 55000),\n    });\n  }\n  return rows;\n}\n\nconst out = [];\nfor (const item of items) {\n  const src = item.json || {};\n  const ticker = String(src.ticker || src.symbol || 'AAPL').toUpperCase().trim();\n  const exchange = exchangeFor(ticker);\n  const startedAt = new Date().toISOString();\n  const rows = syntheticRows(ticker, 260);\n  const closes = rows.map(r => Number(r.c));\n  const volumes = rows.map(r => Number(r.v));\n  const price = closes[closes.length - 1];\n  const sma50 = sma(closes, 50);\n  const ema200 = ema(closes, 200);\n  const curRsi = rsi(closes, 14);\n  const hist = macdHist(closes);\n  const avgVol20 = volumes.slice(-21, -1).reduce((a, b) => a + b, 0) / 20;\n  const volumeRatio = avgVol20 > 0 ? volumes[volumes.length - 1] / avgVol20 : 0;\n\n  let bull = 0, bear = 0;\n  if (sma50 != null && price > sma50) bull += 18; else bear += 12;\n  if (ema200 != null && price > ema200) bull += 18; else bear += 12;\n  if (hist != null && hist > 0) bull += 15; else if (hist != null) bear += 15;\n  if (curRsi != null && curRsi >= 45 && curRsi <= 68) bull += 12;\n  if (curRsi != null && curRsi >= 32 && curRsi <= 55) bear += 8;\n  if (volumeRatio > 1.25) { bull += 10; bear += 8; }\n  bull = clamp(bull, 0, 100);\n  bear = clamp(bear, 0, 100);\n  const execution = bull >= 68 && bull >= bear + 8 ? 'BUY' : (bear >= 68 && bear >= bull + 8 ? 'SELL' : 'STAND ASIDE');\n\n  const modulePayloads = {};\n  for (const module of MODULES) {\n    modulePayloads[module] = {\n      rows: rows.length,\n      payload: {\n        ticker, exchange, timeframe: '5', signal_source: module,\n        chart_image_url: chartUrl(ticker, exchange), chart_vision_enabled: false,\n        execution, signal: execution, price,\n        bias_score: Math.max(bull, bear), bull_score: bull, bear_score: bear,\n        rsi: curRsi, macd_hist: hist, sma50, ema200, volume_ratio: volumeRatio,\n        shadow_payload_note: 'FULLY_SELF_CONTAINED_SYNTHETIC_N8N_SMOKE_TEST',\n      },\n    };\n  }\n\n  const result = {\n    ok: true,\n    ticker,\n    mode: 'SHADOW_ONLY_NO_ROUTING',\n    signal_source: 'server_side',\n    scanner_execution: execution,\n    shadow_parity_enabled: true,\n    shadow_parity_mode: 'SHADOW_ONLY_NO_ROUTING',\n    shadow_modules: MODULES,\n    chart_image_url: chartUrl(ticker, exchange),\n    chart_vision_enabled: false,\n    order_intent: 'NONE',\n    alpaca_side_effects: 'ZERO',\n    telegram_side_effects: 'ZERO',\n    supabase_production_writes: 'ZERO',\n    validation_kind: 'FULLY_SELF_CONTAINED_SYNTHETIC_N8N_SMOKE_TEST',\n    data_source: 'DETERMINISTIC_SYNTHETIC_OHLCV_NO_EXTERNAL_CALLS',\n    started_at: startedAt,\n    completed_at: new Date().toISOString(),\n    row_count: rows.length,\n    module_row_counts: Object.fromEntries(MODULES.map(m => [m, rows.length])),\n    shadow_parity: {\n      enabled: true,\n      mode: 'SHADOW_ONLY_NO_ROUTING',\n      version: 'QTP_SELF_CONTAINED_N8N_SHADOW_SMOKE_v5.5_SYNTHETIC',\n      modules: modulePayloads,\n    },\n  };\n\n  if (result.mode !== 'SHADOW_ONLY_NO_ROUTING') throw new Error('SAFETY_FAIL: mode');\n  if (result.shadow_parity_enabled !== true) throw new Error('SAFETY_FAIL: shadow_parity_enabled');\n  if (result.shadow_parity_mode !== 'SHADOW_ONLY_NO_ROUTING') throw new Error('SAFETY_FAIL: shadow_parity_mode');\n  if (new Set(result.shadow_modules).size !== MODULES.length) throw new Error('SAFETY_FAIL: modules');\n  if (result.order_intent !== 'NONE') throw new Error('SAFETY_FAIL: order_intent');\n  if (result.alpaca_side_effects !== 'ZERO') throw new Error('SAFETY_FAIL: alpaca_side_effects');\n  if (result.telegram_side_effects !== 'ZERO') throw new Error('SAFETY_FAIL: telegram_side_effects');\n  if (result.supabase_production_writes !== 'ZERO') throw new Error('SAFETY_FAIL: supabase_production_writes');\n\n  out.push({ json: result });\n}\nreturn out;",
+        "mode": "runOnceForAllItems"
+      },
+      "id": "qtp-test-first-candidate-shadow-parity",
+      "name": "TEST_FIRST_CANDIDATE \u2014 SHADOW_ONLY_NO_ROUTING",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1040,
+        260
+      ],
+      "notesInFlow": true,
+      "notes": "Fully self-contained synthetic TEST_FIRST_CANDIDATE shadow-only node. Intentionally unconnected. No imports, no credentials, no HTTP, no Alpaca, no Telegram, no Supabase production writes."
+    }
+  ],
+  "connections": {
+    "Every 5 Minutes": {
+      "main": [
+        [
+          {
+            "node": "Prepare Supabase Strat Cache Query",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Load Tickers": {
+      "main": [
+        [
+          {
+            "node": "Scan All Tickers",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Scan All Tickers": {
+      "main": [
+        [
+          {
+            "node": "Push to Pipeline",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Read strat_cache": {
+      "main": [
+        [
+          {
+            "node": "Collapse Cache",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Collapse Cache": {
+      "main": [
+        [
+          {
+            "node": "Prepare Supabase Watchlist Query",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare Supabase Strat Cache Query": {
+      "main": [
+        [
+          {
+            "node": "Query Supabase Strat Cache",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Query Supabase Strat Cache": {
+      "main": [
+        [
+          {
+            "node": "Read strat_cache",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare Supabase Watchlist Query": {
+      "main": [
+        [
+          {
+            "node": "Query Supabase Watchlist",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Query Supabase Watchlist": {
+      "main": [
+        [
+          {
+            "node": "Load Tickers",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "callerPolicy": "workflowsFromSameOwner",
+    "availableInMCP": false,
+    "executionOrder": "v1",
+    "binaryMode": "separate",
+    "saveManualExecutions": true
+  },
+  "staticData": {
+    "node:Every 5 Minutes": {
+      "recurrenceRules": []
+    },
+    "global": {
+      "signalsSent": {
+        "ORLY": {
+          "signal": "BUY",
+          "price": 90.445,
+          "time": "2026-05-15T13:30:08.690Z"
+        },
+        "PAYC": {
+          "signal": "BUY",
+          "price": 136.78,
+          "time": "2026-05-15T19:35:04.069Z"
+        },
+        "PCG": {
+          "signal": "BUY",
+          "price": 16.8,
+          "time": "2026-05-15T13:30:08.690Z"
+        },
+        "PFE": {
+          "signal": "SELL",
+          "price": 25.76,
+          "time": "2026-05-15T13:30:08.690Z"
+        },
+        "DRI": {
+          "signal": "BUY",
+          "price": 194.535,
+          "time": "2026-05-15T13:45:04.118Z"
+        },
+        "FFIV": {
+          "signal": "BUY",
+          "price": 364.59,
+          "time": "2026-05-15T13:45:04.118Z"
+        },
+        "CSGP": {
+          "signal": "BUY",
+          "price": 32.5,
+          "time": "2026-05-15T14:10:06.275Z"
+        },
+        "CTAS": {
+          "signal": "BUY",
+          "price": 167.725,
+          "time": "2026-05-15T14:10:06.275Z"
+        },
+        "CTSH": {
+          "signal": "BUY",
+          "price": 47.075,
+          "time": "2026-05-15T14:10:06.275Z"
+        },
+        "CVX": {
+          "signal": "BUY",
+          "price": 188.92,
+          "time": "2026-05-15T14:10:06.275Z"
+        },
+        "HWM": {
+          "signal": "SELL",
+          "price": 266.8,
+          "time": "2026-05-15T14:15:04.191Z"
+        },
+        "IBKR": {
+          "signal": "SELL",
+          "price": 87.53,
+          "time": "2026-05-15T14:15:04.191Z"
+        },
+        "ITW": {
+          "signal": "SELL",
+          "price": 248.23,
+          "time": "2026-05-15T14:15:04.191Z"
+        },
+        "JBHT": {
+          "signal": "BUY",
+          "price": 258.58,
+          "time": "2026-05-15T14:15:04.191Z"
+        },
+        "ORCL": {
+          "signal": "SELL",
+          "price": 193.15,
+          "time": "2026-05-15T14:20:05.431Z"
+        },
+        "OTIS": {
+          "signal": "SELL",
+          "price": 71.94,
+          "time": "2026-05-15T14:20:05.431Z"
+        },
+        "OXY": {
+          "signal": "BUY",
+          "price": 58.265,
+          "time": "2026-05-15T14:20:05.431Z"
+        },
+        "PANW": {
+          "signal": "BUY",
+          "price": 240.7,
+          "time": "2026-05-15T16:40:05.884Z"
+        },
+        "UPST": {
+          "signal": "BUY",
+          "price": 30.18,
+          "time": "2026-05-15T18:25:04.323Z"
+        },
+        "USO": {
+          "signal": "BUY",
+          "price": 145.65,
+          "time": "2026-05-15T14:25:03.826Z"
+        },
+        "V": {
+          "signal": "BUY",
+          "price": 327.285,
+          "time": "2026-05-15T14:25:03.826Z"
+        },
+        "VFS": {
+          "signal": "BUY",
+          "price": 3.925,
+          "time": "2026-05-15T18:50:06.535Z"
+        },
+        "ABNB": {
+          "signal": "SELL",
+          "price": 132.52,
+          "time": "2026-05-15T14:30:06.536Z"
+        },
+        "ACGL": {
+          "signal": "BUY",
+          "price": 94.74,
+          "time": "2026-05-15T14:30:06.536Z"
+        },
+        "ADI": {
+          "signal": "SELL",
+          "price": 418.11,
+          "time": "2026-05-15T14:30:06.536Z"
+        },
+        "ADM": {
+          "signal": "SELL",
+          "price": 80.545,
+          "time": "2026-05-15T14:30:06.536Z"
+        },
+        "DAL": {
+          "signal": "SELL",
+          "price": 70.57,
+          "time": "2026-05-15T14:35:03.734Z"
+        },
+        "DDOG": {
+          "signal": "BUY",
+          "price": 204.84,
+          "time": "2026-05-15T14:35:03.734Z"
+        },
+        "DIA": {
+          "signal": "SELL",
+          "price": 497.32,
+          "time": "2026-05-15T14:35:03.734Z"
+        },
+        "DIS": {
+          "signal": "SELL",
+          "price": 104.47,
+          "time": "2026-05-15T14:35:03.734Z"
+        },
+        "IDXX": {
+          "signal": "BUY",
+          "price": 536.29,
+          "time": "2026-05-15T14:40:05.905Z"
+        },
+        "IP": {
+          "signal": "SELL",
+          "price": 30.9,
+          "time": "2026-05-15T14:40:05.905Z"
+        },
+        "IRM": {
+          "signal": "SELL",
+          "price": 125.185,
+          "time": "2026-05-15T14:40:05.905Z"
+        },
+        "JKHY": {
+          "signal": "BUY",
+          "price": 137.17,
+          "time": "2026-05-15T14:40:05.905Z"
+        },
+        "PH": {
+          "signal": "SELL",
+          "price": 866.005,
+          "time": "2026-05-15T14:45:03.981Z"
+        },
+        "PNC": {
+          "signal": "SELL",
+          "price": 211.81,
+          "time": "2026-05-15T14:45:03.981Z"
+        },
+        "PNR": {
+          "signal": "SELL",
+          "price": 73.81,
+          "time": "2026-05-15T14:45:03.981Z"
+        },
+        "PPL": {
+          "signal": "SELL",
+          "price": 35.45,
+          "time": "2026-05-15T14:45:03.981Z"
+        },
+        "URI": {
+          "signal": "SELL",
+          "price": 963.1,
+          "time": "2026-05-15T14:50:06.035Z"
+        },
+        "VRSN": {
+          "signal": "BUY",
+          "price": 296.595,
+          "time": "2026-05-15T14:50:06.035Z"
+        },
+        "VST": {
+          "signal": "SELL",
+          "price": 138.6,
+          "time": "2026-05-15T14:50:06.035Z"
+        },
+        "WAB": {
+          "signal": "SELL",
+          "price": 263.76,
+          "time": "2026-05-15T14:50:06.035Z"
+        },
+        "AAPL": {
+          "signal": "BUY",
+          "price": 301.15,
+          "time": "2026-05-15T14:55:03.923Z"
+        },
+        "AEP": {
+          "signal": "SELL",
+          "price": 126.43,
+          "time": "2026-05-15T14:55:03.923Z"
+        },
+        "AKAM": {
+          "signal": "SELL",
+          "price": 153.42,
+          "time": "2026-05-15T14:55:03.923Z"
+        },
+        "ALL": {
+          "signal": "BUY",
+          "price": 218.8,
+          "time": "2026-05-15T14:55:03.923Z"
+        },
+        "DTE": {
+          "signal": "SELL",
+          "price": 142.65,
+          "time": "2026-05-15T15:00:07.997Z"
+        },
+        "DUK": {
+          "signal": "SELL",
+          "price": 122.25,
+          "time": "2026-05-15T15:00:07.997Z"
+        },
+        "DUOL": {
+          "signal": "BUY",
+          "price": 109.97,
+          "time": "2026-05-15T15:00:07.997Z"
+        },
+        "EBAY": {
+          "signal": "BUY",
+          "price": 114.23,
+          "time": "2026-05-15T15:00:07.997Z"
+        },
+        "INCY": {
+          "signal": "SELL",
+          "price": 95.6,
+          "time": "2026-05-15T15:05:04.978Z"
+        },
+        "JPM": {
+          "signal": "SELL",
+          "price": 297.69,
+          "time": "2026-05-15T15:05:04.978Z"
+        },
+        "KKR": {
+          "signal": "SELL",
+          "price": 98.205,
+          "time": "2026-05-15T15:05:04.978Z"
+        },
+        "LEN": {
+          "signal": "SELL",
+          "price": 83.38,
+          "time": "2026-05-15T15:05:04.978Z"
+        },
+        "PG": {
+          "signal": "SELL",
+          "price": 141.72,
+          "time": "2026-05-15T15:10:54.024Z"
+        },
+        "PGR": {
+          "signal": "BUY",
+          "price": 201.715,
+          "time": "2026-05-15T15:10:54.024Z"
+        },
+        "POOL": {
+          "signal": "SELL",
+          "price": 173.895,
+          "time": "2026-05-15T15:10:54.024Z"
+        },
+        "PRU": {
+          "signal": "SELL",
+          "price": 101.65,
+          "time": "2026-05-15T15:10:54.024Z"
+        },
+        "UNH": {
+          "signal": "SELL",
+          "price": 394.84,
+          "time": "2026-05-15T15:15:05.455Z"
+        },
+        "USB": {
+          "signal": "SELL",
+          "price": 52.62,
+          "time": "2026-05-15T15:15:05.455Z"
+        },
+        "WEC": {
+          "signal": "SELL",
+          "price": 109.935,
+          "time": "2026-05-15T15:15:05.455Z"
+        },
+        "WSM": {
+          "signal": "SELL",
+          "price": 172.325,
+          "time": "2026-05-15T15:15:05.455Z"
+        },
+        "AEE": {
+          "signal": "SELL",
+          "price": 107.85,
+          "time": "2026-05-15T15:20:04.644Z"
+        },
+        "ALLE": {
+          "signal": "SELL",
+          "price": 128.38,
+          "time": "2026-05-15T15:20:04.644Z"
+        },
+        "AMAT": {
+          "signal": "SELL",
+          "price": 431.47,
+          "time": "2026-05-15T15:20:04.644Z"
+        },
+        "AME": {
+          "signal": "SELL",
+          "price": 228.05,
+          "time": "2026-05-15T15:20:04.644Z"
+        },
+        "CVNA": {
+          "signal": "SELL",
+          "price": 68.47,
+          "time": "2026-05-15T15:40:06.113Z"
+        },
+        "D": {
+          "signal": "SELL",
+          "price": 62.13,
+          "time": "2026-05-15T15:40:06.113Z"
+        },
+        "DELL": {
+          "signal": "SELL",
+          "price": 241.84,
+          "time": "2026-05-15T15:40:06.113Z"
+        },
+        "DOC": {
+          "signal": "SELL",
+          "price": 19.355,
+          "time": "2026-05-15T15:40:06.113Z"
+        },
+        "ICE": {
+          "signal": "SELL",
+          "price": 154.29,
+          "time": "2026-05-15T15:45:04.348Z"
+        },
+        "JNJ": {
+          "signal": "SELL",
+          "price": 228.37,
+          "time": "2026-05-15T15:45:04.348Z"
+        },
+        "KDP": {
+          "signal": "SELL",
+          "price": 28.82,
+          "time": "2026-05-15T15:45:04.348Z"
+        },
+        "KR": {
+          "signal": "SELL",
+          "price": 66.09,
+          "time": "2026-05-15T15:45:04.348Z"
+        },
+        "OMC": {
+          "signal": "SELL",
+          "price": 71.01,
+          "time": "2026-05-15T15:50:07.033Z"
+        },
+        "PNW": {
+          "signal": "SELL",
+          "price": 98.9,
+          "time": "2026-05-15T15:50:07.033Z"
+        },
+        "PSX": {
+          "signal": "BUY",
+          "price": 174.85,
+          "time": "2026-05-15T15:50:07.033Z"
+        },
+        "PWR": {
+          "signal": "SELL",
+          "price": 769.905,
+          "time": "2026-05-15T15:50:07.033Z"
+        },
+        "ULTA": {
+          "signal": "SELL",
+          "price": 494.48,
+          "time": "2026-05-15T15:55:03.827Z"
+        },
+        "WDC": {
+          "signal": "SELL",
+          "price": 478.24,
+          "time": "2026-05-15T15:55:03.827Z"
+        },
+        "WFC": {
+          "signal": "SELL",
+          "price": 73.155,
+          "time": "2026-05-15T15:55:03.827Z"
+        },
+        "WM": {
+          "signal": "BUY",
+          "price": 220.65,
+          "time": "2026-05-15T15:55:03.827Z"
+        },
+        "AMZN": {
+          "signal": "SELL",
+          "price": 262.335,
+          "time": "2026-05-15T16:00:09.535Z"
+        },
+        "APA": {
+          "signal": "BUY",
+          "price": 37.99,
+          "time": "2026-05-15T16:00:09.535Z"
+        },
+        "APP": {
+          "signal": "BUY",
+          "price": 496.96,
+          "time": "2026-05-15T16:00:09.535Z"
+        },
+        "ARE": {
+          "signal": "SELL",
+          "price": 45.33,
+          "time": "2026-05-15T16:00:09.535Z"
+        },
+        "ED": {
+          "signal": "SELL",
+          "price": 106.33,
+          "time": "2026-05-15T16:05:02.260Z"
+        },
+        "EIX": {
+          "signal": "SELL",
+          "price": 69.285,
+          "time": "2026-05-15T16:05:02.260Z"
+        },
+        "EOG": {
+          "signal": "BUY",
+          "price": 139.13,
+          "time": "2026-05-15T16:05:02.260Z"
+        },
+        "EQIX": {
+          "signal": "SELL",
+          "price": 1063.315,
+          "time": "2026-05-15T16:05:02.260Z"
+        },
+        "KVUE": {
+          "signal": "SELL",
+          "price": 17.05,
+          "time": "2026-05-15T16:10:05.643Z"
+        },
+        "LC": {
+          "signal": "SELL",
+          "price": 15.5,
+          "time": "2026-05-15T16:10:05.643Z"
+        },
+        "LIN": {
+          "signal": "SELL",
+          "price": 505.72,
+          "time": "2026-05-15T16:10:05.643Z"
+        },
+        "LITE": {
+          "signal": "SELL",
+          "price": 979.41,
+          "time": "2026-05-15T16:10:05.643Z"
+        },
+        "PSKY": {
+          "signal": "SELL",
+          "price": 9.89,
+          "time": "2026-05-15T16:15:03.932Z"
+        },
+        "PTC": {
+          "signal": "BUY",
+          "price": 141.67,
+          "time": "2026-05-15T16:15:03.932Z"
+        },
+        "QQQ": {
+          "signal": "SELL",
+          "price": 710.32,
+          "time": "2026-05-15T16:15:03.932Z"
+        },
+        "RCL": {
+          "signal": "SELL",
+          "price": 261.47,
+          "time": "2026-05-15T16:15:03.932Z"
+        },
+        "WMT": {
+          "signal": "SELL",
+          "price": 131.3,
+          "time": "2026-05-15T16:20:05.454Z"
+        },
+        "WTW": {
+          "signal": "BUY",
+          "price": 249.99,
+          "time": "2026-05-15T16:20:05.454Z"
+        },
+        "WY": {
+          "signal": "SELL",
+          "price": 22.79,
+          "time": "2026-05-15T16:20:05.454Z"
+        },
+        "XEL": {
+          "signal": "SELL",
+          "price": 78.46,
+          "time": "2026-05-15T16:20:05.454Z"
+        },
+        "ADP": {
+          "signal": "BUY",
+          "price": 213.5,
+          "time": "2026-05-15T16:25:04.303Z"
+        },
+        "AMGN": {
+          "signal": "SELL",
+          "price": 328.09,
+          "time": "2026-05-15T16:25:04.303Z"
+        },
+        "ARES": {
+          "signal": "SELL",
+          "price": 125.32,
+          "time": "2026-05-15T16:25:04.303Z"
+        },
+        "AVGO": {
+          "signal": "SELL",
+          "price": 428.42,
+          "time": "2026-05-15T16:25:04.303Z"
+        },
+        "CVS": {
+          "signal": "SELL",
+          "price": 96.47,
+          "time": "2026-05-15T16:30:07.178Z"
+        },
+        "EG": {
+          "signal": "BUY",
+          "price": 350.66,
+          "time": "2026-05-15T16:30:07.178Z"
+        },
+        "ES": {
+          "signal": "SELL",
+          "price": 67.42,
+          "time": "2026-05-15T16:30:07.178Z"
+        },
+        "ETN": {
+          "signal": "SELL",
+          "price": 398.995,
+          "time": "2026-05-15T16:30:07.178Z"
+        },
+        "LNT": {
+          "signal": "SELL",
+          "price": 71.335,
+          "time": "2026-05-15T16:35:03.829Z"
+        },
+        "LOW": {
+          "signal": "SELL",
+          "price": 219.99,
+          "time": "2026-05-15T16:35:03.829Z"
+        },
+        "LULU": {
+          "signal": "SELL",
+          "price": 120.03,
+          "time": "2026-05-15T16:35:03.829Z"
+        },
+        "LUV": {
+          "signal": "SELL",
+          "price": 38.89,
+          "time": "2026-05-15T16:35:03.829Z"
+        },
+        "REGN": {
+          "signal": "SELL",
+          "price": 697.825,
+          "time": "2026-05-15T16:40:05.884Z"
+        },
+        "RF": {
+          "signal": "SELL",
+          "price": 26.275,
+          "time": "2026-05-15T16:40:05.884Z"
+        },
+        "ROKU": {
+          "signal": "SELL",
+          "price": 123.45,
+          "time": "2026-05-15T16:40:05.884Z"
+        },
+        "XLV": {
+          "signal": "SELL",
+          "price": 145.36,
+          "time": "2026-05-15T16:45:04.561Z"
+        },
+        "XOM": {
+          "signal": "BUY",
+          "price": 156.365,
+          "time": "2026-05-15T16:45:04.561Z"
+        },
+        "XYZ": {
+          "signal": "SELL",
+          "price": 70.7,
+          "time": "2026-05-15T16:45:04.561Z"
+        },
+        "ZBH": {
+          "signal": "BUY",
+          "price": 83.7,
+          "time": "2026-05-15T16:45:04.561Z"
+        },
+        "AMT": {
+          "signal": "BUY",
+          "price": 171.78,
+          "time": "2026-05-15T19:20:06.342Z"
+        },
+        "BEN": {
+          "signal": "SELL",
+          "price": 31.815,
+          "time": "2026-05-15T16:50:05.963Z"
+        },
+        "BG": {
+          "signal": "SELL",
+          "price": 122.2,
+          "time": "2026-05-15T16:50:05.963Z"
+        },
+        "BK": {
+          "signal": "BUY",
+          "price": 137.195,
+          "time": "2026-05-15T16:50:05.963Z"
+        },
+        "DG": {
+          "signal": "SELL",
+          "price": 103.97,
+          "time": "2026-05-15T16:55:04.485Z"
+        },
+        "ETR": {
+          "signal": "SELL",
+          "price": 110.075,
+          "time": "2026-05-15T16:55:04.485Z"
+        },
+        "EVRG": {
+          "signal": "SELL",
+          "price": 80.975,
+          "time": "2026-05-15T16:55:04.485Z"
+        },
+        "EXC": {
+          "signal": "SELL",
+          "price": 43.575,
+          "time": "2026-05-15T16:55:04.485Z"
+        },
+        "LDOS": {
+          "signal": "SELL",
+          "price": 124.12,
+          "time": "2026-05-15T17:00:08.505Z"
+        },
+        "LLY": {
+          "signal": "SELL",
+          "price": 1000.05,
+          "time": "2026-05-15T17:00:08.505Z"
+        },
+        "LYB": {
+          "signal": "BUY",
+          "price": 75,
+          "time": "2026-05-15T17:00:08.505Z"
+        },
+        "LYFT": {
+          "signal": "SELL",
+          "price": 12.925,
+          "time": "2026-05-15T17:00:08.505Z"
+        },
+        "QCOM": {
+          "signal": "BUY",
+          "price": 201.97,
+          "time": "2026-05-15T17:05:04.209Z"
+        },
+        "SBAC": {
+          "signal": "SELL",
+          "price": 197.605,
+          "time": "2026-05-15T17:05:04.209Z"
+        },
+        "SCHW": {
+          "signal": "BUY",
+          "price": 91.055,
+          "time": "2026-05-15T17:05:04.209Z"
+        },
+        "SNDK": {
+          "signal": "BUY",
+          "price": 1396.23,
+          "time": "2026-05-15T17:05:04.209Z"
+        },
+        "BR": {
+          "signal": "BUY",
+          "price": 145.895,
+          "time": "2026-05-15T17:15:04.662Z"
+        },
+        "BSX": {
+          "signal": "SELL",
+          "price": 52.84,
+          "time": "2026-05-15T17:15:04.662Z"
+        },
+        "C": {
+          "signal": "SELL",
+          "price": 123.565,
+          "time": "2026-05-15T17:15:04.662Z"
+        },
+        "CB": {
+          "signal": "BUY",
+          "price": 323.83,
+          "time": "2026-05-15T17:15:04.662Z"
+        },
+        "FANG": {
+          "signal": "BUY",
+          "price": 203.07,
+          "time": "2026-05-15T17:20:06.000Z"
+        },
+        "FAST": {
+          "signal": "SELL",
+          "price": 43.17,
+          "time": "2026-05-15T17:20:06.000Z"
+        },
+        "FE": {
+          "signal": "SELL",
+          "price": 43.95,
+          "time": "2026-05-15T17:20:06.000Z"
+        },
+        "FIS": {
+          "signal": "SELL",
+          "price": 41.36,
+          "time": "2026-05-15T19:00:09.776Z"
+        },
+        "KO": {
+          "signal": "BUY",
+          "price": 81.11,
+          "time": "2026-05-15T17:25:04.951Z"
+        },
+        "MA": {
+          "signal": "BUY",
+          "price": 497.08,
+          "time": "2026-05-15T17:25:04.951Z"
+        },
+        "MCHP": {
+          "signal": "SELL",
+          "price": 95.03,
+          "time": "2026-05-15T17:25:04.951Z"
+        },
+        "MCK": {
+          "signal": "BUY",
+          "price": 759.08,
+          "time": "2026-05-15T17:25:04.951Z"
+        },
+        "SO": {
+          "signal": "SELL",
+          "price": 92.84,
+          "time": "2026-05-15T17:30:07.415Z"
+        },
+        "SPY": {
+          "signal": "SELL",
+          "price": 742.575,
+          "time": "2026-05-15T17:30:07.415Z"
+        },
+        "STE": {
+          "signal": "SELL",
+          "price": 213.88,
+          "time": "2026-05-15T17:30:07.415Z"
+        },
+        "STX": {
+          "signal": "SELL",
+          "price": 794.09,
+          "time": "2026-05-15T17:30:07.415Z"
+        },
+        "AVY": {
+          "signal": "SELL",
+          "price": 157.735,
+          "time": "2026-05-15T17:40:05.872Z"
+        },
+        "BAC": {
+          "signal": "SELL",
+          "price": 49.44,
+          "time": "2026-05-15T17:40:05.872Z"
+        },
+        "BBY": {
+          "signal": "SELL",
+          "price": 56.235,
+          "time": "2026-05-15T17:40:05.872Z"
+        },
+        "BX": {
+          "signal": "SELL",
+          "price": 119.54,
+          "time": "2026-05-15T17:40:05.872Z"
+        },
+        "FOX": {
+          "signal": "SELL",
+          "price": 57.6,
+          "time": "2026-05-15T17:45:04.238Z"
+        },
+        "FOXA": {
+          "signal": "SELL",
+          "price": 64.61,
+          "time": "2026-05-15T17:45:04.238Z"
+        },
+        "FSLR": {
+          "signal": "BUY",
+          "price": 235.035,
+          "time": "2026-05-15T17:45:04.238Z"
+        },
+        "FTNT": {
+          "signal": "BUY",
+          "price": 123.165,
+          "time": "2026-05-15T17:45:04.238Z"
+        },
+        "MCO": {
+          "signal": "SELL",
+          "price": 429.2,
+          "time": "2026-05-15T17:50:06.498Z"
+        },
+        "MDT": {
+          "signal": "SELL",
+          "price": 76.09,
+          "time": "2026-05-15T17:50:06.498Z"
+        },
+        "MGM": {
+          "signal": "BUY",
+          "price": 37.08,
+          "time": "2026-05-15T17:50:06.498Z"
+        },
+        "MKC": {
+          "signal": "SELL",
+          "price": 46.115,
+          "time": "2026-05-15T17:50:06.498Z"
+        },
+        "ON": {
+          "signal": "SELL",
+          "price": 115.58,
+          "time": "2026-05-15T17:55:04.462Z"
+        },
+        "ROST": {
+          "signal": "SELL",
+          "price": 211.57,
+          "time": "2026-05-15T17:55:04.462Z"
+        },
+        "SLB": {
+          "signal": "SELL",
+          "price": 55.36,
+          "time": "2026-05-15T17:55:04.462Z"
+        },
+        "T": {
+          "signal": "SELL",
+          "price": 24.425,
+          "time": "2026-05-15T17:55:04.462Z"
+        },
+        "XYL": {
+          "signal": "SELL",
+          "price": 108.41,
+          "time": "2026-05-15T18:00:08.557Z"
+        },
+        "CBOE": {
+          "signal": "BUY",
+          "price": 362.37,
+          "time": "2026-05-15T18:05:03.981Z"
+        },
+        "CBRE": {
+          "signal": "SELL",
+          "price": 129.56,
+          "time": "2026-05-15T18:05:03.981Z"
+        },
+        "CFG": {
+          "signal": "SELL",
+          "price": 60.55,
+          "time": "2026-05-15T18:05:03.981Z"
+        },
+        "COF": {
+          "signal": "BUY",
+          "price": 188.18,
+          "time": "2026-05-15T18:05:03.981Z"
+        },
+        "CTVA": {
+          "signal": "SELL",
+          "price": 82.36,
+          "time": "2026-05-15T18:10:26.839Z"
+        },
+        "EXEL": {
+          "signal": "SELL",
+          "price": 50.07,
+          "time": "2026-05-15T18:10:26.839Z"
+        },
+        "FITB": {
+          "signal": "SELL",
+          "price": 47.115,
+          "time": "2026-05-15T18:10:26.839Z"
+        },
+        "GBTC": {
+          "signal": "SELL",
+          "price": 61.69,
+          "time": "2026-05-15T18:10:26.839Z"
+        },
+        "ISRG": {
+          "signal": "SELL",
+          "price": 423.62,
+          "time": "2026-05-15T18:15:04.538Z"
+        },
+        "MDLZ": {
+          "signal": "SELL",
+          "price": 60.545,
+          "time": "2026-05-15T18:15:04.538Z"
+        },
+        "MMM": {
+          "signal": "BUY",
+          "price": 146.235,
+          "time": "2026-05-15T18:15:04.538Z"
+        },
+        "MNST": {
+          "signal": "BUY",
+          "price": 87.345,
+          "time": "2026-05-15T18:15:04.538Z"
+        },
+        "STZ": {
+          "signal": "BUY",
+          "price": 142.44,
+          "time": "2026-05-15T18:20:05.528Z"
+        },
+        "TARK": {
+          "signal": "BUY",
+          "price": 45.495,
+          "time": "2026-05-15T18:20:05.528Z"
+        },
+        "TECH": {
+          "signal": "SELL",
+          "price": 44.1,
+          "time": "2026-05-15T18:20:05.528Z"
+        },
+        "TMO": {
+          "signal": "SELL",
+          "price": 440.01,
+          "time": "2026-05-15T18:20:05.528Z"
+        },
+        "WST": {
+          "signal": "BUY",
+          "price": 304.25,
+          "time": "2026-05-15T18:25:04.323Z"
+        },
+        "BXP": {
+          "signal": "SELL",
+          "price": 58.545,
+          "time": "2026-05-15T18:30:06.651Z"
+        },
+        "CF": {
+          "signal": "BUY",
+          "price": 124.92,
+          "time": "2026-05-15T18:30:06.651Z"
+        },
+        "COR": {
+          "signal": "SELL",
+          "price": 259.22,
+          "time": "2026-05-15T18:30:06.651Z"
+        },
+        "CRWD": {
+          "signal": "BUY",
+          "price": 593.16,
+          "time": "2026-05-15T18:30:06.651Z"
+        },
+        "GD": {
+          "signal": "SELL",
+          "price": 334.15,
+          "time": "2026-05-15T18:35:04.217Z"
+        },
+        "GEN": {
+          "signal": "BUY",
+          "price": 23.43,
+          "time": "2026-05-15T18:35:04.217Z"
+        },
+        "GILD": {
+          "signal": "SELL",
+          "price": 129.475,
+          "time": "2026-05-15T18:35:04.217Z"
+        },
+        "GOOG": {
+          "signal": "SELL",
+          "price": 391.75,
+          "time": "2026-05-15T18:35:04.217Z"
+        },
+        "MPWR": {
+          "signal": "SELL",
+          "price": 1578.59,
+          "time": "2026-05-15T18:40:06.173Z"
+        },
+        "MRK": {
+          "signal": "SELL",
+          "price": 111.31,
+          "time": "2026-05-15T18:40:06.173Z"
+        },
+        "MRNA": {
+          "signal": "SELL",
+          "price": 48.91,
+          "time": "2026-05-15T18:40:06.173Z"
+        },
+        "MRSH": {
+          "signal": "BUY",
+          "price": 161.78,
+          "time": "2026-05-15T18:40:06.173Z"
+        },
+        "RIG": {
+          "signal": "BUY",
+          "price": 6.97,
+          "time": "2026-05-15T18:45:05.315Z"
+        },
+        "TAP": {
+          "signal": "BUY",
+          "price": 41.11,
+          "time": "2026-05-15T18:45:05.315Z"
+        },
+        "TMUS": {
+          "signal": "SELL",
+          "price": 185.82,
+          "time": "2026-05-15T18:45:05.315Z"
+        },
+        "TRGP": {
+          "signal": "BUY",
+          "price": 272.08,
+          "time": "2026-05-15T18:45:05.315Z"
+        },
+        "AXON": {
+          "signal": "BUY",
+          "price": 397.615,
+          "time": "2026-05-15T18:55:04.401Z"
+        },
+        "CNP": {
+          "signal": "SELL",
+          "price": 41.71,
+          "time": "2026-05-15T18:55:04.401Z"
+        },
+        "COP": {
+          "signal": "BUY",
+          "price": 121.9,
+          "time": "2026-05-15T18:55:04.401Z"
+        },
+        "CPB": {
+          "signal": "SELL",
+          "price": 19.89,
+          "time": "2026-05-15T18:55:04.401Z"
+        },
+        "EQR": {
+          "signal": "SELL",
+          "price": 64.01,
+          "time": "2026-05-15T19:00:09.776Z"
+        },
+        "GEHC": {
+          "signal": "SELL",
+          "price": 61.29,
+          "time": "2026-05-15T19:00:09.776Z"
+        },
+        "GS": {
+          "signal": "SELL",
+          "price": 954.2,
+          "time": "2026-05-15T19:00:09.776Z"
+        },
+        "LVS": {
+          "signal": "BUY",
+          "price": 51.1,
+          "time": "2026-05-15T19:05:03.792Z"
+        },
+        "MS": {
+          "signal": "SELL",
+          "price": 193.015,
+          "time": "2026-05-15T19:05:03.792Z"
+        },
+        "MSCI": {
+          "signal": "SELL",
+          "price": 558.905,
+          "time": "2026-05-15T19:05:03.792Z"
+        },
+        "MTCH": {
+          "signal": "SELL",
+          "price": 35.365,
+          "time": "2026-05-15T19:05:03.792Z"
+        },
+        "PCAR": {
+          "signal": "SELL",
+          "price": 110.11,
+          "time": "2026-05-15T19:10:06.609Z"
+        },
+        "PYPL": {
+          "signal": "SELL",
+          "price": 44.645,
+          "time": "2026-05-15T19:10:06.609Z"
+        },
+        "ROK": {
+          "signal": "SELL",
+          "price": 448.01,
+          "time": "2026-05-15T19:10:06.609Z"
+        },
+        "SNPS": {
+          "signal": "SELL",
+          "price": 499.845,
+          "time": "2026-05-15T19:10:06.609Z"
+        },
+        "CDW": {
+          "signal": "SELL",
+          "price": 101.41,
+          "time": "2026-05-15T19:20:06.342Z"
+        },
+        "HCA": {
+          "signal": "SELL",
+          "price": 425.39,
+          "time": "2026-05-15T19:25:04.225Z"
+        },
+        "HRL": {
+          "signal": "SELL",
+          "price": 19.77,
+          "time": "2026-05-15T19:25:04.225Z"
+        },
+        "HST": {
+          "signal": "SELL",
+          "price": 21.3,
+          "time": "2026-05-15T19:25:04.225Z"
+        },
+        "MPC": {
+          "signal": "BUY",
+          "price": 253.98,
+          "time": "2026-05-15T19:30:07.574Z"
+        },
+        "NBR": {
+          "signal": "BUY",
+          "price": 105.36,
+          "time": "2026-05-15T19:30:07.574Z"
+        },
+        "NCLH": {
+          "signal": "SELL",
+          "price": 15.54,
+          "time": "2026-05-15T19:30:07.574Z"
+        },
+        "NDSN": {
+          "signal": "SELL",
+          "price": 275.435,
+          "time": "2026-05-15T19:30:07.574Z"
+        },
+        "SRE": {
+          "signal": "SELL",
+          "price": 90.67,
+          "time": "2026-05-15T19:35:04.069Z"
+        },
+        "STLD": {
+          "signal": "SELL",
+          "price": 229.06,
+          "time": "2026-05-15T19:35:04.069Z"
+        },
+        "TPR": {
+          "signal": "SELL",
+          "price": 129.07,
+          "time": "2026-05-15T19:35:04.069Z"
+        },
+        "VZ": {
+          "signal": "SELL",
+          "price": 46.685,
+          "time": "2026-05-15T19:40:07.321Z"
+        },
+        "AWK": {
+          "signal": "SELL",
+          "price": 124.995,
+          "time": "2026-05-15T19:45:05.028Z"
+        },
+        "CNC": {
+          "signal": "SELL",
+          "price": 57.995,
+          "time": "2026-05-15T19:45:05.028Z"
+        },
+        "HAL": {
+          "signal": "BUY",
+          "price": 41.66,
+          "time": "2026-05-15T19:50:06.520Z"
+        },
+        "HPQ": {
+          "signal": "BUY",
+          "price": 20.975,
+          "time": "2026-05-15T19:50:06.520Z"
+        },
+        "IEX": {
+          "signal": "SELL",
+          "price": 208.3,
+          "time": "2026-05-15T19:55:04.471Z"
+        },
+        "LH": {
+          "signal": "SELL",
+          "price": 250.825,
+          "time": "2026-05-15T19:55:04.471Z"
+        },
+        "MAA": {
+          "signal": "SELL",
+          "price": 125.505,
+          "time": "2026-05-15T19:55:04.471Z"
+        },
+        "MET": {
+          "signal": "BUY",
+          "price": 79.76,
+          "time": "2026-05-15T19:55:04.471Z"
+        }
+      },
+      "lastDate": "5/15/2026",
+      "scanCount": 75,
+      "_fixClear": "v2.3-vix",
+      "_alpaca_key": "PKTNPLBGZAZ4PRR3FSKKS2YSQZ",
+      "_alpaca_secret": "5dE2L7xXbrraFmhTh9A8GdazfYJH5SShNEo74pp2fcBB",
+      "killswitch_4/1/2026": true,
+      "killswitch_4/2/2026": true,
+      "_killSwitch": {},
+      "_credentials": {
+        "webhook_secret": "<REDACTED_SECRET>",
+        "alpaca_env": "paper",
+        "alpaca_base": null
+      },
+      "quantumWatchlistBatchOffset": 375
+    }
+  },
+  "meta": null,
+  "pinData": {},
+  "versionId": "7016d760-fb1f-40e1-a357-3ea1777bf31e",
+  "activeVersionId": "7016d760-fb1f-40e1-a357-3ea1777bf31e",
+  "versionCounter": 7777,
+  "triggerCount": 1,
+  "shared": [
+    {
+      "updatedAt": "2026-03-31T03:23:14.423Z",
+      "createdAt": "2026-03-31T03:23:14.423Z",
+      "role": "workflow:owner",
+      "workflowId": "975pZZEtxeUbzI22",
+      "projectId": "8FehnoLE6S4OGbZZ",
+      "project": {
+        "updatedAt": "2026-03-16T20:41:27.470Z",
+        "createdAt": "2026-03-16T20:41:22.084Z",
+        "id": "8FehnoLE6S4OGbZZ",
+        "name": "Santosh Adari <sa.nextgenai@gmail.com>",
+        "type": "personal",
+        "icon": null,
+        "description": null,
+        "creatorId": "1d4c2d1c-381a-43b8-ba2e-c190e38191a7"
+      }
+    }
+  ],
+  "tags": [],
+  "activeVersion": {
+    "updatedAt": "2026-05-16T21:21:35.065Z",
+    "createdAt": "2026-05-16T21:21:35.065Z",
+    "versionId": "7016d760-fb1f-40e1-a357-3ea1777bf31e",
+    "workflowId": "975pZZEtxeUbzI22",
+    "nodes": [
+      {
+        "parameters": {
+          "rule": {
+            "interval": [
+              {
+                "field": "cronExpression",
+                "expression": "*/5 * * * 1-5"
+              }
+            ]
+          }
+        },
+        "name": "Every 5 Minutes",
+        "type": "n8n-nodes-base.scheduleTrigger",
+        "typeVersion": 1.2,
+        "position": [
+          -80,
+          0
+        ],
+        "id": "521da29d-fca2-451e-8ee3-2329cc47ba97"
+      },
+      {
+        "parameters": {
+          "jsCode": "// SM-C2: env-driven Alpaca base URL (default paper, flip via staticData)\nconst _creds_AB = ($getWorkflowStaticData('global')._credentials) || {};\nconst ALPACA_BASE = _creds_AB.alpaca_base\n  || (_creds_AB.alpaca_env === 'live'\n    ? 'https://api.alpaca.markets'\n    : 'https://paper-api.alpaca.markets');\n\n// ================================================\n// BROAD SCANNER v3.4 \u2014 Fix #14 off-by-one \u2014 Fix #9 N/A indicators, Fix #13 session hours \u2014 Time-Adjusted Volume Fix \u2014 Enhanced Filters + AI View\n// v3.1: Min relative volume, entry deviation check, enhanced AI context\n// v3.0: Max 4 entries per cycle + pre-entry risk simulation\n// v2.3: Kill switch, VIX fix, direction flips\n// ================================================\n\n// \u2500\u2500\u2500 CONFIGURATION (edit these to tune) \u2500\u2500\u2500\nconst MOMENTUM_THRESHOLD  = 0.7;   // Min % change to trigger signal\nconst PROFILE_IMBALANCE   = 1.8;   // Volume imbalance for structure break\nconst VOLUME_MIN          = 0.25;  // Min volume ratio vs prev day (original threshold)\nconst MIN_RR              = 2.0;   // Min risk:reward ratio\n\n// \u2500\u2500\u2500 NEW v3.1 FILTERS \u2500\u2500\u2500\nconst MIN_RELATIVE_VOLUME    = 0.8;   // Min relative volume (today vs prev day) \u2014 rejects thin/quiet tickers\nconst MAX_ENTRY_DEVIATION_PCT = 2.5;  // v3.2: widened from 1.5 \u2014 was too tight for midday\n\n// \u2500\u2500\u2500 POSITION BLOAT SAFEGUARDS \u2500\u2500\u2500\nconst MAX_NEW_ENTRIES_PER_CYCLE = 4;    // Max new signals per 5-min scan\nconst MAX_POSITIONS       = 20;         // Kill switch: max open positions\nconst MAX_EXPOSURE        = 150000;     // Kill switch: max notional $\nconst MAX_MARGIN_PCT      = 0.35;       // Kill switch: max margin % of equity\nconst MAX_DAILY_LOSS_PCT  = -2.5;       // Kill switch: max daily loss %\nconst EST_POSITION_SIZE   = 5000;\n// \u2500\u2500 C-3 auth: load webhook_secret for outgoing payloads \u2500\u2500\u2500\nconst _WEBHOOK_SECRET = ($getWorkflowStaticData('global')._credentials || {}).webhook_secret || '';\n       // Estimated $ per new position (for simulation)\n\n// \u2500\u2500\u2500 Gap A Phase A-2: strat_cache lookup (fail-closed) \u2500\u2500\u2500\n// Read the strat_cache sheet that Read strat_cache node loaded before us.\n// If cache is missing/stale/non-OK, emit empty strat_* fields so downstream\n// consumers can see the absence and route around it (NO FAKE DEFAULTS).\nconst STRAT_STALENESS_MS = 48 * 60 * 60 * 1000; // 48h max age\nconst _STRAT_CACHE = {};\ntry {\n  const cacheItems = $('Read strat_cache').all() || [];\n  const nowMs = Date.now();\n  for (const it of cacheItems) {\n    const r = it.json || {};\n    const t = (r.ticker || '').toString().toUpperCase().trim();\n    if (!t) continue;\n    const asof = r.asof_utc ? Date.parse(r.asof_utc) : NaN;\n    const fresh = Number.isFinite(asof) && (nowMs - asof) <= STRAT_STALENESS_MS;\n    const ok = (r.status || '').toString().toUpperCase() === 'OK';\n    _STRAT_CACHE[t] = { r, fresh, ok, asof };\n  }\n} catch (e) {\n  console.log('[strat_cache] read failed (fail-closed):', e.message);\n}\nfunction stratFields(ticker) {\n  // Fail-closed default: empty strings signal \"no backtest data available\"\n  const empty = {\n    strat_net_pct: '', strat_win_rate: '', strat_wins: '', strat_losses: '',\n    strat_profit_factor: '', strat_max_dd: '', strat_avg_trade: '', strat_total_trades: ''\n  };\n  const t = (ticker || '').toString().toUpperCase().trim();\n  const entry = _STRAT_CACHE[t];\n  if (!entry || !entry.fresh || !entry.ok) return empty;\n  const r = entry.r;\n  const totalTrades = Number(r.strat_total_trades) || 0;\n  const winRate = Number(r.strat_win_rate) || 0;\n  const netPct = Number(r.strat_net_pct) || 0;\n  const wins = totalTrades > 0 ? Math.round(totalTrades * winRate / 100) : 0;\n  const losses = totalTrades > 0 ? Math.max(0, totalTrades - wins) : 0;\n  const avgTrade = totalTrades > 0 ? (netPct / totalTrades) : 0;\n  return {\n    strat_net_pct: (r.strat_net_pct ?? '').toString(),\n    strat_win_rate: (r.strat_win_rate ?? '').toString(),\n    strat_wins: wins.toString(),\n    strat_losses: losses.toString(),\n    strat_profit_factor: (r.strat_profit_factor ?? '').toString(),\n    strat_max_dd: (r.strat_max_dd ?? '').toString(),\n    strat_avg_trade: avgTrade.toFixed(2),\n    strat_total_trades: totalTrades.toString()\n  };\n}\nconsole.log('[strat_cache] loaded entries:', Object.keys(_STRAT_CACHE).length);\n\n// \u2500\u2500\u2500 SECTOR MAP (for enhanced AI view) \u2500\u2500\u2500\nconst SECTOR_MAP = {\n  AAPL:'Technology', MSFT:'Technology', GOOG:'Technology', GOOGL:'Technology', AMZN:'Consumer Cyclical',\n  META:'Technology', NVDA:'Technology', TSLA:'Consumer Cyclical', AMD:'Technology', INTC:'Technology',\n  AVGO:'Technology', QCOM:'Technology', MU:'Technology', MRVL:'Technology', LRCX:'Technology',\n  AMAT:'Technology', KLAC:'Technology', SNPS:'Technology', CDNS:'Technology', NXPI:'Technology',\n  ON:'Technology', MCHP:'Technology', TXN:'Technology', ADI:'Technology', SMCI:'Technology',\n  ARM:'Technology', ASML:'Technology', TSM:'Technology', DELL:'Technology', HPQ:'Technology',\n  CRM:'Technology', ORCL:'Technology', NOW:'Technology', ADBE:'Technology', PANW:'Technology',\n  CRWD:'Technology', FTNT:'Technology', ZS:'Technology', NET:'Technology', DDOG:'Technology',\n  SNOW:'Technology', PLTR:'Technology', COIN:'Financial Services', SHOP:'Technology',\n  SQ:'Financial Services', PYPL:'Financial Services', V:'Financial Services', MA:'Financial Services',\n  JPM:'Financial Services', BAC:'Financial Services', GS:'Financial Services', MS:'Financial Services',\n  WFC:'Financial Services', C:'Financial Services', SCHW:'Financial Services', BX:'Financial Services',\n  KKR:'Financial Services', APO:'Financial Services',\n  JNJ:'Healthcare', UNH:'Healthcare', PFE:'Healthcare', ABBV:'Healthcare', LLY:'Healthcare',\n  MRK:'Healthcare', BMY:'Healthcare', AMGN:'Healthcare', GILD:'Healthcare', ISRG:'Healthcare',\n  DXCM:'Healthcare', MRNA:'Healthcare', BNTX:'Healthcare',\n  XOM:'Energy', CVX:'Energy', COP:'Energy', SLB:'Energy', EOG:'Energy', MPC:'Energy',\n  VLO:'Energy', PSX:'Energy', OXY:'Energy', DVN:'Energy', HAL:'Energy', FANG:'Energy',\n  PG:'Consumer Defensive', KO:'Consumer Defensive', PEP:'Consumer Defensive', WMT:'Consumer Defensive',\n  COST:'Consumer Defensive', TGT:'Consumer Defensive', HD:'Consumer Cyclical', LOW:'Consumer Cyclical',\n  NKE:'Consumer Cyclical', SBUX:'Consumer Cyclical', MCD:'Consumer Cyclical', CMG:'Consumer Cyclical',\n  DIS:'Communication Services', NFLX:'Communication Services', CMCSA:'Communication Services',\n  T:'Communication Services', VZ:'Communication Services', TMUS:'Communication Services',\n  LMT:'Industrials', RTX:'Industrials', GE:'Industrials', BA:'Industrials', CAT:'Industrials',\n  DE:'Industrials', HON:'Industrials', UPS:'Industrials', FDX:'Industrials', UNP:'Industrials',\n  UBER:'Technology', LYFT:'Technology', ABNB:'Consumer Cyclical', BKNG:'Consumer Cyclical',\n  RIVN:'Consumer Cyclical', LCID:'Consumer Cyclical', F:'Consumer Cyclical', GM:'Consumer Cyclical',\n  LI:'Consumer Cyclical', NIO:'Consumer Cyclical', XPEV:'Consumer Cyclical',\n  SPY:'ETF-Index', QQQ:'ETF-Index', IWM:'ETF-Index', DIA:'ETF-Index',\n  XLF:'ETF-Financials', XLE:'ETF-Energy', XLK:'ETF-Technology', XLV:'ETF-Healthcare',\n  XLY:'ETF-Consumer', XLP:'ETF-Staples', XLI:'ETF-Industrials', XLU:'ETF-Utilities',\n  LITE:'Technology', CIEN:'Technology', ANET:'Technology', KEYS:'Technology',\n  WOLF:'Technology', ENPH:'Technology', SEDG:'Technology', FSLR:'Technology',\n  SOFI:'Financial Services', HOOD:'Financial Services', AFRM:'Financial Services',\n  ROKU:'Communication Services', TTD:'Technology', PINS:'Communication Services',\n  SNAP:'Communication Services', RBLX:'Communication Services', U:'Technology',\n  ZM:'Technology', DOCU:'Technology', OKTA:'Technology', TEAM:'Technology',\n  WDAY:'Technology', VEEV:'Healthcare', BILL:'Technology', HUBS:'Technology'\n};\n\nconst state = $getWorkflowStaticData('global');\n// ENTRY_CONTRACT_PATCH_20260501: prefer n8n variables; retain static fallback.\nconst ALPACA_KEY    = $vars.ALPACA_API_KEY || $vars.ALPACA_KEY_ID || state._alpaca_key || '';\nconst ALPACA_SECRET = $vars.ALPACA_SECRET_KEY || $vars.ALPACA_SECRET || state._alpaca_secret || '';\nif (!state.signalsSent) state.signalsSent = {};\nif (!state.lastDate) state.lastDate = '';\nif (!state.scanCount) state.scanCount = 0;\n\nconst now = new Date();\nconst etHour = parseInt(now.toLocaleTimeString('en-US',{timeZone:'America/New_York',hour12:false,hour:'2-digit'}));\nconst etMin = parseInt(now.toLocaleTimeString('en-US',{timeZone:'America/New_York',hour12:false,minute:'2-digit'}));\nconst today = now.toLocaleDateString('en-US',{timeZone:'America/New_York'});\n\n// Daily reset\nif (state.lastDate !== today) {\n  state.signalsSent = {};\n  state.lastDate = today;\n  state.scanCount = 0;\n    state._killSwitch = {}; // KILL SWITCH MANUALLY RESET \u2014 Trading enabled for next session\n    console.log('KILL SWITCH MANUALLY RESET \u2014 Trading enabled for next session');\n}\n\n// Session check: 9:45 AM - 3:45 PM ET\nconst inSession = (etHour > 9 || (etHour === 9 && etMin >= 30)) && (etHour < 16);\nif (!inSession) return [];\n\nstate.scanCount++;\n// --- v3.2: Session progress for time-adjusted volume ---\nfunction getSessionProgress() {\n  const sessionStart = 9 * 60 + 30; // 9:30 AM ET in minutes\n  const sessionEnd = 16 * 60;       // 4:00 PM ET in minutes\n  const nowMin = etHour * 60 + etMin;\n  const elapsed = Math.max(0, nowMin - sessionStart);\n  const total = sessionEnd - sessionStart; // 390 minutes\n  return Math.min(1.0, Math.max(0.05, elapsed / total));\n}\n\n// \u2500\u2500\u2500 GLOBAL KILL SWITCH \u2500\u2500\u2500\nconst _ks = state._killSwitch || {};\nif (_ks.manualHalt && _ks.date === today) {\n  console.log('[KILL SWITCH] Manual halt active \u2014 skipping scan');\n  return [];\n}\n\n// Fetch portfolio state for kill switch + risk simulation\nlet _posCount = 0;\nlet _exposure = 0;\nlet _equity = 100000;\nlet _marginPct = 0;\nlet _dailyPnLPct = 0;\n\ntry {\n  const _posResp = await this.helpers.httpRequest({\n    method: 'GET', url: ALPACA_BASE + '/v2/positions',\n    headers: { 'APCA-API-KEY-ID': ALPACA_KEY, 'APCA-API-SECRET-KEY': ALPACA_SECRET },\n    json: true\n  });\n  const _acctResp = await this.helpers.httpRequest({\n    method: 'GET', url: ALPACA_BASE + '/v2/account',\n    headers: { 'APCA-API-KEY-ID': ALPACA_KEY, 'APCA-API-SECRET-KEY': ALPACA_SECRET },\n    json: true\n  });\n\n  _posCount = _posResp.length;\n  for (const p of _posResp) _exposure += Math.abs(parseFloat(p.market_value) || 0);\n  _equity = parseFloat(_acctResp.equity) || 100000;\n  const _lastEquity = parseFloat(_acctResp.last_equity) || _equity;\n  const _margin = parseFloat(_acctResp.initial_margin) || 0;\n  _marginPct = _margin / _equity;\n  _dailyPnLPct = (_equity - _lastEquity) / _lastEquity * 100;\n\n  // Kill switch check\n  const _triggers = [];\n  if (_dailyPnLPct < MAX_DAILY_LOSS_PCT) _triggers.push('Daily Loss ' + _dailyPnLPct.toFixed(1) + '%');\n  if (_marginPct > MAX_MARGIN_PCT) _triggers.push('Margin ' + (_marginPct * 100).toFixed(0) + '%/' + (MAX_MARGIN_PCT*100) + '%');\n  if (_posCount >= MAX_POSITIONS) _triggers.push('Positions ' + _posCount + '/' + MAX_POSITIONS);\n  if (_exposure > MAX_EXPOSURE) _triggers.push('Exposure $' + (_exposure/1000).toFixed(0) + 'K/$' + (MAX_EXPOSURE/1000) + 'K');\n\n  if (_triggers.length > 0) {\n    const _reason = _triggers.join(' | ');\n    console.log('[KILL SWITCH] ACTIVATED: ' + _reason);\n    const _alertKey = 'killswitch_' + today;\n    if (!state[_alertKey]) {\n      state[_alertKey] = true;\n      try {\n        await this.helpers.httpRequest({\n          method: 'POST',\n          url: 'https://api.telegram.org/botREDACTED_TELEGRAM_BOT_TOKEN/sendMessage',\n          headers: { 'Content-Type': 'application/json' },\n          body: JSON.stringify({\n            chat_id: REDACTED_CHAT_ID,\n            text: '\\uD83D\\uDEA8 <b>QUANTUM GLOBAL KILL SWITCH ACTIVATED</b>\\n\\nReason: ' + _reason + '\\n\\nAll new trading paused.\\nOpen positions remain protected.\\nManual reset required.',\n            parse_mode: 'HTML'\n          }),\n          json: true\n        });\n      } catch(tgErr) {}\n    }\n    return [];\n  }\n\n  console.log('[SCAN] Risk OK: $' + _exposure.toFixed(0) + '/$' + (MAX_EXPOSURE/1000) + 'K | Margin ' + (_marginPct * 100).toFixed(0) + '%/' + (MAX_MARGIN_PCT*100) + '% | ' + _posCount + '/' + MAX_POSITIONS + ' pos | Day ' + _dailyPnLPct.toFixed(1) + '%');\n} catch(e) {\n  console.log('[SCAN] Risk check error: ' + e.message);\n}\n\n// \u2500\u2500\u2500 LOAD TICKERS \u2500\u2500\u2500\nlet tickers = $input.all()\n  .map(item => {\n    const row = item.json;\n    return row.COST || row.Ticker || row.ticker || Object.values(row).find(v => typeof v === 'string' && v.length <= 6 && /^[A-Z]+$/.test(v));\n  })\n  .filter(t => t && typeof t === 'string' && t.length >= 1 && t.length <= 6 && /^[A-Z]+$/.test(t.toUpperCase()))\n  .map(t => t.toUpperCase());\n\n// BATCH_PATCH_20260430: n8n Code task runner has a 60s ceiling.\n// Process the Databricks Quantum Watchlist in rotating batches so every run completes safely.\n// This preserves source-of-truth behavior and avoids changing order/risk logic.\nconst FULL_WATCHLIST_COUNT = tickers.length;\nconst SCANNER_BATCH_SIZE = 125;\nif (!state.quantumWatchlistBatchOffset || state.quantumWatchlistBatchOffset >= FULL_WATCHLIST_COUNT) {\n  state.quantumWatchlistBatchOffset = 0;\n}\nconst batchStart = state.quantumWatchlistBatchOffset;\nlet batchEnd = Math.min(batchStart + SCANNER_BATCH_SIZE, FULL_WATCHLIST_COUNT);\nlet batch = tickers.slice(batchStart, batchEnd);\nif (batch.length === 0) {\n  state.quantumWatchlistBatchOffset = 0;\n  batch = tickers.slice(0, Math.min(SCANNER_BATCH_SIZE, FULL_WATCHLIST_COUNT));\n  batchEnd = batch.length;\n}\nstate.quantumWatchlistBatchOffset = batchEnd >= FULL_WATCHLIST_COUNT ? 0 : batchEnd;\ntickers = batch;\nconsole.log('[SCAN] #' + state.scanCount + ' | Quantum Watchlist batch ' + batchStart + '-' + (batchEnd - 1) + ' of ' + FULL_WATCHLIST_COUNT + ' | processing ' + tickers.length + ' tickers | nextOffset=' + state.quantumWatchlistBatchOffset + ' | ' + etHour + ':' + etMin + ' ET');\n\n// \u2500\u2500\u2500 FETCH MARKET DATA \u2500\u2500\u2500\nconst allSnapshots = {};\nconst batchSize = 100;\nfor (let i = 0; i < tickers.length; i += batchSize) {\n  const batch = tickers.slice(i, i + batchSize);\n  try {\n    const resp = await this.helpers.httpRequest({\n      method: 'GET',\n      url: 'https://data.alpaca.markets/v2/stocks/snapshots?symbols=' + batch.join(',') + '&feed=iex',\n      headers: { 'APCA-API-KEY-ID': ALPACA_KEY, 'APCA-API-SECRET-KEY': ALPACA_SECRET },\n      json: true\n    });\n    Object.assign(allSnapshots, resp);\n  } catch(e) {\n    console.log('[ALPACA] Batch error: ' + e.message);\n  }\n}\n\nconst spySnap = allSnapshots['SPY'];\nconst qqqSnap = allSnapshots['QQQ'];\nlet spyChange = 0, qqqChange = 0;\ntry { spyChange = (spySnap.latestTrade.p - spySnap.prevDailyBar.c) / spySnap.prevDailyBar.c * 100; } catch(e) {}\ntry { qqqChange = (qqqSnap.latestTrade.p - qqqSnap.prevDailyBar.c) / qqqSnap.prevDailyBar.c * 100; } catch(e) {}\n\n// Market context for AI view\nconst marketBias = spyChange < -1 ? 'BEARISH' : spyChange < -0.3 ? 'CAUTIOUS' : spyChange > 1 ? 'BULLISH' : spyChange > 0.3 ? 'RISK-ON' : 'NEUTRAL';\n\n// VIX proxy: only DOWN moves = high VIX\nconst spyDown = Math.min(spyChange, 0);\nconst vix = spyDown < -2 ? 30 : spyDown < -1 ? 27 : 24;\n\n// \u2500\u2500\u2500 EVALUATE TICKERS \u2500\u2500\u2500\nconst signals = [];\nconst scanTime = new Date().toLocaleTimeString('en-US', {timeZone: 'America/New_York'});\nlet tickersScanned = 0;\nlet signalsFound = 0;\nlet momentumPassedButDeduped = [];\nlet newEntriesThisCycle = 0;  // Safeguard 1: counter for this cycle\nlet filteredVolume = 0;       // v3.1 tracking\nlet filteredDeviation = 0;    // v3.1 tracking\n\n// Running simulation state (Safeguard 2)\nlet simPositions = _posCount;\nlet simExposure  = _exposure;\nlet simMargin    = _marginPct * _equity;\n\nfor (const ticker of tickers) {\n  // \u2500\u2500\u2500 SAFEGUARD 1: Max entries per cycle \u2500\u2500\u2500\n  if (newEntriesThisCycle >= MAX_NEW_ENTRIES_PER_CYCLE) {\n    console.log('[SCAN] Cycle limit reached (' + MAX_NEW_ENTRIES_PER_CYCLE + ' entries) \u2014 skipping remaining tickers');\n    break;\n  }\n\n  const snap = allSnapshots[ticker];\n  if (!snap || !snap.latestTrade || !snap.dailyBar || !snap.prevDailyBar) continue;\n\n  const price = snap.latestTrade.p;\n  const prevClose = snap.prevDailyBar.c;\n  const dayHigh = snap.dailyBar.h;\n  const dayLow = snap.dailyBar.l;\n  const volume = snap.dailyBar.v;\n  const prevVol = snap.prevDailyBar.v;\n\n  const changePct = (price - prevClose) / prevClose * 100;\n  const sessionPct = getSessionProgress();\n  const projectedVol = sessionPct > 0.1 ? volume / sessionPct : volume;\n  const volRatio = prevVol > 0 ? projectedVol / prevVol : 0;\n  const atr = Math.max(dayHigh - dayLow, price * 0.005);\n\n  // \u2500\u2500\u2500 v3.1 FILTER 1: Minimum Relative Volume \u2500\u2500\u2500\n  if (volRatio < MIN_RELATIVE_VOLUME) {\n    filteredVolume++;\n    continue;\n  }\n\n  // \u2500\u2500\u2500 v3.1 FILTER 2: Entry Deviation Check \u2500\u2500\u2500\n  const deviationPct = Math.abs(changePct);\n  if (deviationPct > MAX_ENTRY_DEVIATION_PCT) {\n    filteredDeviation++;\n    console.log('[SKIP] ' + ticker + ': deviation ' + deviationPct.toFixed(1) + '% > ' + MAX_ENTRY_DEVIATION_PCT + '% limit \u2014 too extended');\n    continue;\n  }\n\n  let signal = null, reason = '', signalType = '';\n\n  if (changePct <= -MOMENTUM_THRESHOLD && volRatio >= VOLUME_MIN) {\n    signal = 'SELL';\n    signalType = 'MOMENTUM SHORT';\n    reason = 'MOMENTUM SHORT: ' + changePct.toFixed(1) + '% | vol ' + volRatio.toFixed(1) + 'x';\n  } else if (changePct >= MOMENTUM_THRESHOLD && volRatio >= VOLUME_MIN && vix < 30) {\n    signal = 'BUY';\n    signalType = 'MOMENTUM LONG';\n    reason = 'MOMENTUM LONG: +' + changePct.toFixed(1) + '% | vol ' + volRatio.toFixed(1) + 'x';\n  } else if (volRatio >= PROFILE_IMBALANCE && changePct < -0.8) {\n    signal = 'SELL';\n    signalType = 'STRUCTURE BREAK';\n    reason = 'STRUCTURE BREAK: vol ' + volRatio.toFixed(1) + 'x | ' + changePct.toFixed(1) + '%';\n  }\n\n  if (!signal) continue;\n\n  tickersScanned++;\n\n  // Dedup: skip if same ticker+direction already sent today\n  const prevSignal = state.signalsSent[ticker];\n  if (prevSignal && prevSignal.signal === signal) {\n    momentumPassedButDeduped.push(ticker + ' (' + changePct.toFixed(1) + '%)');\n    continue;\n  }\n\n  // \u2500\u2500\u2500 SAFEGUARD 2: Pre-entry risk simulation \u2500\u2500\u2500\n  const projPositions = simPositions + 1;\n  const projExposure  = simExposure + EST_POSITION_SIZE;\n  const projMarginPct = (simMargin + EST_POSITION_SIZE * 0.25) / _equity;\n\n  const simBreaches = [];\n  if (projPositions >= MAX_POSITIONS) simBreaches.push('Positions ' + projPositions + '/' + MAX_POSITIONS);\n  if (projExposure > MAX_EXPOSURE) simBreaches.push('Exposure $' + (projExposure/1000).toFixed(0) + 'K/$' + (MAX_EXPOSURE/1000) + 'K');\n  if (projMarginPct > MAX_MARGIN_PCT) simBreaches.push('Margin ' + (projMarginPct * 100).toFixed(0) + '%/' + (MAX_MARGIN_PCT*100) + '%');\n\n  if (simBreaches.length > 0) {\n    console.log('[REJECTED] ' + ticker + ' ' + signal + ': would breach ' + simBreaches.join(' | '));\n    continue;\n  }\n\n  // \u2500\u2500\u2500 SIGNAL PASSES ALL CHECKS \u2500\u2500\u2500\n  const vixSM = vix >= 30 ? 1.5 : vix >= 25 ? 1.3 : vix >= 18 ? 1.15 : 1.0;\n  const slDist = atr * 1.5 * vixSM;\n  const tpDist = Math.max(atr * 3.0, slDist * MIN_RR);\n  if (tpDist / slDist < MIN_RR) continue;\n  const rr = (tpDist / slDist).toFixed(1);\n  const conf = Math.min(100, Math.round(Math.abs(changePct) * 25 + volRatio * 15));\n  if (conf < 30) continue;\n\n  const stopP = signal === 'SELL' ? (price + slDist).toFixed(2) : (price - slDist).toFixed(2);\n  const targP = signal === 'SELL' ? (price - tpDist).toFixed(2) : (price + tpDist).toFixed(2);\n  const vixSize = vix >= 30 ? '0.3' : vix >= 25 ? '0.5' : vix >= 18 ? '0.7' : '1.0';\n\n  // \u2500\u2500\u2500 v3.1: ENHANCED AI VIEW (real context) \u2500\u2500\u2500\n  const sector = SECTOR_MAP[ticker] || 'Other';\n  const volDescription = volRatio >= 3.0 ? 'EXTREME' : volRatio >= 2.0 ? 'HEAVY' : volRatio >= 1.5 ? 'ELEVATED' : volRatio >= 1.0 ? 'AVERAGE' : 'LIGHT';\n  const priceAction = changePct < -2 ? 'sharp selloff' : changePct < -1 ? 'steady decline' : changePct < -0.5 ? 'mild weakness' : changePct > 2 ? 'strong rally' : changePct > 1 ? 'steady advance' : changePct > 0.5 ? 'mild strength' : 'flat';\n\n  const aiView = signalType + ' on ' + ticker + ' (' + sector + '). '\n    + 'Price ' + (changePct > 0 ? '+' : '') + changePct.toFixed(1) + '% from prev close ($' + prevClose.toFixed(2) + ' \u2192 $' + price.toFixed(2) + ') \u2014 ' + priceAction + '. '\n    + volDescription + ' volume at ' + volRatio.toFixed(1) + 'x avg. '\n    + 'Market: SPY ' + (spyChange > 0 ? '+' : '') + spyChange.toFixed(1) + '% (' + marketBias + '), QQQ ' + (qqqChange > 0 ? '+' : '') + qqqChange.toFixed(1) + '%. '\n    + 'R:R=' + rr + ' | Stop $' + stopP + ' | Target $' + targP;\n\n  // Update simulation state\n  simPositions++;\n  simExposure += EST_POSITION_SIZE;\n  simMargin += EST_POSITION_SIZE * 0.25;\n  newEntriesThisCycle++;\n\n  state.signalsSent[ticker] = { signal, price, time: now.toISOString() };\n  console.log('[SIGNAL ' + newEntriesThisCycle + '/' + MAX_NEW_ENTRIES_PER_CYCLE + '] ' + ticker + ' ' + signal + ' @ $' + price.toFixed(2) + ' | ' + reason + ' | RelVol=' + volRatio.toFixed(1) + 'x | Dev=' + deviationPct.toFixed(1) + '% | SimPos=' + simPositions + ' SimExp=$' + (simExposure/1000).toFixed(0) + 'K');\n\n  signalsFound++;\n  signals.push({ json: {\n    _secret: _WEBHOOK_SECRET,\n    ticker, price: price.toFixed(2), execution: signal,\n    signal: signal === 'SELL' ? 'BEARISH' : 'BULLISH',\n    bias_score: conf.toString(), score: conf.toString(), raw_score: conf.toString(), composite_score: conf.toString(), ai_super_score: conf.toString(), regime: Math.abs(changePct) > 2 ? 'TRENDING' : 'NEUTRAL',\n    adx: 'N/A', rsi: 'N/A', macd_hist: 'N/A', atr: atr.toFixed(2),\n    volume_ratio: volRatio.toFixed(2), vix: vix.toString(), timeframe: '5',\n    alert_type: 'BROAD_SCANNER',\n    spy_price: (spySnap?.latestTrade?.p || 0).toFixed(2),\n    spy_change_pct: spyChange.toFixed(2),\n    spy_status: spyChange < -0.5 ? 'WEAK' : spyChange > 0.5 ? 'HEALTHY' : 'NEUTRAL',\n    qqq_price: '', qqq_change_pct: qqqChange.toFixed(2),\n    qqq_status: qqqChange < -0.5 ? 'WEAK' : 'NEUTRAL',\n    xly_status: 'N/A', cross_asset_status: spyChange < -1 ? 'WEAKENING' : 'NEUTRAL',\n    tv_recommendation: 'N/A', sma50: 'N/A', ema200: 'N/A', sma200: 'N/A',\n    bb_upper: 'N/A', bb_lower: 'N/A', stoch_k: 'N/A', stoch_d: 'N/A',\n    cci: 'N/A', momentum: 'N/A', pivot_classic: 'N/A', psar: 'N/A',\n    daily_trend: changePct < -1 ? 'BEAR' : changePct > 1 ? 'BULL' : 'MIXED',\n    bull_score: signal === 'BUY' ? conf.toString() : '0',\n    bear_score: signal === 'SELL' ? conf.toString() : '0',\n    comment: 'BROAD SCANNER v3.1: ' + aiView,\n    ...stratFields(ticker),\n    daily_dd_pct: '0', daily_dd_halt: 'false', weekly_dd_pct: '0',\n    vix_size_mult: vixSize, eff_position_size: '5', vix_stop_mult: vixSM.toString(),\n    momentum_engine: 'true', momentum_type: 'broad_scanner',\n    gap_pct: changePct.toFixed(2), momentum_rr: rr\n  }});\n}\n\nconsole.log('Scanner run at ' + scanTime + ' \u2013 tickers scanned: ' + tickersScanned + ' \u2013 signals found: ' + signalsFound);\nif (momentumPassedButDeduped.length > 0) {\n  console.log('Momentum passed but DEDUPED: ' + momentumPassedButDeduped.join(', '));\n}\nconsole.log('[DONE] v3.2 | ' + tickers.length + ' tickers | ' + signals.length + ' signals (max ' + MAX_NEW_ENTRIES_PER_CYCLE + '/cycle) | Filtered: ' + filteredVolume + ' low-vol, ' + filteredDeviation + ' extended | Scan #' + state.scanCount);\nreturn signals;\n"
+        },
+        "name": "Scan All Tickers",
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "position": [
+          368,
+          0
+        ],
+        "id": "f60a8e82-8f2c-4bd4-9d04-e4e5a7b959b4",
+        "alwaysOutputData": false,
+        "notes": "\n\nPATCH 2026-04-30: Rotating batch processing for Databricks Quantum Watchlist to avoid n8n 60s Code-node timeout. Batch size=125; no order/risk logic changed."
+      },
+      {
+        "parameters": {
+          "method": "POST",
+          "url": "=https://tradenextgen.app.n8n.cloud/webhook/tradingview-signal?_secret=<REDACTED_SECRET>",
+          "sendHeaders": true,
+          "headerParameters": {
+            "parameters": [
+              {
+                "name": "x-webhook-secret",
+                "value": "<REDACTED_SECRET>"
+              }
+            ]
+          },
+          "sendBody": true,
+          "contentType": "raw",
+          "rawContentType": "application/json",
+          "body": "={{ JSON.stringify(Object.assign({}, $json || {}, {_secret: '<REDACTED_SECRET>'})) }}",
+          "options": {
+            "batching": {
+              "batch": {
+                "batchSize": 1,
+                "batchInterval": 2000
+              }
+            }
+          }
+        },
+        "name": "Push to Pipeline",
+        "type": "n8n-nodes-base.httpRequest",
+        "typeVersion": 4.2,
+        "position": [
+          592,
+          0
+        ],
+        "id": "9352e656-f0d8-48f5-a2ef-2d8d95d25b82"
+      },
+      {
+        "parameters": {
+          "content": "## Broad Scanner (Real-Time Agent)\n\nLoads 100+ tickers from Google Sheet:\nhttps://docs.google.com/spreadsheets/d/1gMSYFW6ZsJpIkyXQQZOxczfr1ryLC3pb1TI3C_-2v-E\n\nRuns every 5 min during market hours (9:45-3:45 ET).\nBatches Alpaca snapshots in groups of 100.\nMax 1 signal per ticker per day.\nPushes to AI Super Score pipeline via webhook.\n\nSignal types:\n- MOMENTUM SHORT: -1%+ with volume\n- MOMENTUM LONG: +1%+ with volume (VIX<30)\n- STRUCTURE BREAK: 1.8x+ volume with -0.8%+"
+        },
+        "name": "Scanner Notes",
+        "type": "n8n-nodes-base.stickyNote",
+        "typeVersion": 1,
+        "position": [
+          -208,
+          -208
+        ],
+        "id": "0011a857-2dcd-43ce-ae66-be57f649bcfa"
+      },
+      {
+        "parameters": {
+          "mode": "runOnceForAllItems",
+          "jsCode": "\n// QTP Supabase Broad Scanner watchlist formatter v4.2.1\n// Output shape mirrors old Google Sheets/Databricks watchlist rows.\nconst rows = $input.all().map(i => i.json || {});\nif (!rows.length) {\n  throw new Error('Supabase quantum_watchlist_raw returned 0 tickers; refusing to fall back silently');\n}\nreturn rows.map(r => {\n  const ticker = String(r.ticker || '').toUpperCase().trim();\n  return {\n    json: {\n      A: ticker,\n      Ticker: ticker,\n      ticker,\n      symbol: ticker,\n      __source: 'supabase.quantum_watchlist_raw',\n      _migration_version: 'QTP_SUPABASE_BROAD_SCANNER_v4.2.1'\n    }\n  };\n});\n"
+        },
+        "name": "Load Tickers",
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "position": [
+          144,
+          -128
+        ],
+        "id": "3a0d8086-9776-4acb-995c-228d212f784d"
+      },
+      {
+        "parameters": {
+          "jsCode": "const state = $getWorkflowStaticData('global');\nstate._credentials = state._credentials || {};\nstate._credentials.webhook_secret = '876a59793c91a728aa6991b72ccc9b7bb872c17d9cda29459d3d3b8c87b3bf7c';\nreturn [{ json: { set: true, len: state._credentials.webhook_secret.length }}];"
+        },
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "position": [
+          144,
+          144
+        ],
+        "id": "1dbda107-4fbb-4024-be91-3db6071f6f92",
+        "name": "Code in JavaScript"
+      },
+      {
+        "parameters": {
+          "jsCode": "const creds = $getWorkflowStaticData('global')._credentials || {};\nreturn [{ json: {\n  has_webhook_secret: !!creds.webhook_secret,\n  length: (creds.webhook_secret || '').length,\n  prefix: (creds.webhook_secret || '').slice(0, 8)\n}}];"
+        },
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "position": [
+          1040,
+          -160
+        ],
+        "id": "eb441cf9-61a5-4065-bc71-95447aab8513",
+        "name": "Code in JavaScript1"
+      },
+      {
+        "parameters": {
+          "mode": "runOnceForAllItems",
+          "jsCode": "\n// QTP Supabase Broad Scanner strat_cache formatter v4.2.1\n// Output shape mirrors the old Databricks/GSheets strat cache rows.\nconst rows = $input.all().map(i => i.json || {});\nif (!rows.length) {\n  throw new Error('Supabase quantum_strat_cache_raw returned 0 rows; refusing to provide stale empty cache');\n}\nreturn rows.map(r => {\n  let payload = {};\n  try {\n    payload = typeof r.raw_payload_json === 'string' && r.raw_payload_json ? JSON.parse(r.raw_payload_json) : {};\n  } catch (_) {\n    payload = {};\n  }\n  const ticker = String(r.ticker || payload.ticker || payload.symbol || '').toUpperCase();\n  return {\n    json: {\n      ...payload,\n      ticker,\n      symbol: ticker,\n      asof_utc: payload.asof_utc || r.asof_utc || r.migrated_at,\n      status: payload.status || r.status || 'OK',\n      __source: 'supabase.quantum_strat_cache_raw',\n      _migration_version: 'QTP_SUPABASE_BROAD_SCANNER_v4.2.1'\n    }\n  };\n});\n"
+        },
+        "id": "fa1a54d7-1016-453f-942c-4f2cb36abffe",
+        "name": "Read strat_cache",
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "position": [
+          -176,
+          256
+        ]
+      },
+      {
+        "parameters": {
+          "jsCode": "// Collapse: return single empty item so downstream runs once.\n// Scan All Tickers reads cache via $('Read strat_cache').all()\nreturn [{ json: { _cache_rows: $('Read strat_cache').all().length } }];"
+        },
+        "id": "0f14139a-cd1a-4d8f-a954-406186926336",
+        "name": "Collapse Cache",
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "position": [
+          368,
+          208
+        ]
+      },
+      {
+        "parameters": {
+          "mode": "runOnceForAllItems",
+          "jsCode": "\n// QTP Supabase Broad Scanner strat_cache query v4.2.1\nreturn [{\n  json: {\n    __supabase_query: `\n      SELECT\n        UPPER(TRIM(COALESCE(symbol, ticker))) AS ticker,\n        raw_payload_json,\n        asof_utc::text AS asof_utc,\n        migrated_at::text AS migrated_at,\n        status\n      FROM quantum.quantum_strat_cache_raw\n      WHERE COALESCE(symbol, ticker) IS NOT NULL\n        AND TRIM(COALESCE(symbol, ticker)) <> ''\n    `,\n    _migration_version: 'QTP_SUPABASE_BROAD_SCANNER_v4.2.1'\n  }\n}];\n"
+        },
+        "id": "df1e8204-1712-477d-b239-cec166cf6862",
+        "name": "Prepare Supabase Strat Cache Query",
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "position": [
+          -736,
+          256
+        ]
+      },
+      {
+        "parameters": {
+          "operation": "executeQuery",
+          "query": "={{$json.__supabase_query}}",
+          "options": {}
+        },
+        "id": "686e4068-4ab4-4e65-8ae5-349dbc24a02a",
+        "name": "Query Supabase Strat Cache",
+        "type": "n8n-nodes-base.postgres",
+        "typeVersion": 2.6,
+        "position": [
+          -456,
+          256
+        ],
+        "credentials": {
+          "postgres": {
+            "id": "<N8N_CREDENTIAL_ID_REDACTED>",
+            "name": "Postgres account"
+          }
+        }
+      },
+      {
+        "parameters": {
+          "mode": "runOnceForAllItems",
+          "jsCode": "\n// QTP Supabase Broad Scanner watchlist query v4.2.1\nreturn [{\n  json: {\n    __supabase_query: `\n      SELECT DISTINCT UPPER(TRIM(COALESCE(symbol, ticker))) AS ticker\n      FROM quantum.quantum_watchlist_raw\n      WHERE COALESCE(symbol, ticker) IS NOT NULL\n        AND TRIM(COALESCE(symbol, ticker)) <> ''\n      ORDER BY ticker\n    `,\n    _migration_version: 'QTP_SUPABASE_BROAD_SCANNER_v4.2.1'\n  }\n}];\n"
+        },
+        "id": "1be27673-328a-4b8e-b2d3-15b9fe7f819f",
+        "name": "Prepare Supabase Watchlist Query",
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "position": [
+          -416,
+          -128
+        ]
+      },
+      {
+        "parameters": {
+          "operation": "executeQuery",
+          "query": "={{$json.__supabase_query}}",
+          "options": {}
+        },
+        "id": "d17f2930-9616-4d22-ae9f-ad5654334ba9",
+        "name": "Query Supabase Watchlist",
+        "type": "n8n-nodes-base.postgres",
+        "typeVersion": 2.6,
+        "position": [
+          -136,
+          -128
+        ],
+        "credentials": {
+          "postgres": {
+            "id": "<N8N_CREDENTIAL_ID_REDACTED>",
+            "name": "Postgres account"
+          }
+        }
+      },
+      {
+        "parameters": {
+          "jsCode": "// QTP TEST_FIRST_CANDIDATE \u2014 FULLY SELF-CONTAINED SHADOW ONLY\n// Deterministic synthetic OHLCV smoke test. No local imports, no external HTTP, no credentials.\n// No Alpaca. No Telegram. No Supabase production writes. Manual/test execution only.\n\nconst MODULES = ['super_score_pro_v25', 'ensemble_engine_v1', 'webhook_bridge_v8', 'quantum_scalp_v5'];\n\nfunction sma(values, period) {\n  if (values.length < period) return null;\n  const slice = values.slice(-period);\n  return slice.reduce((a, b) => a + b, 0) / period;\n}\nfunction ema(values, period) {\n  if (values.length < period) return null;\n  const k = 2 / (period + 1);\n  let e = values.slice(0, period).reduce((a, b) => a + b, 0) / period;\n  for (let i = period; i < values.length; i++) e = values[i] * k + e * (1 - k);\n  return e;\n}\nfunction rsi(values, period = 14) {\n  if (values.length < period + 1) return null;\n  let gains = 0, losses = 0;\n  for (let i = 1; i <= period; i++) {\n    const d = values[i] - values[i - 1];\n    if (d > 0) gains += d; else losses -= d;\n  }\n  let ag = gains / period, al = losses / period;\n  for (let i = period + 1; i < values.length; i++) {\n    const d = values[i] - values[i - 1];\n    ag = (ag * (period - 1) + (d > 0 ? d : 0)) / period;\n    al = (al * (period - 1) + (d < 0 ? -d : 0)) / period;\n  }\n  return al === 0 ? 100 : 100 - 100 / (1 + ag / al);\n}\nfunction macdHist(values) {\n  if (values.length < 40) return null;\n  const macdSeries = [];\n  for (let i = 26; i <= values.length; i++) {\n    const sub = values.slice(0, i);\n    const e12 = ema(sub, 12), e26 = ema(sub, 26);\n    if (e12 != null && e26 != null) macdSeries.push(e12 - e26);\n  }\n  const sig = ema(macdSeries, 9);\n  return sig == null ? null : macdSeries[macdSeries.length - 1] - sig;\n}\nfunction clamp(x, lo, hi) { return Math.max(lo, Math.min(hi, x)); }\nfunction exchangeFor(ticker) {\n  const nasdaq = new Set(['AAPL','MSFT','NVDA','AMZN','META','GOOGL','GOOG','TSLA','AVGO','COST','NFLX','AMD','ADBE','PEP','CSCO','TMUS','INTU','QCOM','AMAT','TXN','ISRG','BKNG','VRTX','PANW','MU','LRCX','ADI','KLAC','MELI','CRWD','CDNS','SNPS','MRVL','ORLY','MAR','ABNB','PYPL','FTNT','REGN','ASML','NTNX','OLED','NDAQ']);\n  return nasdaq.has(String(ticker).toUpperCase()) ? 'NASDAQ' : 'NYSE';\n}\nfunction chartUrl(ticker, exchange) {\n  return `https://www.tradingview.com/chart/00rMdbml/?symbol=${exchange}%3A${String(ticker).toUpperCase()}`;\n}\nfunction syntheticRows(ticker, n = 260) {\n  const rows = [];\n  const seed = String(ticker).split('').reduce((a, c) => a + c.charCodeAt(0), 0);\n  const start = Date.now() - n * 5 * 60 * 1000;\n  for (let i = 0; i < n; i++) {\n    const base = 300 + Math.sin((i + seed) / 11) * 1.9 + i * 0.004;\n    const wave = Math.sin((i + seed) / 5) * 0.08;\n    const open = base - wave;\n    const close = base + wave;\n    rows.push({\n      t: start + i * 5 * 60 * 1000,\n      o: open,\n      h: Math.max(open, close) + 0.22,\n      l: Math.min(open, close) - 0.22,\n      c: close,\n      v: 100000 + ((i * 997 + seed) % 55000),\n    });\n  }\n  return rows;\n}\n\nconst out = [];\nfor (const item of items) {\n  const src = item.json || {};\n  const ticker = String(src.ticker || src.symbol || 'AAPL').toUpperCase().trim();\n  const exchange = exchangeFor(ticker);\n  const startedAt = new Date().toISOString();\n  const rows = syntheticRows(ticker, 260);\n  const closes = rows.map(r => Number(r.c));\n  const volumes = rows.map(r => Number(r.v));\n  const price = closes[closes.length - 1];\n  const sma50 = sma(closes, 50);\n  const ema200 = ema(closes, 200);\n  const curRsi = rsi(closes, 14);\n  const hist = macdHist(closes);\n  const avgVol20 = volumes.slice(-21, -1).reduce((a, b) => a + b, 0) / 20;\n  const volumeRatio = avgVol20 > 0 ? volumes[volumes.length - 1] / avgVol20 : 0;\n\n  let bull = 0, bear = 0;\n  if (sma50 != null && price > sma50) bull += 18; else bear += 12;\n  if (ema200 != null && price > ema200) bull += 18; else bear += 12;\n  if (hist != null && hist > 0) bull += 15; else if (hist != null) bear += 15;\n  if (curRsi != null && curRsi >= 45 && curRsi <= 68) bull += 12;\n  if (curRsi != null && curRsi >= 32 && curRsi <= 55) bear += 8;\n  if (volumeRatio > 1.25) { bull += 10; bear += 8; }\n  bull = clamp(bull, 0, 100);\n  bear = clamp(bear, 0, 100);\n  const execution = bull >= 68 && bull >= bear + 8 ? 'BUY' : (bear >= 68 && bear >= bull + 8 ? 'SELL' : 'STAND ASIDE');\n\n  const modulePayloads = {};\n  for (const module of MODULES) {\n    modulePayloads[module] = {\n      rows: rows.length,\n      payload: {\n        ticker, exchange, timeframe: '5', signal_source: module,\n        chart_image_url: chartUrl(ticker, exchange), chart_vision_enabled: false,\n        execution, signal: execution, price,\n        bias_score: Math.max(bull, bear), bull_score: bull, bear_score: bear,\n        rsi: curRsi, macd_hist: hist, sma50, ema200, volume_ratio: volumeRatio,\n        shadow_payload_note: 'FULLY_SELF_CONTAINED_SYNTHETIC_N8N_SMOKE_TEST',\n      },\n    };\n  }\n\n  const result = {\n    ok: true,\n    ticker,\n    mode: 'SHADOW_ONLY_NO_ROUTING',\n    signal_source: 'server_side',\n    scanner_execution: execution,\n    shadow_parity_enabled: true,\n    shadow_parity_mode: 'SHADOW_ONLY_NO_ROUTING',\n    shadow_modules: MODULES,\n    chart_image_url: chartUrl(ticker, exchange),\n    chart_vision_enabled: false,\n    order_intent: 'NONE',\n    alpaca_side_effects: 'ZERO',\n    telegram_side_effects: 'ZERO',\n    supabase_production_writes: 'ZERO',\n    validation_kind: 'FULLY_SELF_CONTAINED_SYNTHETIC_N8N_SMOKE_TEST',\n    data_source: 'DETERMINISTIC_SYNTHETIC_OHLCV_NO_EXTERNAL_CALLS',\n    started_at: startedAt,\n    completed_at: new Date().toISOString(),\n    row_count: rows.length,\n    module_row_counts: Object.fromEntries(MODULES.map(m => [m, rows.length])),\n    shadow_parity: {\n      enabled: true,\n      mode: 'SHADOW_ONLY_NO_ROUTING',\n      version: 'QTP_SELF_CONTAINED_N8N_SHADOW_SMOKE_v5.5_SYNTHETIC',\n      modules: modulePayloads,\n    },\n  };\n\n  if (result.mode !== 'SHADOW_ONLY_NO_ROUTING') throw new Error('SAFETY_FAIL: mode');\n  if (result.shadow_parity_enabled !== true) throw new Error('SAFETY_FAIL: shadow_parity_enabled');\n  if (result.shadow_parity_mode !== 'SHADOW_ONLY_NO_ROUTING') throw new Error('SAFETY_FAIL: shadow_parity_mode');\n  if (new Set(result.shadow_modules).size !== MODULES.length) throw new Error('SAFETY_FAIL: modules');\n  if (result.order_intent !== 'NONE') throw new Error('SAFETY_FAIL: order_intent');\n  if (result.alpaca_side_effects !== 'ZERO') throw new Error('SAFETY_FAIL: alpaca_side_effects');\n  if (result.telegram_side_effects !== 'ZERO') throw new Error('SAFETY_FAIL: telegram_side_effects');\n  if (result.supabase_production_writes !== 'ZERO') throw new Error('SAFETY_FAIL: supabase_production_writes');\n\n  out.push({ json: result });\n}\nreturn out;",
+          "mode": "runOnceForAllItems"
+        },
+        "id": "qtp-test-first-candidate-shadow-parity",
+        "name": "TEST_FIRST_CANDIDATE \u2014 SHADOW_ONLY_NO_ROUTING",
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "position": [
+          1040,
+          260
+        ],
+        "notesInFlow": true,
+        "notes": "Fully self-contained synthetic TEST_FIRST_CANDIDATE shadow-only node. Intentionally unconnected. No imports, no credentials, no HTTP, no Alpaca, no Telegram, no Supabase production writes."
+      }
+    ],
+    "connections": {
+      "Every 5 Minutes": {
+        "main": [
+          [
+            {
+              "node": "Prepare Supabase Strat Cache Query",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Load Tickers": {
+        "main": [
+          [
+            {
+              "node": "Scan All Tickers",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Scan All Tickers": {
+        "main": [
+          [
+            {
+              "node": "Push to Pipeline",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Read strat_cache": {
+        "main": [
+          [
+            {
+              "node": "Collapse Cache",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Collapse Cache": {
+        "main": [
+          [
+            {
+              "node": "Prepare Supabase Watchlist Query",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Prepare Supabase Strat Cache Query": {
+        "main": [
+          [
+            {
+              "node": "Query Supabase Strat Cache",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Query Supabase Strat Cache": {
+        "main": [
+          [
+            {
+              "node": "Read strat_cache",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Prepare Supabase Watchlist Query": {
+        "main": [
+          [
+            {
+              "node": "Query Supabase Watchlist",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Query Supabase Watchlist": {
+        "main": [
+          [
+            {
+              "node": "Load Tickers",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      }
+    },
+    "authors": "Santosh Adari",
+    "name": null,
+    "description": null,
+    "autosaved": false,
+    "workflowPublishHistory": [
+      {
+        "createdAt": "2026-05-16T21:21:35.312Z",
+        "id": 2366,
+        "workflowId": "975pZZEtxeUbzI22",
+        "versionId": "7016d760-fb1f-40e1-a357-3ea1777bf31e",
+        "event": "activated",
+        "userId": "1d4c2d1c-381a-43b8-ba2e-c190e38191a7"
+      },
+      {
+        "createdAt": "2026-05-16T21:21:35.224Z",
+        "id": 2365,
+        "workflowId": "975pZZEtxeUbzI22",
+        "versionId": "7016d760-fb1f-40e1-a357-3ea1777bf31e",
+        "event": "deactivated",
+        "userId": "1d4c2d1c-381a-43b8-ba2e-c190e38191a7"
+      }
+    ]
+  }
+}
