@@ -1,0 +1,506 @@
+//@version=5
+indicator("AI Super Score Pro v2.5 Universal", overlay=true, max_labels_count=60, max_lines_count=120, max_boxes_count=80)
+
+//==================== INPUTS ====================//
+profileMode = input.string("Balanced", "Universal Profile", options=["Aggressive", "Balanced", "Conservative"])
+
+showArrows = input.bool(true, "Show Buy/Sell Arrows")
+showHeatmap = input.bool(true, "Show Tuning Dashboard")
+showEMA = input.bool(true, "Show EMAs")
+showVWAP = input.bool(true, "Show VWAP")
+showSweepLabels = input.bool(true, "Show Latest Sweep Labels Only")
+showBarColors = input.bool(true, "Color Bars")
+showFVG = input.bool(true, "Show Latest Fair Value Gaps")
+showLiquidity = input.bool(true, "Show Liquidity Pools")
+showOrderBlocks = input.bool(true, "Show Latest Order Blocks")
+showOnlyAGrade = input.bool(false, "Show Only A Grade Signals")
+requireExecutionForAlerts = input.bool(true, "Alerts Only When Execution Active")
+useVIXFilter = input.bool(true, "Use VIX Filter")
+useSessionFilter = input.bool(false, "Use Session Filter")
+sessionInput = input.session("0935-1130", "Primary Session")
+sessionInput2 = input.session("1330-1530", "Secondary Session")
+
+lenEMA9 = input.int(9, "EMA 9")
+lenEMA21 = input.int(21, "EMA 21")
+lenEMA50 = input.int(50, "EMA 50")
+lenSMA200 = input.int(200, "SMA 200")
+lenRSI = input.int(14, "RSI Length")
+lenATR = input.int(14, "ATR Length")
+lenROC = input.int(14, "ROC Length")
+lenVol = input.int(20, "Volume Avg Length")
+lenSweep = input.int(12, "Liquidity Sweep Lookback")
+lenChop = input.int(14, "Chop/ADX Length")
+lenBB = input.int(20, "Bollinger Length")
+bbMult = input.float(2.0, "Bollinger Mult", step=0.1)
+eqhToleranceATR = input.float(0.10, "Equal High/Low Tolerance ATR", step=0.01)
+obAtrMult = input.float(0.80, "Order Block ATR Buffer", step=0.1)
+fvgMinAtr = input.float(0.20, "Min FVG Size ATR", step=0.05)
+sweepFreshBars = input.int(20, "Fresh Sweep Window", minval=1)
+
+vixFilterBase = input.float(26.0, "Base VIX Filter", step=0.1)
+
+//==================== PROFILE ADAPTATION ====================//
+minScore = profileMode == "Aggressive" ? 68.0 : profileMode == "Balanced" ? 72.0 : 76.0
+strongBuyLevel = profileMode == "Aggressive" ? 78.0 : profileMode == "Balanced" ? 82.0 : 86.0
+eliteBuyLevel = profileMode == "Aggressive" ? 88.0 : profileMode == "Balanced" ? 90.0 : 92.0
+strongSellLevel = profileMode == "Aggressive" ? 22.0 : profileMode == "Balanced" ? 18.0 : 14.0
+eliteSellLevel = profileMode == "Aggressive" ? 12.0 : profileMode == "Balanced" ? 10.0 : 8.0
+
+penaltyVeryLowVolBase = profileMode == "Aggressive" ? 8.0 : profileMode == "Balanced" ? 10.0 : 12.0
+penaltyLowVolBase = profileMode == "Aggressive" ? 5.0 : profileMode == "Balanced" ? 7.0 : 9.0
+penaltyNeutralRegimeBase = profileMode == "Aggressive" ? 4.0 : profileMode == "Balanced" ? 6.0 : 8.0
+penaltyOpposingOBBase = profileMode == "Aggressive" ? 6.0 : profileMode == "Balanced" ? 8.0 : 10.0
+penaltyElevatedVIXBase = profileMode == "Aggressive" ? 2.0 : profileMode == "Balanced" ? 4.0 : 6.0
+penaltyBelowVWAPLongBase = profileMode == "Aggressive" ? 3.0 : profileMode == "Balanced" ? 5.0 : 7.0
+penaltyAboveVWAPShortBase = profileMode == "Aggressive" ? 3.0 : profileMode == "Balanced" ? 5.0 : 7.0
+penaltyNoLocationBase = profileMode == "Aggressive" ? 4.0 : profileMode == "Balanced" ? 6.0 : 8.0
+
+//==================== SESSION FILTER ====================//
+inSession1 = not na(time(timeframe.period, sessionInput))
+inSession2 = not na(time(timeframe.period, sessionInput2))
+sessionAllowed = not useSessionFilter or inSession1 or inSession2
+
+//==================== CORE SERIES ====================//
+ema9 = ta.ema(close, lenEMA9)
+ema21 = ta.ema(close, lenEMA21)
+ema50 = ta.ema(close, lenEMA50)
+sma200 = ta.sma(close, lenSMA200)
+atr = ta.atr(lenATR)
+rsiVal = ta.rsi(close, lenRSI)
+rocVal = ta.roc(close, lenROC)
+vwapVal = ta.vwap(hlc3)
+
+basis = ta.sma(close, lenBB)
+dev = ta.stdev(close, lenBB)
+bbUpper = basis + dev * bbMult
+bbLower = basis - dev * bbMult
+bbWidth = close != 0 ? (bbUpper - bbLower) / close : 0.0
+
+volAvg = ta.sma(volume, lenVol)
+relVol = volAvg > 0 ? volume / volAvg : 1.0
+
+macdLine = ta.ema(close, 12) - ta.ema(close, 26)
+signalLine = ta.ema(macdLine, 9)
+macdHist = macdLine - signalLine
+
+rangePct = close != 0 ? atr / close : 0.0
+
+//==================== ADAPTIVE NORMALIZATION ====================//
+adaptiveLowVolThreshold = rangePct > 0.01 ? 0.85 : 0.95
+adaptiveVeryLowVolThreshold = rangePct > 0.01 ? 0.60 : 0.75
+adaptiveVixFilter = vixFilterBase
+
+//==================== MARKET FILTERS ====================//
+vix = request.security("CBOE:VIX", timeframe.period, close)
+tradeAllowed = (not useVIXFilter or na(vix) or vix < adaptiveVixFilter) and sessionAllowed
+
+qqqClose = request.security("NASDAQ:QQQ", timeframe.period, close)
+spyClose = request.security("AMEX:SPY", timeframe.period, close)
+qqqEma21 = request.security("NASDAQ:QQQ", timeframe.period, ta.ema(close, 21))
+spyEma21 = request.security("AMEX:SPY", timeframe.period, ta.ema(close, 21))
+
+qqqBiasBull = qqqClose > qqqEma21
+spyBiasBull = spyClose > spyEma21
+qqqBiasBear = qqqClose < qqqEma21
+spyBiasBear = spyClose < spyEma21
+
+//==================== REGIME DETECTION ====================//
+upMove = high - high[1]
+downMove = low[1] - low
+plusDM = (upMove > downMove and upMove > 0) ? upMove : 0.0
+minusDM = (downMove > upMove and downMove > 0) ? downMove : 0.0
+
+trVal = ta.tr(true)
+trur = ta.rma(trVal, lenChop)
+plusDMRma = ta.rma(plusDM, lenChop)
+minusDMRma = ta.rma(minusDM, lenChop)
+
+plusDI = trur != 0 ? 100 * plusDMRma / trur : 0
+minusDI = trur != 0 ? 100 * minusDMRma / trur : 0
+dx = (plusDI + minusDI) != 0 ? 100 * math.abs(plusDI - minusDI) / (plusDI + minusDI) : 0
+adx = ta.rma(dx, lenChop)
+
+sumTR = ta.sma(trVal, lenChop) * lenChop
+hh = ta.highest(high, lenChop)
+ll = ta.lowest(low, lenChop)
+chop = (hh - ll) != 0 ? 100 * math.log10(sumTR / (hh - ll)) / math.log10(lenChop) : 50
+
+isTrending = adx > 20 and chop < 55
+isChoppy = chop > 61 and adx < 18
+isBullTrend = isTrending and ema9 > ema21 and ema21 > ema50 and close > vwapVal
+isBearTrend = isTrending and ema9 < ema21 and ema21 < ema50 and close < vwapVal
+regimeScore = isBullTrend ? 12 : isBearTrend ? -12 : isChoppy ? -6 : 0
+
+//==================== LIQUIDITY SWEEPS ====================//
+prevHigh = ta.highest(high[1], lenSweep)
+prevLow = ta.lowest(low[1], lenSweep)
+
+liqSweepBull = low < prevLow and close > prevLow and relVol > 1.05
+liqSweepBear = high > prevHigh and close < prevHigh and relVol > 1.05
+
+bullSweepScore = liqSweepBull ? 18 : 0
+bearSweepScore = liqSweepBear ? -18 : 0
+
+barsSinceBullSweep = ta.barssince(liqSweepBull)
+barsSinceBearSweep = ta.barssince(liqSweepBear)
+newBullSweep = liqSweepBull and (na(barsSinceBullSweep[1]) or barsSinceBullSweep[1] > 0)
+newBearSweep = liqSweepBear and (na(barsSinceBearSweep[1]) or barsSinceBearSweep[1] > 0)
+
+if showSweepLabels and newBullSweep
+    label.new(bar_index, low, "Bull Sweep", style=label.style_label_up, color=color.new(color.green, 0), textcolor=color.white, size=size.tiny)
+
+if showSweepLabels and newBearSweep
+    label.new(bar_index, high, "Bear Sweep", style=label.style_label_down, color=color.new(color.red, 0), textcolor=color.white, size=size.tiny)
+
+//==================== LIQUIDITY POOLS ====================//
+eqTol = atr * eqhToleranceATR
+equalHighs = math.abs(high - high[1]) <= eqTol and high >= high[1]
+equalLows = math.abs(low - low[1]) <= eqTol and low <= low[1]
+
+var float bslLevel = na
+var float sslLevel = na
+
+if equalHighs
+    bslLevel := math.max(high, high[1])
+
+if equalLows
+    sslLevel := math.min(low, low[1])
+
+bslSwept = not na(bslLevel) and high > bslLevel and close < bslLevel
+sslSwept = not na(sslLevel) and low < sslLevel and close > sslLevel
+
+plot(showLiquidity ? bslLevel : na, "BSL", color=color.new(color.red, 80), linewidth=1, style=plot.style_linebr)
+plot(showLiquidity ? sslLevel : na, "SSL", color=color.new(color.green, 80), linewidth=1, style=plot.style_linebr)
+
+//==================== FAIR VALUE GAPS ====================//
+bullFVG = bar_index >= 2 and low > high[2] and (low - high[2]) >= atr * fvgMinAtr
+bearFVG = bar_index >= 2 and high < low[2] and (low[2] - high) >= atr * fvgMinAtr
+
+var float bullFvgTop = na
+var float bullFvgBot = na
+var float bearFvgTop = na
+var float bearFvgBot = na
+
+if bullFVG
+    bullFvgTop := low
+    bullFvgBot := high[2]
+
+if bearFVG
+    bearFvgTop := low[2]
+    bearFvgBot := high
+
+bullFvgInvalid = not na(bullFvgBot) and close < bullFvgBot
+bearFvgInvalid = not na(bearFvgTop) and close > bearFvgTop
+
+if bullFvgInvalid
+    bullFvgTop := na
+    bullFvgBot := na
+
+if bearFvgInvalid
+    bearFvgTop := na
+    bearFvgBot := na
+
+inBullFVG = not na(bullFvgTop) and not na(bullFvgBot) and close <= bullFvgTop and close >= bullFvgBot
+inBearFVG = not na(bearFvgTop) and not na(bearFvgBot) and close <= bearFvgTop and close >= bearFvgBot
+
+plot(showFVG ? bullFvgTop : na, "Bull FVG Top", color=color.new(color.lime, 74), linewidth=2, style=plot.style_linebr)
+plot(showFVG ? bullFvgBot : na, "Bull FVG Bot", color=color.new(color.lime, 74), linewidth=2, style=plot.style_linebr)
+plot(showFVG ? bearFvgTop : na, "Bear FVG Top", color=color.new(color.red, 74), linewidth=2, style=plot.style_linebr)
+plot(showFVG ? bearFvgBot : na, "Bear FVG Bot", color=color.new(color.red, 74), linewidth=2, style=plot.style_linebr)
+
+//==================== ORDER BLOCKS ====================//
+bullDisplacement = close > open and (close - open) > atr * 0.8 and close > high[1]
+bearDisplacement = close < open and (open - close) > atr * 0.8 and close < low[1]
+
+var float bullObHigh = na
+var float bullObLow = na
+var float bearObHigh = na
+var float bearObLow = na
+
+bearishPrevCandle = close[1] < open[1]
+bullishPrevCandle = close[1] > open[1]
+
+if bullDisplacement and bearishPrevCandle
+    bullObHigh := open[1]
+    bullObLow := low[1] - atr[1] * obAtrMult * 0.15
+
+if bearDisplacement and bullishPrevCandle
+    bearObLow := open[1]
+    bearObHigh := high[1] + atr[1] * obAtrMult * 0.15
+
+bullObInvalid = not na(bullObLow) and close < bullObLow
+bearObInvalid = not na(bearObHigh) and close > bearObHigh
+
+if bullObInvalid
+    bullObHigh := na
+    bullObLow := na
+
+if bearObInvalid
+    bearObHigh := na
+    bearObLow := na
+
+inBullOB = not na(bullObHigh) and not na(bullObLow) and close <= bullObHigh and close >= bullObLow
+inBearOB = not na(bearObHigh) and not na(bearObLow) and close >= bearObLow and close <= bearObHigh
+
+plot(showOrderBlocks ? bullObHigh : na, "Bull OB High", color=color.new(color.green, 62), linewidth=2, style=plot.style_linebr)
+plot(showOrderBlocks ? bullObLow : na, "Bull OB Low", color=color.new(color.green, 62), linewidth=2, style=plot.style_linebr)
+plot(showOrderBlocks ? bearObHigh : na, "Bear OB High", color=color.new(color.red, 62), linewidth=2, style=plot.style_linebr)
+plot(showOrderBlocks ? bearObLow : na, "Bear OB Low", color=color.new(color.red, 62), linewidth=2, style=plot.style_linebr)
+
+//==================== SMART MONEY FLOW ====================//
+rng = math.max(high - low, syminfo.mintick)
+buyPressure = ((close - low) / rng) * volume
+sellPressure = ((high - close) / rng) * volume
+buyPressureAvg = ta.sma(buyPressure, lenVol)
+sellPressureAvg = ta.sma(sellPressure, lenVol)
+
+smartBullFlow = buyPressure > buyPressureAvg * 1.35 and close > open and relVol > 1.15
+smartBearFlow = sellPressure > sellPressureAvg * 1.35 and close < open and relVol > 1.15
+
+smartMoneyScore = 0.0
+smartMoneyScore += smartBullFlow ? 10 : 0
+smartMoneyScore += bullDisplacement ? 8 : 0
+smartMoneyScore += inBullOB ? 8 : 0
+smartMoneyScore += inBullFVG ? 6 : 0
+smartMoneyScore += sslSwept ? 8 : 0
+smartMoneyScore += smartBearFlow ? -10 : 0
+smartMoneyScore += bearDisplacement ? -8 : 0
+smartMoneyScore += inBearOB ? -8 : 0
+smartMoneyScore += inBearFVG ? -6 : 0
+smartMoneyScore += bslSwept ? -8 : 0
+smartMoneyScore += bullSweepScore + bearSweepScore
+
+//==================== TREND / MOMENTUM / VOLUME ====================//
+trendScore = ema9 > ema21 and ema21 > ema50 and close > sma200 and close > vwapVal ? 25 : ema9 < ema21 and ema21 < ema50 and close < sma200 and close < vwapVal ? -25 : 0
+
+mtfScore = 0.0
+mtfScore += ema9 > ema21 ? 4 : 0
+mtfScore += close > ema50 ? 4 : 0
+mtfScore += close > sma200 ? 4 : 0
+mtfScore += qqqBiasBull ? 4 : 0
+mtfScore += spyBiasBull ? 4 : 0
+mtfScore += ema9 < ema21 ? -4 : 0
+mtfScore += close < ema50 ? -4 : 0
+mtfScore += close < sma200 ? -4 : 0
+mtfScore += qqqBiasBear ? -4 : 0
+mtfScore += spyBiasBear ? -4 : 0
+
+momBull = 0.0
+momBull += rsiVal > 52 and rsiVal > rsiVal[1] ? 7 : 0
+momBull += macdHist > 0 and macdHist > macdHist[1] ? 7 : 0
+momBull += rocVal > 0 and rocVal > rocVal[1] ? 5 : 0
+
+momBear = 0.0
+momBear += rsiVal < 48 and rsiVal < rsiVal[1] ? 7 : 0
+momBear += macdHist < 0 and macdHist < macdHist[1] ? 7 : 0
+momBear += rocVal < 0 and rocVal < rocVal[1] ? 5 : 0
+
+momScore = momBull - momBear
+
+volScore = 0.0
+volScore += relVol > 1.5 and close > open ? 10 : 0
+volScore += relVol > 1.8 and smartBullFlow ? 5 : 0
+volScore += relVol > 1.5 and close < open ? -10 : 0
+volScore += relVol > 1.8 and smartBearFlow ? -5 : 0
+
+bbScore = bbWidth < 0.015 and isTrending ? 8 : bbWidth > 0.06 and isTrending ? 5 : isChoppy ? -5 : 0
+
+priceActionScore = 0.0
+priceActionScore += close > ta.highest(high[1], 5) and close > vwapVal ? 10 : 0
+priceActionScore += close < ta.lowest(low[1], 5) and close < vwapVal ? -10 : 0
+
+//==================== EXECUTION FILTERS ====================//
+bullishDivergence = close < close[1] and rsiVal > rsiVal[1]
+bearishDivergence = close > close[1] and rsiVal < rsiVal[1]
+
+reversalWarningBull = bearishDivergence and macdHist < macdHist[1]
+reversalWarningBear = bullishDivergence and macdHist > macdHist[1]
+
+bullStructure = ema9 > ema21 and ema21 > ema50 and close > ema21
+bearStructure = ema9 < ema21 and ema21 < ema50 and close < ema21
+
+bullConfirmation = close > open and close > high[1] and relVol > 1.05
+bearConfirmation = close < open and close < low[1] and relVol > 1.05
+
+validBullLocation = inBullOB or inBullFVG or sslSwept or liqSweepBull
+validBearLocation = inBearOB or inBearFVG or bslSwept or liqSweepBear
+
+bullGradeScore = 0
+bullGradeScore += bullStructure ? 1 : 0
+bullGradeScore += isTrending ? 1 : 0
+bullGradeScore += smartMoneyScore > 8 ? 1 : 0
+bullGradeScore += bullConfirmation ? 1 : 0
+bullGradeScore += relVol > 1.1 ? 1 : 0
+bullGradeScore += close > vwapVal ? 1 : 0
+bullGradeScore += validBullLocation ? 1 : 0
+
+bearGradeScore = 0
+bearGradeScore += bearStructure ? 1 : 0
+bearGradeScore += isTrending ? 1 : 0
+bearGradeScore += smartMoneyScore < -8 ? 1 : 0
+bearGradeScore += bearConfirmation ? 1 : 0
+bearGradeScore += relVol > 1.1 ? 1 : 0
+bearGradeScore += close < vwapVal ? 1 : 0
+bearGradeScore += validBearLocation ? 1 : 0
+
+bullGrade = bullGradeScore >= 6 ? "A" : bullGradeScore >= 4 ? "B" : "C"
+bearGrade = bearGradeScore >= 6 ? "A" : bearGradeScore >= 4 ? "B" : "C"
+
+eliteBullSetup = bullGrade == "A" and not reversalWarningBull and validBullLocation and relVol > 1.15
+eliteBearSetup = bearGrade == "A" and not reversalWarningBear and validBearLocation and relVol > 1.15
+
+bullObStatus = inBullOB ? "ACTIVE BULL OB" : not na(bullObHigh) and close > bullObHigh ? "BULL OB BELOW" : not na(bullObLow) and close < bullObLow ? "BULL OB LOST" : not na(bullObHigh) ? "BULL OB SET" : "NONE"
+bearObStatus = inBearOB ? "ACTIVE BEAR OB" : not na(bearObLow) and close < bearObLow ? "BEAR OB ABOVE" : not na(bearObHigh) and close > bearObHigh ? "BEAR OB LOST" : not na(bearObLow) ? "BEAR OB SET" : "NONE"
+
+bullBlockedByBearOB = inBearOB or (not na(bearObLow) and close < bearObLow and close > vwapVal)
+bearBlockedByBullOB = inBullOB or (not na(bullObHigh) and close > bullObHigh and close < vwapVal)
+
+//==================== SCORES ====================//
+rawBiasScore = 50.0 + trendScore + mtfScore + momScore + volScore + bbScore + priceActionScore + smartMoneyScore + regimeScore
+biasScore = math.max(0.0, math.min(100.0, rawBiasScore))
+
+volPenalty = relVol < adaptiveVeryLowVolThreshold ? penaltyVeryLowVolBase : relVol >= adaptiveVeryLowVolThreshold and relVol < adaptiveLowVolThreshold ? penaltyLowVolBase : 0.0
+regimePenalty = regimeScore == 0 ? penaltyNeutralRegimeBase : 0.0
+obPenalty = bullBlockedByBearOB or bearBlockedByBullOB ? penaltyOpposingOBBase : 0.0
+vixPenalty = (not na(vix) and vix > 22) ? penaltyElevatedVIXBase : 0.0
+vwapPenalty = biasScore >= 50 and close < vwapVal ? penaltyBelowVWAPLongBase : biasScore < 50 and close > vwapVal ? penaltyAboveVWAPShortBase : 0.0
+locationPenalty = not validBullLocation and not validBearLocation ? penaltyNoLocationBase : 0.0
+
+scorePenalty = volPenalty + regimePenalty + obPenalty + vixPenalty + vwapPenalty + locationPenalty
+
+executionScore = math.max(0.0, math.min(100.0, rawBiasScore - scorePenalty))
+buyProbability = executionScore
+sellProbability = 100.0 - executionScore
+
+//==================== SIGNALS ====================//
+allowBullBasic = bullStructure and validBullLocation and relVol > adaptiveLowVolThreshold and not reversalWarningBull and not bullBlockedByBearOB
+allowBearBasic = bearStructure and validBearLocation and relVol > adaptiveLowVolThreshold and not reversalWarningBear and not bearBlockedByBullOB
+
+buySignal = executionScore >= minScore and executionScore < strongBuyLevel and allowBullBasic and tradeAllowed and (showOnlyAGrade ? bullGrade == "A" : (bullGrade == "A" or bullGrade == "B"))
+strongBuy = executionScore >= strongBuyLevel and allowBullBasic and bullGrade == "A" and relVol > 1.05 and tradeAllowed
+eliteBuy = executionScore >= eliteBuyLevel and eliteBullSetup and tradeAllowed and not bullBlockedByBearOB
+
+sellSignal = executionScore <= (100 - minScore) and executionScore > strongSellLevel and allowBearBasic and tradeAllowed and (showOnlyAGrade ? bearGrade == "A" : (bearGrade == "A" or bearGrade == "B"))
+strongSell = executionScore <= strongSellLevel and allowBearBasic and bearGrade == "A" and relVol > 1.05 and tradeAllowed
+eliteSell = executionScore <= eliteSellLevel and eliteBearSetup and tradeAllowed and not bearBlockedByBullOB
+
+newBuySignal = buySignal and not buySignal[1]
+newStrongBuy = strongBuy and not strongBuy[1]
+newEliteBuy = eliteBuy and not eliteBuy[1]
+
+newSellSignal = sellSignal and not sellSignal[1]
+newStrongSell = strongSell and not strongSell[1]
+newEliteSell = eliteSell and not eliteSell[1]
+
+executionBias = eliteBuy or strongBuy or buySignal ? "LONG" : eliteSell or strongSell or sellSignal ? "SHORT" : "STAND ASIDE"
+
+//==================== PLOTS ====================//
+plot(showEMA ? ema9 : na, "EMA 9", color=color.new(color.green, 0), linewidth=1)
+plot(showEMA ? ema21 : na, "EMA 21", color=color.new(color.orange, 0), linewidth=1)
+plot(showEMA ? ema50 : na, "EMA 50", color=color.new(color.blue, 0), linewidth=1)
+plot(showEMA ? sma200 : na, "SMA 200", color=color.new(color.red, 0), linewidth=2)
+plot(showVWAP ? vwapVal : na, "VWAP", color=color.new(color.purple, 0), linewidth=2)
+
+plotshape(showArrows and newBuySignal, title="Buy", style=shape.arrowup, location=location.belowbar, color=color.lime, size=size.small, text="BUY")
+plotshape(showArrows and newStrongBuy, title="Strong Buy", style=shape.arrowup, location=location.belowbar, color=color.green, size=size.large, text="SB")
+plotshape(showArrows and newEliteBuy, title="Elite Buy", style=shape.labelup, location=location.belowbar, color=color.new(color.green, 0), textcolor=color.white, size=size.large, text="A+\nBUY")
+
+plotshape(showArrows and newSellSignal, title="Sell", style=shape.arrowdown, location=location.abovebar, color=color.orange, size=size.small, text="SELL")
+plotshape(showArrows and newStrongSell, title="Strong Sell", style=shape.arrowdown, location=location.abovebar, color=color.red, size=size.large, text="SS")
+plotshape(showArrows and newEliteSell, title="Elite Sell", style=shape.labeldown, location=location.abovebar, color=color.new(color.red, 0), textcolor=color.white, size=size.large, text="A+\nSELL")
+
+barCol = eliteBuy ? color.new(color.green, 0) : strongBuy ? color.new(color.lime, 0) : buySignal ? color.new(color.teal, 0) : eliteSell ? color.new(color.red, 0) : strongSell ? color.new(color.maroon, 0) : sellSignal ? color.new(color.orange, 0) : executionScore >= 55 ? color.new(color.yellow, 0) : color.new(color.gray, 20)
+barcolor(showBarColors ? barCol : na)
+
+//==================== DASHBOARD ====================//
+scoreColor = executionScore >= 90 ? color.new(color.green, 0) : executionScore >= 82 ? color.new(color.lime, 0) : executionScore >= 72 ? color.new(color.teal, 0) : executionScore <= 10 ? color.new(color.maroon, 0) : executionScore <= 18 ? color.new(color.red, 0) : executionScore <= 28 ? color.new(color.orange, 0) : color.new(color.yellow, 0)
+
+regimeText = isBullTrend ? "TRENDING BULL" : isBearTrend ? "TRENDING BEAR" : isChoppy ? "CHOP / RANGE" : "NEUTRAL"
+smartMoneyText = smartMoneyScore >= 12 ? "STRONG BULL" : smartMoneyScore > 0 ? "BULLISH" : smartMoneyScore <= -12 ? "STRONG BEAR" : smartMoneyScore < 0 ? "BEARISH" : "NEUTRAL"
+liquidityText = sslSwept ? "SSL SWEPT" : bslSwept ? "BSL SWEPT" : not na(sslLevel) ? "SSL NEAR" : not na(bslLevel) ? "BSL NEAR" : "NONE"
+fvgText = inBullFVG ? "BULL FVG" : inBearFVG ? "BEAR FVG" : bullFVG ? "NEW BULL FVG" : bearFVG ? "NEW BEAR FVG" : "NONE"
+obText = inBullOB ? bullObStatus : inBearOB ? bearObStatus : bullObStatus != "NONE" ? bullObStatus : bearObStatus
+signalText = eliteBuy ? "ELITE BUY" : strongBuy ? "STRONG BUY" : buySignal ? "BUY" : eliteSell ? "ELITE SELL" : strongSell ? "STRONG SELL" : sellSignal ? "SELL" : "NEUTRAL"
+gradeText = signalText == "ELITE BUY" or signalText == "BUY" or signalText == "STRONG BUY" ? bullGrade : signalText == "ELITE SELL" or signalText == "SELL" or signalText == "STRONG SELL" ? bearGrade : executionScore >= 50 ? bullGrade : bearGrade
+
+var table heat = table.new(position.top_right, 2, 20, border_width=1)
+
+if barstate.islast and showHeatmap
+    table.cell(heat, 0, 0, "PROFILE", text_color=color.white, bgcolor=color.black)
+    table.cell(heat, 1, 0, profileMode, text_color=color.white, bgcolor=color.new(color.blue, 45))
+
+    table.cell(heat, 0, 1, "BIAS SCORE", text_color=color.white, bgcolor=color.black)
+    table.cell(heat, 1, 1, str.tostring(math.round(biasScore * 10) / 10) + "%", text_color=color.white, bgcolor=color.new(color.blue, 45))
+
+    table.cell(heat, 0, 2, "EXEC SCORE", text_color=color.white, bgcolor=color.black)
+    table.cell(heat, 1, 2, str.tostring(math.round(executionScore * 10) / 10) + "%", text_color=color.white, bgcolor=scoreColor)
+
+    table.cell(heat, 0, 3, "BUY / SELL", text_color=color.white, bgcolor=color.black)
+    table.cell(heat, 1, 3, str.tostring(math.round(buyProbability * 10) / 10) + "% / " + str.tostring(math.round(sellProbability * 10) / 10) + "%", text_color=color.white, bgcolor=color.new(color.black, 0))
+
+    table.cell(heat, 0, 4, "SIGNAL", text_color=color.white, bgcolor=color.black)
+    table.cell(heat, 1, 4, signalText, text_color=color.white, bgcolor=scoreColor)
+
+    table.cell(heat, 0, 5, "GRADE", text_color=color.white, bgcolor=color.black)
+    table.cell(heat, 1, 5, gradeText, text_color=color.white, bgcolor=gradeText == "A" ? color.new(color.green, 25) : gradeText == "B" ? color.new(color.orange, 25) : color.new(color.gray, 35))
+
+    table.cell(heat, 0, 6, "EXECUTION", text_color=color.white, bgcolor=color.black)
+    table.cell(heat, 1, 6, executionBias, text_color=color.white, bgcolor=executionBias == "LONG" ? color.new(color.green, 25) : executionBias == "SHORT" ? color.new(color.red, 25) : color.new(color.gray, 40))
+
+    table.cell(heat, 0, 7, "REGIME", text_color=color.white, bgcolor=color.black)
+    table.cell(heat, 1, 7, regimeText, text_color=color.white, bgcolor=isBullTrend ? color.new(color.green, 30) : isBearTrend ? color.new(color.red, 30) : isChoppy ? color.new(color.orange, 25) : color.new(color.gray, 40))
+
+    table.cell(heat, 0, 8, "SMART MONEY", text_color=color.white, bgcolor=color.black)
+    table.cell(heat, 1, 8, smartMoneyText, text_color=color.white, bgcolor=smartMoneyScore > 0 ? color.new(color.green, 35) : smartMoneyScore < 0 ? color.new(color.red, 35) : color.new(color.gray, 40))
+
+    table.cell(heat, 0, 9, "LIQUIDITY", text_color=color.white, bgcolor=color.black)
+    table.cell(heat, 1, 9, liquidityText, text_color=color.white, bgcolor=sslSwept ? color.new(color.green, 25) : bslSwept ? color.new(color.red, 25) : color.new(color.gray, 40))
+
+    table.cell(heat, 0, 10, "FVG", text_color=color.white, bgcolor=color.black)
+    table.cell(heat, 1, 10, fvgText, text_color=color.white, bgcolor=inBullFVG ? color.new(color.green, 25) : inBearFVG ? color.new(color.red, 25) : color.new(color.gray, 40))
+
+    table.cell(heat, 0, 11, "ORDER BLOCK", text_color=color.white, bgcolor=color.black)
+    table.cell(heat, 1, 11, obText, text_color=color.white, bgcolor=inBullOB ? color.new(color.green, 25) : inBearOB ? color.new(color.red, 25) : color.new(color.gray, 40))
+
+    table.cell(heat, 0, 12, "VIX", text_color=color.white, bgcolor=color.black)
+    table.cell(heat, 1, 12, na(vix) ? "n/a" : str.tostring(math.round(vix * 10) / 10), text_color=color.white, bgcolor=tradeAllowed ? color.new(color.green, 35) : color.new(color.red, 25))
+
+    table.cell(heat, 0, 13, "VOL / ADX", text_color=color.white, bgcolor=color.black)
+    table.cell(heat, 1, 13, str.tostring(math.round(relVol * 100) / 100) + " / " + str.tostring(math.round(adx * 10) / 10), text_color=color.white, bgcolor=color.new(color.black, 0))
+
+    table.cell(heat, 0, 14, "TOTAL PEN", text_color=color.white, bgcolor=color.black)
+    table.cell(heat, 1, 14, str.tostring(math.round(scorePenalty * 10) / 10), text_color=color.white, bgcolor=scorePenalty > 0 ? color.new(color.orange, 25) : color.new(color.green, 25))
+
+    table.cell(heat, 0, 15, "VOL PEN", text_color=color.white, bgcolor=color.black)
+    table.cell(heat, 1, 15, str.tostring(math.round(volPenalty * 10) / 10), text_color=color.white, bgcolor=volPenalty > 0 ? color.new(color.orange, 25) : color.new(color.green, 25))
+
+    table.cell(heat, 0, 16, "REGIME PEN", text_color=color.white, bgcolor=color.black)
+    table.cell(heat, 1, 16, str.tostring(math.round(regimePenalty * 10) / 10), text_color=color.white, bgcolor=regimePenalty > 0 ? color.new(color.orange, 25) : color.new(color.green, 25))
+
+    table.cell(heat, 0, 17, "OB PEN", text_color=color.white, bgcolor=color.black)
+    table.cell(heat, 1, 17, str.tostring(math.round(obPenalty * 10) / 10), text_color=color.white, bgcolor=obPenalty > 0 ? color.new(color.orange, 25) : color.new(color.green, 25))
+
+    table.cell(heat, 0, 18, "VIX/VWAP", text_color=color.white, bgcolor=color.black)
+    table.cell(heat, 1, 18, str.tostring(math.round((vixPenalty + vwapPenalty) * 10) / 10), text_color=color.white, bgcolor=(vixPenalty + vwapPenalty) > 0 ? color.new(color.orange, 25) : color.new(color.green, 25))
+
+    table.cell(heat, 0, 19, "LOC PEN", text_color=color.white, bgcolor=color.black)
+    table.cell(heat, 1, 19, str.tostring(math.round(locationPenalty * 10) / 10), text_color=color.white, bgcolor=locationPenalty > 0 ? color.new(color.orange, 25) : color.new(color.green, 25))
+
+//==================== ALERTS ====================//
+allowLongAlert = not requireExecutionForAlerts or executionBias == "LONG"
+allowShortAlert = not requireExecutionForAlerts or executionBias == "SHORT"
+
+alertcondition(newBuySignal and allowLongAlert, "Buy", "AI Super Score Pro v2.5: BUY")
+alertcondition(newStrongBuy and allowLongAlert, "Strong Buy", "AI Super Score Pro v2.5: STRONG BUY")
+alertcondition(newEliteBuy and allowLongAlert, "Elite Buy", "AI Super Score Pro v2.5: ELITE BUY")
+
+alertcondition(newSellSignal and allowShortAlert, "Sell", "AI Super Score Pro v2.5: SELL")
+alertcondition(newStrongSell and allowShortAlert, "Strong Sell", "AI Super Score Pro v2.5: STRONG SELL")
+alertcondition(newEliteSell and allowShortAlert, "Elite Sell", "AI Super Score Pro v2.5: ELITE SELL")
+
+alertcondition(liqSweepBull, "Bull Liquidity Sweep", "AI Super Score Pro v2.5: Bull Liquidity Sweep detected")
+alertcondition(liqSweepBear, "Bear Liquidity Sweep", "AI Super Score Pro v2.5: Bear Liquidity Sweep detected")
+alertcondition(sslSwept, "SSL Swept", "AI Super Score Pro v2.5: Sell-side liquidity swept")
+alertcondition(bslSwept, "BSL Swept", "AI Super Score Pro v2.5: Buy-side liquidity swept")
+alertcondition(bullFVG, "New Bull FVG", "AI Super Score Pro v2.5: New Bull Fair Value Gap")
+alertcondition(bearFVG, "New Bear FVG", "AI Super Score Pro v2.5: New Bear Fair Value Gap")
