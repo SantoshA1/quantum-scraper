@@ -1,0 +1,105 @@
+{
+  "created_at_utc": "2026-05-15T02:44:35Z",
+  "source_status": "USER_ATTACHED_PRIVATE_PINE_SOURCE_AVAILABLE",
+  "qtp_architecture": "Quantlys.ai Quantum Trading Pipeline Architecture v5.5",
+  "files": [
+    {
+      "file": "ai_super_score_ensemble_engine_v1.pine",
+      "path": "/home/user/workspace/pine-source/ai_super_score_ensemble_engine_v1.pine",
+      "sha256": "0d3e3485fd42b52f318cf23b543e90bdbec61f089f2ce191e3dfaf08dcb7ef7b",
+      "lines": 325,
+      "declaration": "indicator(\"AI Super Score Ensemble Engine v1\", overlay=true, max_labels_count=500)",
+      "input_count": 31,
+      "alertcondition_count": 3,
+      "alert_call_count": 1,
+      "request_security_count": 13,
+      "ta_functions": [
+        "atr",
+        "dmi",
+        "ema",
+        "highest",
+        "lowest",
+        "macd",
+        "rsi",
+        "sma",
+        "vwap"
+      ]
+    },
+    {
+      "file": "ai_super_score_pro_v25_universal.pine",
+      "path": "/home/user/workspace/pine-source/ai_super_score_pro_v25_universal.pine",
+      "sha256": "01a2eedffe284d1071968fc94750423f0135c78c90d62d064c4575f5b30157ab",
+      "lines": 506,
+      "declaration": "indicator(\"AI Super Score Pro v2.5 Universal\", overlay=true, max_labels_count=60, max_lines_count=120, max_boxes_count=80)",
+      "input_count": 33,
+      "alertcondition_count": 12,
+      "alert_call_count": 0,
+      "request_security_count": 5,
+      "ta_functions": [
+        "atr",
+        "barssince",
+        "ema",
+        "highest",
+        "lowest",
+        "rma",
+        "roc",
+        "rsi",
+        "sma",
+        "stdev",
+        "tr",
+        "vwap"
+      ]
+    },
+    {
+      "file": "ai_super_score_webhook_bridge_v8.pine",
+      "path": "/home/user/workspace/pine-source/ai_super_score_webhook_bridge_v8.pine",
+      "sha256": "4f7c2f337d755c2949a57d3e1a1d432dc2b1e9ab40a20b0be43b1c2cdf984955",
+      "lines": 271,
+      "declaration": "indicator(\"AI Super Score Webhook Bridge v8\", overlay=true)",
+      "input_count": 12,
+      "alertcondition_count": 0,
+      "alert_call_count": 3,
+      "request_security_count": 15,
+      "ta_functions": [
+        "atr",
+        "change",
+        "ema",
+        "highest",
+        "lowest",
+        "macd",
+        "rma",
+        "rsi",
+        "sma",
+        "vwap"
+      ]
+    },
+    {
+      "file": "quantum_scalp_strategy_v5.pine",
+      "path": "/home/user/workspace/pine-source/quantum_scalp_strategy_v5.pine",
+      "sha256": "878290a49c93895af48c171f7532362faf7a1f6aafe6a3e9bf002529a5588124",
+      "lines": 838,
+      "declaration": "strategy(\"Quantum Scalp Strategy v5\", overlay=true,",
+      "input_count": 52,
+      "alertcondition_count": 0,
+      "alert_call_count": 10,
+      "request_security_count": 25,
+      "ta_functions": [
+        "atr",
+        "bb",
+        "cci",
+        "change",
+        "dmi",
+        "ema",
+        "highest",
+        "lowest",
+        "macd",
+        "mom",
+        "rsi",
+        "sar",
+        "sma",
+        "stoch",
+        "vwap"
+      ]
+    }
+  ]
+}

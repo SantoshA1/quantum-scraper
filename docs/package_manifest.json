@@ -1,0 +1,17 @@
+{
+  "package": "qtp_github_sync",
+  "created_at": "2026-05-17T17:51:00-04:00",
+  "purpose": "GitHub sync package for QTP server-side parity and n8n production paper-gated deployment changes",
+  "live_brokerage_enabled": false,
+  "alpaca_mode": "paper",
+  "workflows_exported": {
+    "broad_scanner_real_time_agent_current.json": "975pZZEtxeUbzI22",
+    "main_trading_current.json": "vaqfCaELhOEWnkdo",
+    "qtp_supabase_health_monitor_8am_weekdays_current.json": "UHYsIUCB5moypUl3"
+  },
+  "notes": [
+    "n8n changes were deployed via API and are exported here for version control",
+    "Do not import workflow backups blindly without reviewing credential bindings",
+    "Current workflows are under n8n_workflows/current"
+  ]
+}
