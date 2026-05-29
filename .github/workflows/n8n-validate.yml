@@ -1,0 +1,37 @@
+name: n8n workflow validation
+
+on:
+  pull_request:
+    paths:
+      - 'workflows/**.json'
+      - 'scripts/validate_workflow_dag.py'
+      - '.github/workflows/n8n-validate.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'workflows/**.json'
+      - 'scripts/validate_workflow_dag.py'
+
+jobs:
+  validate-dag:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Validate n8n workflow DAGs
+        run: |
+          shopt -s nullglob
+          fail=0
+          for f in workflows/*.json; do
+            echo "::group::Validating $f"
+            if ! python scripts/validate_workflow_dag.py "$f"; then
+              fail=1
+            fi
+            echo "::endgroup::"
+          done
+          if [ "$fail" -ne 0 ]; then
+            echo "::error::One or more workflow JSON files contain cycles. See G19 architecture v5.7."
+            exit 1
+          fi
