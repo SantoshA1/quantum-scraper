@@ -1,0 +1,67 @@
+# Proposed fix — QTP Early Exec Flow Audit Builder
+#
+# Node: QTP Early Exec Flow Audit Builder
+# n8n ID: 7f778122-a6f7-48f8-9342-3ef6aa3cdbc9
+# Workflow: vaqfCaELhOEWnkdo (SSM)
+# Risk rating: 2/5
+#
+# Change L114–L116 from `const` to `let`, then insert a conditional block
+# AFTER L132 (`biasStatus` is computed) that re-stamps the sentinel with
+# RISK_NOT_REACHED / UPSTREAM_BLOCK whenever an upstream gate has already
+# blocked the candidate. The Late Audit Patcher's WHERE filter
+# (`risk_gate_decision IN ('RISK_UNKNOWN','UNKNOWN','')`) naturally excludes
+# the new value, so idempotency is preserved.
+
+--- a/ssm/QTP_Early_Exec_Flow_Audit_Builder.js
++++ b/ssm/QTP_Early_Exec_Flow_Audit_Builder.js
+@@ -111,9 +111,11 @@
+ else if (_pgAction === 'BYPASS_PROTECTIVE_OR_CLOSING') { pause_guard_decision = 'PAUSE_BYPASS'; pause_status = 'BYPASS'; }
+ else if (_pgChecked === true && _pgAllowed === true)   { pause_guard_decision = 'PAUSE_ALLOW';  pause_status = 'NOMINAL'; }
+ else if (_pgChecked === true && _pgAllowed === false)  { pause_guard_decision = 'PAUSE_BLOCK';  pause_status = 'PAUSED'; }
+-// Risk verdict is patched downstream by Late Audit Patcher; sentinel here.
+-const risk_gate_decision = 'RISK_UNKNOWN';
+-const risk_status_struct = 'UNKNOWN';
++// Risk verdict is patched downstream by Late Audit Patcher when the
++// execution reaches Alpaca. If the candidate is blocked before that
++// (regime, hours, VC, bias, pause guard), we stamp RISK_NOT_REACHED below.
++let risk_gate_decision = 'RISK_UNKNOWN';
++let risk_status_struct = 'UNKNOWN';
+
+ const symbol = String(d.symbol || d.ticker || d.sym || d.asset || 'UNKNOWN').toUpperCase();
+ const side = String(d.side || d.execution || d.signal || d.action || d.direction || 'UNKNOWN').toUpperCase();
+@@ -129,6 +131,21 @@
+ const biasPassRaw = boolish(d._bias_filter_pass ?? d.bias_filter_pass ?? d.bias_pass);
+ const isEntry = ['BUY', 'SELL', 'BULLISH', 'BEARISH', 'LONG', 'SHORT'].includes(side);
+ const biasPass = biasPassRaw !== null ? biasPassRaw : (!isEntry || (biasScore !== null && biasScore >= 65));
+ const biasStatus = biasPass ? 'BIAS_PASS' : 'BIAS_BLOCK';
+
++// ---------------------------------------------------------------------------
++// Upstream-block re-stamp.
++// If we can already see at audit-build time that the candidate was killed
++// by an upstream gate, mark the row RISK_NOT_REACHED so the Late Patcher's
++// WHERE filter (IN 'RISK_UNKNOWN','UNKNOWN','') will leave it alone.
++// ---------------------------------------------------------------------------
++const _vcKilled = ['REJECT', 'KILL'].includes(vcVerdict);
++const _biasBlocked = !biasPass;
++const _pauseBlocked = pause_guard_decision === 'PAUSE_BLOCK';
++if (_vcKilled || _biasBlocked || _pauseBlocked) {
++  risk_gate_decision = 'RISK_NOT_REACHED';
++  risk_status_struct = 'UPSTREAM_BLOCK';
++}
++
+ const pauseAction = upper(d.pause_guard_action || d._pause_guard_action || d.entry_pause_action || d.pause_action || d.new_entry_status || d.entry_pause_control, 'UNKNOWN');
+
+ const riskStatus = upper(d.risk_gate_status || d._risk_gate_status || d.risk_status || d.risk_gate_decision || d.risk_decision || d.alpaca_status, 'UNKNOWN');
+
+# Notes:
+# 1. This does NOT yet cover the regime-conflict and extended-hours-gate
+#    terminators (those terminate before the Early Builder runs in many
+#    paths). Those will require either (a) additional input signals
+#    propagated into the Early Builder, or (b) a second audit-stamp node
+#    inserted after each upstream terminator. To be sequenced after this
+#    initial fix is verified live.
+# 2. UNKNOWN-3 dead-code cleanup at L136–L141 (the unused riskGateStatus
+#    branch) is intentionally NOT in this diff. Per user instruction, leave
+#    intact for provenance; remove as a separate follow-up.
+# 3. The new value `RISK_NOT_REACHED` is a new audit enum value. No DB
+#    consumer references the column (see UNKNOWN-2 in section_3_report.md).
