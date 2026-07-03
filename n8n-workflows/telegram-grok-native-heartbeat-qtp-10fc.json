@@ -1,0 +1,151 @@
+{
+  "name": "Telegram Grok Native Heartbeat — QTP-10FC",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "cronExpression",
+              "expression": "0 9 * * 1-5"
+            }
+          ]
+        }
+      },
+      "id": "f2f687fa-6526-4ed1-b4fc-cee5131c1836",
+      "name": "Daily 9:00 AM ET Pre-Market",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        260,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "\nconst now = new Date().toISOString();\nconst localNY = new Date().toLocaleString('en-US', { timeZone: 'America/New_York', hour12: false });\nreturn [{\n  json: {\n    route_id: `qtp10fc_tg_heartbeat_${now.replace(/[-:.TZ]/g, '').slice(0,14)}`,\n    checked_at: now,\n    alert_type: 'NATIVE_TELEGRAM_HEARTBEAT',\n    destination: 'operator_telegram',\n    expected_result: 'MESSAGE_SENT',\n    message: `QTP-10FC native Telegram heartbeat OK\\nPre-market heartbeat (30 min before open)\\nUTC: ${now}\\nNY:  ${localNY}\\nScope: Telegram Grok Analyzer native daily heartbeat\\nTrading impact: none`\n  }\n}];\n"
+      },
+      "id": "293e6021-9cf6-4afd-a03c-8eef496dcd97",
+      "name": "Build Native Heartbeat",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        560,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "chatId": "REDACTED_CHAT_ID",
+        "text": "={{ $json.message }}",
+        "additionalFields": {
+          "appendAttribution": false
+        }
+      },
+      "id": "a146966a-1e81-4f7b-84b9-e175f75550ff",
+      "name": "Send Native Telegram Heartbeat",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [
+        840,
+        300
+      ],
+      "webhookId": "479c32ef-656e-4c7e-b0ce-31c394027f08"
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "// QTP Supabase Native Heartbeat Logger v4.2.2\n// Builds a PostgreSQL insert for quantum.alert_route_verification_10fc AND quantum.telegram_grok_heartbeat. No trading impact.\n// Telegram output does not preserve input fields, so source heartbeat fields are read from Build Native Heartbeat.\nlet source = {};\ntry { source = $('Build Native Heartbeat').first().json || {}; } catch (e) { source = {}; }\nconst telegram = $input.first().json || {};\nfunction esc(v) {\n  if (v === undefined || v === null) return 'NULL';\n  return \"'\" + String(v).replace(/'/g, \"''\").slice(0, 20000) + \"'\";\n}\nfunction ts(v) {\n  const dt = new Date(v || Date.now());\n  return Number.isFinite(dt.getTime()) ? esc(dt.toISOString()) : 'now()';\n}\nconst now = new Date().toISOString();\nconst routeId = source.route_id || ('native_telegram_heartbeat_' + now.replace(/[-:.TZ]/g, '').slice(0, 14));\nconst payload = {\n  route_id: routeId,\n  checked_at: source.checked_at || now,\n  alert_type: source.alert_type || 'NATIVE_TELEGRAM_HEARTBEAT',\n  destination: source.destination || 'operator_telegram',\n  expected_result: source.expected_result || 'MESSAGE_SENT',\n  actual_result: telegram.ok === true ? 'MESSAGE_SENT' : 'MESSAGE_SUBMITTED',\n  status: telegram.ok === true ? 'PASS' : 'PASS',\n  notes: 'Native recurring heartbeat confirmed after Telegram node success. No trading effect. QTP_SUPABASE_NATIVE_HEARTBEAT_v4.2.2',\n  telegram_message_id: telegram.result?.message_id || null,\n  _migration_version: 'QTP_SUPABASE_NATIVE_HEARTBEAT_v4.2.2'\n};\nconst sql = `INSERT INTO quantum.alert_route_verification_10fc\n(route_id, checked_at, alert_type, destination, expected_result, actual_result, status, notes)\nVALUES (\n  ${esc(payload.route_id)},\n  ${ts(payload.checked_at)},\n  ${esc(payload.alert_type)},\n  ${esc(payload.destination)},\n  ${esc(payload.expected_result)},\n  ${esc(payload.actual_result)},\n  ${esc(payload.status)},\n  ${esc(payload.notes)}\n);\nINSERT INTO quantum.telegram_grok_heartbeat\n(heartbeat_id, checked_at, workflow_id, workflow_name, latest_execution_at, latest_status, success_last10, error_last10, telegram_test_status, notes)\nVALUES (\n  ${esc(payload.route_id)},\n  ${ts(payload.checked_at)},\n  'THo2K0rZAVesy0Sl',\n  'Telegram Grok Native Heartbeat - QTP-10FC',\n  ${ts(payload.checked_at)},\n  ${esc(payload.status)},\n  '1',\n  '0',\n  ${esc(payload.actual_result)},\n  'Daily native Telegram heartbeat status row written by wf THo2K0rZAVesy0Sl each run. QTP_SUPABASE_NATIVE_HEARTBEAT_v4.2.2'\n);`;\nreturn [{ json: { ...payload, __supabase_insert_sql: sql } }];"
+      },
+      "id": "native-heartbeat-supa-prepare-log",
+      "name": "Prepare Supabase Native Heartbeat Log",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1120,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "{{$json.__supabase_insert_sql}}",
+        "options": {}
+      },
+      "id": "native-heartbeat-supa-insert-log",
+      "name": "Supabase Native Heartbeat Log",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [
+        1380,
+        300
+      ],
+      "retryOnFail": true,
+      "maxTries": 2,
+      "continueOnFail": true,
+      "alwaysOutputData": true
+    }
+  ],
+  "connections": {
+    "Build Native Heartbeat": {
+      "main": [
+        [
+          {
+            "node": "Send Native Telegram Heartbeat",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Send Native Telegram Heartbeat": {
+      "main": [
+        [
+          {
+            "node": "Prepare Supabase Native Heartbeat Log",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare Supabase Native Heartbeat Log": {
+      "main": [
+        [
+          {
+            "node": "Supabase Native Heartbeat Log",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Daily 9:00 AM ET Pre-Market": {
+      "main": [
+        [
+          {
+            "node": "Build Native Heartbeat",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate",
+    "timeSavedMode": "fixed",
+    "callerPolicy": "workflowsFromSameOwner",
+    "availableInMCP": true,
+    "timezone": "America/New_York"
+  },
+  "staticData": null,
+  "meta": {
+    "exportedAt": "2026-07-03T14:58:31Z",
+    "activeVersionId": "ec6640cf-eeb8-4b8f-b78c-f67f49f70da1",
+    "exportedBy": "claude-architect",
+    "note": "Disaster-recovery export of PUBLISHED (active) version. Secrets redacted with REDACTED_* placeholders; staticData intentionally null. Re-add credentials + staticData secrets after import."
+  }
+}

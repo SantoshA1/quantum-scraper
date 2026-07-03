@@ -1,0 +1,198 @@
+{
+  "name": "Quantum Coherence Heartbeat & Preopen Monitor — QTP-AFTO",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "cronExpression",
+              "expression": "*/15 * * * 1-5"
+            }
+          ]
+        }
+      },
+      "id": "31bea062-b774-427f-9338-9308202a23a0",
+      "name": "Every 15 Minutes Weekdays",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        260,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "// Quantum Coherence Monitor — QTP-AFTO v4.3.1 (Databricks -> Supabase port)\n// Read-only Alpaca (optional, staticData creds). Telemetry INSERTs are built here as\n// __supabase_insert_sql and executed by the downstream \"Write Supabase Telemetry\" Postgres node.\n// No order, model, size, or gate changes. No $env / $vars (denied on n8n cloud — root cause of the v4.2.1 silent no-op).\nconst startedAt = new Date();\nconst runId = `qtp_afto_${startedAt.toISOString().replace(/[-:.TZ]/g, '').slice(0, 14)}`;\n\n// --- NYSE holiday / weekend guard (v4.3.1) ---\nconst NYSE_HOLIDAYS_2026 = ['2026-01-01','2026-01-19','2026-02-16','2026-04-03','2026-05-25','2026-06-19','2026-07-03','2026-09-07','2026-11-26','2026-12-25'];\nconst _etNow = new Date(new Date().toLocaleString('en-US',{timeZone:'America/New_York'}));\nconst _etDateStr = _etNow.getFullYear()+'-'+String(_etNow.getMonth()+1).padStart(2,'0')+'-'+String(_etNow.getDate()).padStart(2,'0');\nconst marketHoliday = NYSE_HOLIDAYS_2026.includes(_etDateStr) || _etNow.getDay()===0 || _etNow.getDay()===6;\n\n// --- Metrics from \"Fetch Quantum Metrics\" (Supabase quantum.*) ---\nconst m = $input.first().json || {};\nconst deadLetters = Number(m.dead_letters ?? 0);\nconst scannerSignals = Number(m.scanner_signals ?? 0);\nconst vcObsToday = Number(m.vc_obs_today ?? 0);\n// v_risk_gate_status / v_current_position_risk_state were NOT migrated to Supabase:\nconst unprotectedKnown = false;\nconst unprotected = 0; // degraded input — cannot trigger a pause advisory\n\n// --- Optional secrets from workflow staticData (never hardcoded; $env is denied on n8n cloud) ---\nconst sd = $getWorkflowStaticData('global') || {};\nconst cred = sd._credentials || {};\nconst alpacaKey = cred.alpaca_api_key || cred.ALPACA_API_KEY || cred.alpaca_key_id || '';\nconst alpacaSecret = cred.alpaca_secret_key || cred.ALPACA_SECRET_KEY || cred.alpaca_secret || '';\nconst alpacaBase = String(cred.alpaca_base_url || 'https://paper-api.alpaca.markets').replace(/\\/+$/, '');\n\nlet alpacaStatus = 'UNAVAILABLE_NO_CRED';\nlet positionsCount = null;\nlet openOrdersCount = null;\nlet tradingBlocked = null; // unknown unless Alpaca reachable\nif (alpacaKey && alpacaSecret) {\n  const alp = async (path) => await this.helpers.httpRequest({\n    method: 'GET', url: alpacaBase + path,\n    headers: { 'APCA-API-KEY-ID': alpacaKey, 'APCA-API-SECRET-KEY': alpacaSecret },\n    json: true, timeout: 30000,\n  });\n  try {\n    const [account, positions, openOrders] = await Promise.all([\n      alp('/v2/account'), alp('/v2/positions'), alp('/v2/orders?status=open&limit=500')\n    ]);\n    alpacaStatus = account.status || 'UNKNOWN';\n    positionsCount = positions.length;\n    openOrdersCount = openOrders.length;\n    tradingBlocked = account.trading_blocked === true || account.account_blocked === true;\n  } catch (e) {\n    alpacaStatus = 'ERROR: ' + String((e && e.message) || e).slice(0, 180);\n  }\n}\n\n// --- Market-session calc (NY), preserved from v4.2.1 ---\nconst ny = new Date(new Date().toLocaleString('en-US', { timeZone: 'America/New_York' }));\nconst after0940 = (ny.getHours() > 9) || (ny.getHours() === 9 && ny.getMinutes() >= 40);\n\n// --- Pause advisory: v4.2.1 condition preserved; degraded (UNKNOWN) inputs cannot trigger ---\nconst pause = (!marketHoliday && after0940 && scannerSignals === 0) || deadLetters > 0 || unprotected > 0 || tradingBlocked === true;\nconst holidaySuppressedZeroSignals = marketHoliday && after0940 && scannerSignals === 0 && !pause;\nconst degraded = [];\nif (!unprotectedKnown) degraded.push('unprotected_positions=UNKNOWN(v_risk_gate_status not in Supabase)');\nif (tradingBlocked === null) degraded.push('trading_blocked=UNKNOWN(alpaca=' + alpacaStatus + ')');\nconst reason = (pause\n  ? `pause_advisory: scannerSignals=${scannerSignals}, deadLetters=${deadLetters}, unprotected=${unprotected}, tradingBlocked=${tradingBlocked === true}`\n  : (holidaySuppressedZeroSignals ? 'nominal_holiday: zero-signal leg suppressed (marketHoliday=true)' : 'nominal')) + ` | marketHoliday=${marketHoliday}` + (degraded.length ? ' | degraded: ' + degraded.join('; ') : '');\n\n// --- SQL builders (Postgres: single-quote doubling only) ---\nfunction esc(v) { if (v === undefined || v === null) return 'NULL'; return \"'\" + String(v).replace(/'/g, \"''\").slice(0, 20000) + \"'\"; }\nfunction bl(v) { return v === true ? 'true' : 'false'; }\n\nconst telemetryNotes = `positions=${positionsCount === null ? 'NA' : positionsCount}; open_orders=${openOrdersCount === null ? 'NA' : openOrdersCount}; vc_shadow_obs_today=${vcObsToday}`\n  + (degraded.length ? '; ' + degraded.join('; ') : '') + '; QTP_AFTO_SUPABASE_PORT_v4.3.1';\n\nconst sqlParts = [];\nsqlParts.push(`INSERT INTO quantum.telegram_grok_heartbeat\n(heartbeat_id, checked_at, workflow_id, workflow_name, latest_execution_at, latest_status, success_last10, error_last10, telegram_test_status, notes)\nVALUES (${esc(runId)}, now(), 'AaaQOrBVEXwJkOyz', 'Quantum Coherence Heartbeat & Preopen Monitor - QTP-AFTO', now(), 'HEARTBEAT_LOGGED_BY_QTP_AFTO', '1', '0', 'NOT_SENT_ON_SCHEDULED_HEARTBEAT', ${esc('15-min coherence heartbeat row; sink migrated Databricks->Supabase. QTP_AFTO_SUPABASE_PORT_v4.3.1')});`);\nsqlParts.push(`INSERT INTO quantum.infra_telemetry_15m\n(telemetry_id, checked_at, gpu_load_pct, tpu_load_pct, container_health, databricks_sql_status, n8n_api_status, alpaca_status, notes)\nVALUES (${esc(runId)}, now(), NULL, NULL, 'N8N_WORKFLOW_ACTIVE', 'MIGRATED_TO_SUPABASE', 'OK', ${esc(alpacaStatus)}, ${esc(telemetryNotes)});`);\nsqlParts.push(`INSERT INTO quantum.entry_pause_control\n(control_id, checked_at, pause_new_entries, reason, scanner_signal_count, dead_letters, unprotected_positions, trading_blocked, status, source, expires_at)\nVALUES (${esc(runId)}, now(), ${bl(pause)}, ${esc(reason)}, ${esc(String(scannerSignals))}, ${esc(String(deadLetters))}, ${esc(unprotectedKnown ? String(unprotected) : 'UNKNOWN')}, ${bl(tradingBlocked === true)}, ${esc(pause ? 'PAUSE_ADVISORY_LOGGED' : (holidaySuppressedZeroSignals ? 'NOMINAL_HOLIDAY' : 'NOMINAL'))}, 'qtp_afto_monitor', now() + interval '30 minutes');`);\nconst __supabase_insert_sql = sqlParts.join('\\n');\n\nconst alert_text = `⚠️ QTP-AFTO pause advisory\\n${reason}\\nNo live order logic was changed by this monitor.`;\n\nreturn [{ json: {\n  run_id: runId,\n  pause_advisory: pause,\n  reason,\n  scannerSignals,\n  deadLetters,\n  unprotected_positions: unprotectedKnown ? unprotected : 'UNKNOWN',\n  tradingBlocked,\n  alpaca_status: alpacaStatus,\n  positions: positionsCount,\n  openOrders: openOrdersCount,\n  alert_text,\n  __supabase_insert_sql,\n} }];\n"
+      },
+      "id": "d3a0a373-35db-4ea8-99f2-cb23f6341ac2",
+      "name": "Read Alpaca + Log Coherence",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        760,
+        300
+      ],
+      "continueOnFail": true,
+      "onError": "stopWorkflow"
+    },
+    {
+      "id": "f1bfba7c-f138-4a70-8532-d016e3a14fde",
+      "name": "Fetch Quantum Metrics",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [
+        480,
+        300
+      ],
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT\n  (SELECT count(*)::int FROM quantum.logging_dead_letter WHERE failed_at >= now() - interval '24 hours') AS dead_letters,\n  (SELECT count(*)::int FROM quantum.strategy_signals WHERE signal_ts >= date_trunc('day', now())) AS scanner_signals,\n  (SELECT count(*)::int FROM quantum.vc_shadow_score_observations WHERE observed_at >= date_trunc('day', now())) AS vc_obs_today;",
+        "options": {}
+      }
+    },
+    {
+      "id": "66150074-d0e1-41a2-a7c3-32982bdcfd57",
+      "name": "Write Supabase Telemetry",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [
+        1040,
+        300
+      ],
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "={{ $json.__supabase_insert_sql }}",
+        "options": {}
+      },
+      "retryOnFail": true,
+      "maxTries": 2,
+      "alwaysOutputData": true
+    },
+    {
+      "id": "20e14e72-460e-4385-b40f-01619dee4476",
+      "name": "If Pause Advisory",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        1300,
+        300
+      ],
+      "parameters": {
+        "conditions": {
+          "combinator": "and",
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "leftValue": "={{ $('Read Alpaca + Log Coherence').first().json.pause_advisory }}",
+              "rightValue": "",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ]
+        },
+        "options": {}
+      }
+    },
+    {
+      "id": "4b5f87df-77b8-4ceb-8857-13dbcd9ae94f",
+      "name": "Send Pause Advisory Telegram",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [
+        1560,
+        300
+      ],
+      "parameters": {
+        "chatId": "REDACTED_CHAT_ID",
+        "text": "={{ $('Read Alpaca + Log Coherence').first().json.alert_text }}",
+        "additionalFields": {
+          "appendAttribution": false
+        },
+        "resource": "message",
+        "operation": "sendMessage"
+      },
+      "webhookId": "76495cff-1223-452a-8e49-ea3fd51e9339"
+    }
+  ],
+  "connections": {
+    "Every 15 Minutes Weekdays": {
+      "main": [
+        [
+          {
+            "node": "Fetch Quantum Metrics",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Fetch Quantum Metrics": {
+      "main": [
+        [
+          {
+            "node": "Read Alpaca + Log Coherence",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Read Alpaca + Log Coherence": {
+      "main": [
+        [
+          {
+            "node": "Write Supabase Telemetry",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Write Supabase Telemetry": {
+      "main": [
+        [
+          {
+            "node": "If Pause Advisory",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "If Pause Advisory": {
+      "main": [
+        [
+          {
+            "node": "Send Pause Advisory Telegram",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate",
+    "timeSavedMode": "fixed",
+    "callerPolicy": "workflowsFromSameOwner",
+    "availableInMCP": true
+  },
+  "staticData": null,
+  "meta": {
+    "exportedAt": "2026-07-03T14:58:31Z",
+    "activeVersionId": "8234aa35-af53-4c45-8286-53ccf6f3aaf7",
+    "exportedBy": "claude-architect",
+    "note": "Disaster-recovery export of PUBLISHED (active) version. Secrets redacted with REDACTED_* placeholders; staticData intentionally null. Re-add credentials + staticData secrets after import."
+  }
+}
