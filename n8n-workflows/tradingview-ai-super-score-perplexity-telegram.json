@@ -11,8 +11,8 @@
       "type": "n8n-nodes-base.webhook",
       "typeVersion": 2,
       "position": [
-        -240,
-        608
+        -464,
+        2656
       ],
       "id": "2f604e64-40aa-4988-99fb-089b71416eb6",
       "webhookId": "f45a1415-32ad-4c0f-a51b-5e2e3cb44ecf",
@@ -26,14 +26,14 @@
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        3328,
-        1072
+        14096,
+        1328
       ],
       "id": "7dedf637-00e0-46f3-a858-eb6e5c1eec80"
     },
     {
       "parameters": {
-        "chatId": "-1003889511940",
+        "chatId": "REDACTED_CHAT_ID",
         "text": "={{ $json.message }}",
         "additionalFields": {
           "appendAttribution": false,
@@ -44,8 +44,8 @@
       "type": "n8n-nodes-base.telegram",
       "typeVersion": 1.2,
       "position": [
-        3552,
-        352
+        14544,
+        1136
       ],
       "retryOnFail": true,
       "maxTries": 3,
@@ -61,8 +61,8 @@
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        1088,
-        336
+        13200,
+        944
       ],
       "name": "Format Fast Alert",
       "id": "280159b5-6c13-4f68-8bca-e397650fbb18"
@@ -75,8 +75,8 @@
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        864,
-        592
+        2672,
+        2080
       ],
       "id": "50246eeb-2a47-41d3-8ba1-f9cf4639380f"
     },
@@ -88,8 +88,8 @@
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        416,
-        480
+        2224,
+        2416
       ],
       "id": "a6dd58c2-e27f-4a9d-98fd-b7f504094b8c"
     },
@@ -101,8 +101,8 @@
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        1312,
-        592
+        3120,
+        2080
       ],
       "id": "d75c7da5-c6ea-44f3-9981-9aaf9c132ce5",
       "onError": "continueRegularOutput"
@@ -122,8 +122,8 @@
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
       "position": [
-        1088,
-        592
+        2896,
+        2080
       ],
       "id": "f0d760cb-e914-4f47-9033-042aeda0c333",
       "onError": "continueRegularOutput"
@@ -155,8 +155,8 @@
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
       "position": [
-        1536,
-        528
+        3344,
+        1264
       ],
       "notesInFlow": false,
       "id": "19b1b91c-313a-4feb-8bbb-7293277a56fa"
@@ -178,8 +178,8 @@
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
       "position": [
-        1536,
-        720
+        3344,
+        2176
       ],
       "notesInFlow": false,
       "retryOnFail": true,
@@ -196,8 +196,8 @@
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        1760,
-        592
+        3568,
+        2080
       ],
       "notesInFlow": false,
       "id": "e7a27fae-11d2-46d5-ae1c-288a7a4ed193"
@@ -218,8 +218,8 @@
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
       "position": [
-        1984,
-        528
+        3792,
+        1264
       ],
       "id": "c49f0a4d-2234-4522-bdc6-577b7fa3e051",
       "onError": "continueRegularOutput"
@@ -240,8 +240,8 @@
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
       "position": [
-        2048,
-        800
+        3792,
+        2176
       ],
       "id": "6289cd22-33c9-4bf5-842b-3e89e5906a94",
       "onError": "continueRegularOutput"
@@ -254,8 +254,8 @@
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        2208,
-        592
+        4016,
+        2080
       ],
       "id": "32746ab8-22bb-4432-9cd1-0ed81b8e325c",
       "onError": "continueRegularOutput"
@@ -268,8 +268,8 @@
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        3632,
-        1024
+        13200,
+        1408
       ],
       "id": "f605c91c-d1be-4d25-9cbf-6ebf49ca1b09"
     },
@@ -300,8 +300,8 @@
       "type": "n8n-nodes-base.if",
       "typeVersion": 2,
       "position": [
-        640,
-        304
+        2448,
+        1120
       ],
       "name": "Route Signal",
       "id": "548f832a-a5c0-4d68-a998-cfa59f8f5510"
@@ -333,8 +333,8 @@
       "type": "n8n-nodes-base.if",
       "typeVersion": 2,
       "position": [
-        864,
-        160
+        12976,
+        544
       ],
       "name": "Route Fast Only",
       "id": "78b31123-f0b7-4689-b43e-1fd5a3895886"
@@ -347,8 +347,8 @@
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        2656,
-        592
+        4688,
+        2080
       ],
       "id": "3b067ad7-d77f-495d-8e0f-f828902d0527"
     },
@@ -360,8 +360,8 @@
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        2880,
-        592
+        4912,
+        1968
       ],
       "id": "742a0062-f3ab-4982-8bbe-9b18848f2226"
     },
@@ -373,8 +373,8 @@
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        3104,
-        592
+        5136,
+        1968
       ],
       "id": "9d526a8f-e951-438d-afd3-ce47f1a26b36"
     },
@@ -455,8 +455,8 @@
       "type": "n8n-nodes-base.switch",
       "typeVersion": 3,
       "position": [
-        2880,
-        1088
+        7824,
+        1952
       ],
       "id": "37b4fe8c-77bf-4fa2-8b6e-3978dc55a0ea"
     },
@@ -468,8 +468,8 @@
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        3104,
-        1408
+        10064,
+        2000
       ],
       "id": "395a970c-a6e7-4ac8-99c9-586114e540d6"
     },
@@ -485,8 +485,8 @@
       "type": "n8n-nodes-base.telegram",
       "typeVersion": 1.2,
       "position": [
-        3360,
-        1712
+        10288,
+        2000
       ],
       "id": "9a3a4421-9531-4d27-8213-f242ff08adf9",
       "webhookId": "7e6f4492-72ca-4de8-968e-678b47fc0fcf"
@@ -501,8 +501,8 @@
       "type": "n8n-nodes-base.telegram",
       "typeVersion": 1.2,
       "position": [
-        3328,
-        1440
+        8048,
+        2160
       ],
       "id": "a3445eb6-2579-4711-b01a-70979904aa3c",
       "webhookId": "93ccf35d-4632-4f9f-90e2-2c56db83859e"
@@ -515,8 +515,8 @@
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        2512,
-        1120
+        8944,
+        1872
       ],
       "id": "4591964f-892f-4883-ade2-d7d54c73e4ac",
       "continueOnFail": true
@@ -529,8 +529,8 @@
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        1088,
-        112
+        13200,
+        416
       ],
       "id": "38a41713-dac8-4354-834e-2fba743cd361"
     },
@@ -541,8 +541,8 @@
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        128,
-        464
+        1776,
+        2416
       ],
       "name": "Gap News Detector",
       "id": "81e45c9a-6ab9-48a0-b5e3-187d7e6e9347"
@@ -555,8 +555,8 @@
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        640,
-        784
+        12976,
+        2320
       ],
       "id": "462519d8-73e0-424b-8ff9-01e0475f2820"
     },
@@ -568,8 +568,8 @@
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        2432,
-        592
+        4240,
+        2080
       ],
       "id": "034627eb-d633-4501-bba6-3829d4b9df81"
     },
@@ -581,8 +581,8 @@
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        3104,
-        896
+        8720,
+        1696
       ],
       "id": "994790cd-e0bb-4178-896e-7d5425c8e23c",
       "onError": "continueRegularOutput",
@@ -617,8 +617,8 @@
       "type": "n8n-nodes-base.if",
       "typeVersion": 2.2,
       "position": [
-        864,
-        784
+        13200,
+        2320
       ],
       "id": "4ecb0f1b-cd89-4782-bc74-003bc8f8aba5"
     },
@@ -630,8 +630,8 @@
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        1088,
-        784
+        13424,
+        2320
       ],
       "id": "06d3cd8d-2668-43aa-aa01-117b76acee3a"
     },
@@ -650,8 +650,8 @@
       "type": "n8n-nodes-base.scheduleTrigger",
       "typeVersion": 1.2,
       "position": [
-        112,
-        624
+        -464,
+        2976
       ],
       "id": "f759012b-c652-4513-ba66-aee5fbf189ba",
       "notes": "Fires at 9:40 AM ET (13:40 UTC) weekdays. Configure via state._config.gtcPollTimesET."
@@ -671,8 +671,8 @@
       "type": "n8n-nodes-base.scheduleTrigger",
       "typeVersion": 1.2,
       "position": [
-        112,
-        768
+        -464,
+        3168
       ],
       "id": "cbedcece-1f04-446b-b4c5-b90d04df1b24",
       "notes": "Fires at 10:15 AM ET (14:15 UTC) weekdays. Second poll in case position not yet filled at 9:40."
@@ -685,22 +685,22 @@
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        752,
-        992
+        -240,
+        3072
       ],
       "id": "db57229b-8b22-44be-b9ba-6e3712551631",
       "notes": "Reads state._pendingGTCCloses. Calls GET /v2/positions/{ticker}. 404=flat=set cooldown. Still open=retry. Notifies personal TG."
     },
     {
       "parameters": {
-        "jsCode": "// Indicator Enrichment v1 — Backfills missing technical indicators from Polygon\n// Runs after Gap News Detector, before Signal State Machine\n// Only fetches what's missing — zero overhead for fully-populated TradingView alerts\n\n// ── Stable signal timestamp — set ONCE at pipeline entry, preserved by all\n// downstream nodes via {...prev}. Log Alert to Sheet uses this as the\n// appendOrUpdate row key so VC/Grok enrichment updates the SAME row.\nconst _rawItem = $input.first().json;\nconst item = {\n  ..._rawItem,\n  _signal_timestamp: _rawItem._signal_timestamp || new Date().toISOString()\n};\n\n\n// QTP-CHART-VISION-REALTIME v4.2.20 — dynamic TradingView widget screenshot + xAI Responses image understanding.\n// Additive/fail-open. Does not change VC Gate, Bias Filter, Risk Gate, Pause Guard, Alpaca routing, or protective exits.\nasync function qtpChartVisionShadow(input) {\n  const out = { ...(input || {}) };\n  try {\n    let rawTicker = String(out.ticker || out.symbol || out.sym || '').toUpperCase().trim();\n    let exchange = String(out.exchange || out.primary_exchange || '').toUpperCase().trim();\n    if (rawTicker.includes(':')) { const parts = rawTicker.split(':'); exchange = exchange || parts[0]; rawTicker = parts[1] || rawTicker; }\n    const tickerClean = rawTicker.replace(/[^A-Z0-9.\\-]/g, '');\n    const knownNasdaq = new Set(['AAPL','MSFT','NVDA','AMZN','META','GOOGL','GOOG','TSLA','AVGO','COST','NFLX','AMD','ADBE','PEP','CSCO','TMUS','INTU','QCOM','AMAT','TXN','ISRG','BKNG','VRTX','PANW','MU','LRCX','ADI','KLAC','MELI','CRWD','CDNS','SNPS','MRVL','ORLY','MAR','ABNB','PYPL','FTNT','REGN','ASML','NTNX','OLED','NDAQ']);\n    exchange = exchange || (knownNasdaq.has(tickerClean) ? 'NASDAQ' : 'NYSE');\n    if (!tickerClean) { out.chart_vision_enabled = false; out.chart_vision_status = 'SKIPPED_NO_TICKER'; out.chart_vision_call_mode = 'SKIPPED_NO_TICKER'; out.chart_vision_version = 'QTP_CHART_VISION_REALTIME_v4.3.0_STOREFALSE_CCFALLBACK_20260702'; return out; }\n    const chartSymbol = `${exchange}:${tickerClean}`;\n    const chartPageUrl = `https://www.tradingview.com/chart/00rMdbml/?symbol=${encodeURIComponent(chartSymbol)}`;\n    const chartEmbedUrl = `https://www.tradingview.com/widgetembed/?symbol=${encodeURIComponent(chartSymbol)}&interval=5&theme=dark&style=1&timezone=America%2FNew_York&withdateranges=1&hide_side_toolbar=0&allow_symbol_change=0&save_image=1`;\n    const screenshotUrl = `https://image.thum.io/get/width/1280/crop/900/noanimate/${chartEmbedUrl}`;\n    out.chart_symbol = chartSymbol; out.tradingview_chart_url = out.tradingview_chart_url || chartPageUrl; out.chart_page_url = out.chart_page_url || chartPageUrl; out.chart_embed_url = chartEmbedUrl; out.chart_url = out.chart_url || chartPageUrl; out.chart_image_url = screenshotUrl; out.chart_screenshot_url = screenshotUrl;\n    out.chart_url_version = 'QTP_DYNAMIC_TRADINGVIEW_WIDGET_SCREENSHOT_URL_v4.2.20'; out.chart_vision_version = 'QTP_CHART_VISION_REALTIME_v4.3.0_STOREFALSE_CCFALLBACK_20260702'; out.chart_vision_enabled = true; out.chart_vision_status = 'SCREENSHOT_URL_BUILT'; out.chart_vision_provider = 'xai_responses_image_understanding'; out.chart_screenshot_provider = 'image.thum.io_tradingview_widget';\n    const mode = String((typeof $vars !== 'undefined' && ($vars.QTP_CHART_VISION_MODE || $vars.qtp_chart_vision_mode)) || out.qtp_chart_vision_mode || 'realtime').toLowerCase();\n    const testVision = out.qtp_chart_vision_test === true || String(out.qtp_chart_vision_test || '').toLowerCase() === 'true' || out.chart_vision_force === true || String(out.chart_vision_force || '').toLowerCase() === 'true';\n    const alertType = String(out.alert_type || out.source || '').toUpperCase(); const execution = String(out.execution || out.signal || out.side || out.action || out.direction || '').toUpperCase();\n    const isEntryCandidate = ['BUY','SELL','LONG','SHORT','BULLISH','BEARISH'].includes(execution); const isNoise = alertType.includes('HEARTBEAT') || execution === 'STAND ASIDE' || execution === 'NEUTRAL' || execution === 'HOLD';\n    if (mode === 'off' || mode === 'disabled') { out.chart_vision_call_mode = 'DISABLED_BY_QTP_CHART_VISION_MODE'; return out; }\n    if (!testVision && !isEntryCandidate) { out.chart_vision_call_mode = 'REALTIME_SKIPPED_NON_ENTRY'; out.chart_vision_status = isNoise ? 'SKIPPED_HEARTBEAT_OR_NEUTRAL' : 'SKIPPED_NON_ENTRY'; return out; }\n    const creds = (($getWorkflowStaticData('global') || {})._credentials) || {};\n    const apiKey = String((typeof $vars !== 'undefined' && ($vars.XAI_API_KEY || $vars.xai_api_key)) || creds.xai_api_key || out.xai_api_key || '').trim();\n    if (!apiKey) { out.chart_vision_call_mode = 'SKIPPED_NO_XAI_KEY_FAIL_OPEN'; out.chart_vision_status = 'SKIPPED_NO_XAI_KEY'; return out; }\n    const model = String((typeof $vars !== 'undefined' && $vars.XAI_VISION_MODEL) || creds.xai_vision_model || 'grok-4.3').trim(); out.chart_vision_model = model; out.chart_vision_call_mode = testVision ? 'TEST_FLAG_REALTIME_WIDGET_SCREENSHOT_RESPONSES' : 'REALTIME_WIDGET_SCREENSHOT_RESPONSES';\n    const prompt = `Analyze this live TradingView 5-minute widget screenshot for ${chartSymbol}. Return strict JSON only with keys: chart_score number 0-100, trend BULLISH/BEARISH/NEUTRAL, pattern short string, confidence number 0-100, risk_flags array, summary one sentence. If chart is not visible, set pattern to NO_CHART_VISIBLE and confidence to 0. This is advisory enrichment only and must not assume execution.`;\n    let response;\ntry {\n  response = await this.helpers.httpRequest({ method: 'POST', url: 'https://api.x.ai/v1/responses', headers: { Authorization: `Bearer ${apiKey}`, 'Content-Type': 'application/json' }, body: { model, input: [{ role: 'user', content: [{ type: 'input_image', image_url: screenshotUrl, detail: 'high' }, { type: 'input_text', text: prompt }] }], temperature: 0, store: false }, json: true, timeout: 15000 });\n  out.chart_vision_api = 'responses_store_false';\n} catch (e1) {\n  out.chart_vision_primary_error = String((e1 && e1.response && e1.response.body && JSON.stringify(e1.response.body)) || (e1 && e1.message) || e1).slice(0, 400);\n  const cc = await this.helpers.httpRequest({ method: 'POST', url: 'https://api.x.ai/v1/chat/completions', headers: { Authorization: `Bearer ${apiKey}`, 'Content-Type': 'application/json' }, body: { model, messages: [{ role: 'user', content: [{ type: 'image_url', image_url: { url: screenshotUrl, detail: 'high' } }, { type: 'text', text: prompt }] }], temperature: 0 }, json: true, timeout: 15000 });\n  response = { output_text: (cc && cc.choices && cc.choices[0] && cc.choices[0].message && cc.choices[0].message.content) || '' };\n  out.chart_vision_api = 'chat_completions_fallback';\n}\n    let text = response?.output_text || ''; if (!text && Array.isArray(response?.output)) { for (const o of response.output) { if (Array.isArray(o.content)) { for (const c of o.content) { if (c.text) text += c.text; if (c.type === 'output_text' && c.text) text += c.text; } } } } text = text || JSON.stringify(response).slice(0, 2000);\n    out.chart_vision_raw = String(text).slice(0, 4000);\n    let parsed = {}; try { let cleaned = String(text).replace(/```json|```/g, '').trim(); const dup = cleaned.indexOf('}{'); if (dup > 0) cleaned = cleaned.slice(0, dup + 1); parsed = JSON.parse(cleaned); } catch (e) { parsed = {}; }\n    out.chart_vision_score = Number(parsed.chart_score ?? parsed.chart_vision_score ?? parsed.score ?? 0); out.chart_vision_trend = String(parsed.trend ?? parsed.chart_vision_trend ?? 'UNKNOWN'); out.chart_vision_pattern = String(parsed.pattern ?? parsed.chart_vision_pattern ?? 'UNKNOWN'); out.chart_vision_confidence = Number(parsed.confidence ?? parsed.chart_vision_confidence ?? 0); out.chart_vision_risk_flags = Array.isArray(parsed.risk_flags) ? parsed.risk_flags.join('; ') : String(parsed.risk_flags || parsed.chart_vision_red_flags || ''); out.chart_vision_summary = String(parsed.summary || parsed.chart_vision_summary || '').slice(0, 800); out.chart_vision_status = 'ANALYZED_REALTIME_WIDGET_SCREENSHOT'; out.chart_vision_completed_at = new Date().toISOString();\n  } catch (e) { out.chart_vision_status = 'ERROR_FAIL_OPEN'; out.chart_vision_error = String((e && e.response && e.response.body && JSON.stringify(e.response.body)) || (e && e.response && e.response.data && JSON.stringify(e.response.data)) || (e && e.message) || e).slice(0, 900); out.chart_vision_fail_open_alert = true; out.chart_vision_call_mode = out.chart_vision_call_mode || 'REALTIME_WIDGET_SCREENSHOT_RESPONSES_ERROR_FAIL_OPEN'; out.chart_vision_version = 'QTP_CHART_VISION_REALTIME_v4.3.0_STOREFALSE_CCFALLBACK_20260702'; }\n  return out;\n}\n\nconst _creds_IE = ($getWorkflowStaticData('global')._credentials) || {};\nconst POLYGON_KEY = _creds_IE.polygon_key;\nif (!POLYGON_KEY) throw new Error('SE-C1: polygon_key missing from staticData._credentials');\n\n// Determine if enrichment is needed\nconst needsRsi    = !item.rsi    || item.rsi    === 'N/A' || item.rsi    === 0 || item.rsi    === '0';\nconst needsMacd   = !item.macd_hist || item.macd_hist === 'N/A' || item.macd_hist === 0 || item.macd_hist === '0';\nconst needsSma50  = !item.sma50  || item.sma50  === 'N/A' || item.sma50  === 0 || item.sma50  === '0';\nconst needsEma200 = !item.ema200 || item.ema200 === 'N/A' || item.ema200 === 0 || item.ema200 === '0';\nconst needsVwap   = !item.vwap   || item.vwap   === 'N/A' || item.vwap   === 0 || item.vwap   === '0';\n\nconst ticker = item.ticker;\nif (!ticker || ticker === 'UNKNOWN') return [{ json: await qtpChartVisionShadow.call(this, item) }];\n\n// If everything is present, pass through immediately — no API calls\nif (!needsRsi && !needsMacd && !needsSma50 && !needsEma200 && !needsVwap) {\n  console.log('[ENRICH] All indicators present for', ticker, '— pass-through');\n  return [{ json: await qtpChartVisionShadow.call(this, item) }];\n}\n\n// Determine timespan for RSI/MACD based on signal timeframe\nconst tf = (item.timeframe || '').toString().toUpperCase();\nconst isScalp = ['1','1M','3','3M','5','5M','15','15M'].includes(tf);\nconst indTimespan = isScalp ? 'minute' : 'day';\n\nconst enriched = { ...item };\n\n// Helper: safe fetch\nasync function safeFetch(url) {\n  try {\n    return await this.helpers.httpRequest({ method: 'GET', url, timeout: 5000 });\n  } catch (e) {\n    console.error('[ENRICH] Fetch error:', e.message);\n    return null;\n  }\n}\n\n// Fetch RSI (14)\nif (needsRsi) {\n  const url = `https://api.polygon.io/v1/indicators/rsi/${ticker}?timespan=${indTimespan}&adjusted=true&window=14&series_type=close&order=desc&limit=1&apiKey=${POLYGON_KEY}`;\n  const data = await safeFetch.call(this, url);\n  const v = data?.results?.values?.[0]?.value;\n  if (v !== undefined) enriched.rsi = parseFloat(v).toFixed(2);\n  console.log('[ENRICH] RSI', ticker, '=', enriched.rsi);\n}\n\n// Fetch MACD histogram (12/26/9)\nif (needsMacd) {\n  const url = `https://api.polygon.io/v1/indicators/macd/${ticker}?timespan=${indTimespan}&adjusted=true&short_window=12&long_window=26&signal_window=9&series_type=close&order=desc&limit=1&apiKey=${POLYGON_KEY}`;\n  const data = await safeFetch.call(this, url);\n  const v = data?.results?.values?.[0]?.histogram;\n  if (v !== undefined) enriched.macd_hist = parseFloat(v).toFixed(4);\n  console.log('[ENRICH] MACD', ticker, '=', enriched.macd_hist);\n}\n\n// Fetch SMA50 (daily)\nif (needsSma50) {\n  const url = `https://api.polygon.io/v1/indicators/sma/${ticker}?timespan=day&adjusted=true&window=50&series_type=close&order=desc&limit=1&apiKey=${POLYGON_KEY}`;\n  const data = await safeFetch.call(this, url);\n  const v = data?.results?.values?.[0]?.value;\n  if (v !== undefined) enriched.sma50 = parseFloat(v).toFixed(2);\n  console.log('[ENRICH] SMA50', ticker, '=', enriched.sma50);\n}\n\n// Fetch EMA200 (daily)\nif (needsEma200) {\n  const url = `https://api.polygon.io/v1/indicators/ema/${ticker}?timespan=day&adjusted=true&window=200&series_type=close&order=desc&limit=1&apiKey=${POLYGON_KEY}`;\n  const data = await safeFetch.call(this, url);\n  const v = data?.results?.values?.[0]?.value;\n  if (v !== undefined) enriched.ema200 = parseFloat(v).toFixed(2);\n  console.log('[ENRICH] EMA200', ticker, '=', enriched.ema200);\n}\n\n// Fetch VWAP (from daily aggregate bar — field is 'vw' in Polygon aggs)\nif (needsVwap) {\n  const today = new Date().toISOString().split('T')[0];\n  const aggUrl = `https://api.polygon.io/v2/aggs/ticker/${ticker}/range/1/day/${today}/${today}?adjusted=true&apiKey=${POLYGON_KEY}`;\n  const aggData = await safeFetch.call(this, aggUrl);\n  let v = aggData?.results?.[0]?.vw;\n  // Fallback: try snapshot endpoint if agg not available yet (pre-market)\n  if (!v || v === 0) {\n    const snapUrl = `https://api.polygon.io/v2/snapshot/locale/us/markets/stocks/tickers/${ticker}?apiKey=${POLYGON_KEY}`;\n    const snapData = await safeFetch.call(this, snapUrl);\n    v = snapData?.ticker?.day?.vwap || snapData?.ticker?.min?.av;\n  }\n  if (v !== undefined && v !== 0) enriched.vwap = parseFloat(v).toFixed(2);\n  console.log('[ENRICH] VWAP', ticker, '=', enriched.vwap);\n}\n\nenriched._enriched = true;\nenriched._enriched_fields = ['rsi','macd','sma50','ema200','vwap'].filter((f,i) => [\n  needsRsi && enriched.rsi !== item.rsi,\n  needsMacd && enriched.macd_hist !== item.macd_hist,\n  needsSma50 && enriched.sma50 !== item.sma50,\n  needsEma200 && enriched.ema200 !== item.ema200,\n  needsVwap && enriched.vwap !== item.vwap\n][i]).join(',');\n\nconsole.log('[ENRICH] Done for', ticker, '— filled:', enriched._enriched_fields || 'none');\n// Fix #17 Batch 2 (hotfix): expose polygon_key to downstream HTTP nodes\nenriched._polygon_key = POLYGON_KEY;\nreturn [{ json: await qtpChartVisionShadow.call(this, enriched) }];"
+        "jsCode": "// Indicator Enrichment v1 — Backfills missing technical indicators from Polygon\n// Runs after Gap News Detector, before Signal State Machine\n// Only fetches what's missing — zero overhead for fully-populated TradingView alerts\n\n// ── Stable signal timestamp — set ONCE at pipeline entry, preserved by all\n// downstream nodes via {...prev}. Log Alert to Sheet uses this as the\n// appendOrUpdate row key so VC/Grok enrichment updates the SAME row.\nconst _rawItem = $input.first().json;\nconst item = {\n  ..._rawItem,\n  _signal_timestamp: _rawItem._signal_timestamp || new Date().toISOString()\n};\n\n\n// QTP-CHART-VISION-REALTIME v4.2.20 — dynamic TradingView widget screenshot + xAI Responses image understanding.\n// Additive/fail-open. Does not change VC Gate, Bias Filter, Risk Gate, Pause Guard, Alpaca routing, or protective exits.\nasync function qtpChartVisionShadow(input) {\n  const out = { ...(input || {}) };\n  try {\n    let rawTicker = String(out.ticker || out.symbol || out.sym || '').toUpperCase().trim();\n    let exchange = String(out.exchange || out.primary_exchange || '').toUpperCase().trim();\n    if (rawTicker.includes(':')) { const parts = rawTicker.split(':'); exchange = exchange || parts[0]; rawTicker = parts[1] || rawTicker; }\n    const tickerClean = rawTicker.replace(/[^A-Z0-9.\\-]/g, '');\n    const knownNasdaq = new Set(['AAPL','MSFT','NVDA','AMZN','META','GOOGL','GOOG','TSLA','AVGO','COST','NFLX','AMD','ADBE','PEP','CSCO','TMUS','INTU','QCOM','AMAT','TXN','ISRG','BKNG','VRTX','PANW','MU','LRCX','ADI','KLAC','MELI','CRWD','CDNS','SNPS','MRVL','ORLY','MAR','ABNB','PYPL','FTNT','REGN','ASML','NTNX','OLED','NDAQ']);\n    exchange = exchange || (knownNasdaq.has(tickerClean) ? 'NASDAQ' : 'NYSE');\n    if (!tickerClean) { out.chart_vision_enabled = false; out.chart_vision_status = 'SKIPPED_NO_TICKER'; out.chart_vision_call_mode = 'SKIPPED_NO_TICKER'; out.chart_vision_version = 'QTP_CHART_VISION_REALTIME_v4.4.0_CCPRIMARY_20260706'; return out; }\n    const chartSymbol = `${exchange}:${tickerClean}`;\n    const chartPageUrl = `https://www.tradingview.com/chart/00rMdbml/?symbol=${encodeURIComponent(chartSymbol)}`;\n    const chartEmbedUrl = `https://www.tradingview.com/widgetembed/?symbol=${encodeURIComponent(chartSymbol)}&interval=5&theme=dark&style=1&timezone=America%2FNew_York&withdateranges=1&hide_side_toolbar=0&allow_symbol_change=0&save_image=1`;\n    const screenshotUrl = `https://image.thum.io/get/width/1280/crop/900/noanimate/${chartEmbedUrl}`;\n    out.chart_symbol = chartSymbol; out.tradingview_chart_url = out.tradingview_chart_url || chartPageUrl; out.chart_page_url = out.chart_page_url || chartPageUrl; out.chart_embed_url = chartEmbedUrl; out.chart_url = out.chart_url || chartPageUrl; out.chart_image_url = screenshotUrl; out.chart_screenshot_url = screenshotUrl;\n    out.chart_url_version = 'QTP_DYNAMIC_TRADINGVIEW_WIDGET_SCREENSHOT_URL_v4.2.20'; out.chart_vision_version = 'QTP_CHART_VISION_REALTIME_v4.4.0_CCPRIMARY_20260706'; out.chart_vision_enabled = true; out.chart_vision_status = 'SCREENSHOT_URL_BUILT'; out.chart_vision_provider = 'xai_responses_image_understanding'; out.chart_screenshot_provider = 'image.thum.io_tradingview_widget';\n    const mode = String((typeof $vars !== 'undefined' && ($vars.QTP_CHART_VISION_MODE || $vars.qtp_chart_vision_mode)) || out.qtp_chart_vision_mode || 'realtime').toLowerCase();\n    const testVision = out.qtp_chart_vision_test === true || String(out.qtp_chart_vision_test || '').toLowerCase() === 'true' || out.chart_vision_force === true || String(out.chart_vision_force || '').toLowerCase() === 'true';\n    const alertType = String(out.alert_type || out.source || '').toUpperCase(); const execution = String(out.execution || out.signal || out.side || out.action || out.direction || '').toUpperCase();\n    const isEntryCandidate = ['BUY','SELL','LONG','SHORT','BULLISH','BEARISH'].includes(execution); const isNoise = alertType.includes('HEARTBEAT') || execution === 'STAND ASIDE' || execution === 'NEUTRAL' || execution === 'HOLD';\n    if (mode === 'off' || mode === 'disabled') { out.chart_vision_call_mode = 'DISABLED_BY_QTP_CHART_VISION_MODE'; return out; }\n    if (!testVision && !isEntryCandidate) { out.chart_vision_call_mode = 'REALTIME_SKIPPED_NON_ENTRY'; out.chart_vision_status = isNoise ? 'SKIPPED_HEARTBEAT_OR_NEUTRAL' : 'SKIPPED_NON_ENTRY'; return out; }\n    const creds = (($getWorkflowStaticData('global') || {})._credentials) || {};\n    const apiKey = String((typeof $vars !== 'undefined' && ($vars.XAI_API_KEY || $vars.xai_api_key)) || creds.xai_api_key || out.xai_api_key || '').trim();\n    if (!apiKey) { out.chart_vision_call_mode = 'SKIPPED_NO_XAI_KEY_FAIL_OPEN'; out.chart_vision_status = 'SKIPPED_NO_XAI_KEY'; return out; }\n    const model = String((typeof $vars !== 'undefined' && $vars.XAI_VISION_MODEL) || creds.xai_vision_model || 'grok-4.3').trim(); out.chart_vision_model = model; out.chart_vision_call_mode = testVision ? 'TEST_FLAG_REALTIME_WIDGET_SCREENSHOT_RESPONSES' : 'REALTIME_WIDGET_SCREENSHOT_RESPONSES';\n    const prompt = `Analyze this live TradingView 5-minute widget screenshot for ${chartSymbol}. Return strict JSON only with keys: chart_score number 0-100, trend BULLISH/BEARISH/NEUTRAL, pattern short string, confidence number 0-100, risk_flags array, summary one sentence. If chart is not visible, set pattern to NO_CHART_VISIBLE and confidence to 0. This is advisory enrichment only and must not assume execution.`;\n    let response;\ntry {\n  const cc = await this.helpers.httpRequest({ method: 'POST', url: 'https://api.x.ai/v1/chat/completions', headers: { Authorization: `Bearer ${apiKey}`, 'Content-Type': 'application/json' }, body: { model, messages: [{ role: 'user', content: [{ type: 'image_url', image_url: { url: screenshotUrl, detail: 'high' } }, { type: 'text', text: prompt }] }], temperature: 0 }, json: true, timeout: 15000 });\n  response = { output_text: (cc && cc.choices && cc.choices[0] && cc.choices[0].message && cc.choices[0].message.content) || '' };\n  out.chart_vision_api = 'chat_completions_primary';\n} catch (e1) {\n  out.chart_vision_primary_error = String((e1 && e1.response && e1.response.body && JSON.stringify(e1.response.body)) || (e1 && e1.message) || e1).slice(0, 400);\n  response = await this.helpers.httpRequest({ method: 'POST', url: 'https://api.x.ai/v1/responses', headers: { Authorization: `Bearer ${apiKey}`, 'Content-Type': 'application/json' }, body: { model, input: [{ role: 'user', content: [{ type: 'input_image', image_url: screenshotUrl, detail: 'high' }, { type: 'input_text', text: prompt }] }], temperature: 0, store: false }, json: true, timeout: 15000 });\n  out.chart_vision_api = 'responses_secondary';\n}\n    let text = response?.output_text || ''; if (!text && Array.isArray(response?.output)) { for (const o of response.output) { if (Array.isArray(o.content)) { for (const c of o.content) { if (c.text) text += c.text; if (c.type === 'output_text' && c.text) text += c.text; } } } } text = text || JSON.stringify(response).slice(0, 2000);\n    out.chart_vision_raw = String(text).slice(0, 4000);\n    let parsed = {}; try { let cleaned = String(text).replace(/```json|```/g, '').trim(); const dup = cleaned.indexOf('}{'); if (dup > 0) cleaned = cleaned.slice(0, dup + 1); parsed = JSON.parse(cleaned); } catch (e) { parsed = {}; }\n    out.chart_vision_score = Number(parsed.chart_score ?? parsed.chart_vision_score ?? parsed.score ?? 0); out.chart_vision_trend = String(parsed.trend ?? parsed.chart_vision_trend ?? 'UNKNOWN'); out.chart_vision_pattern = String(parsed.pattern ?? parsed.chart_vision_pattern ?? 'UNKNOWN'); out.chart_vision_confidence = Number(parsed.confidence ?? parsed.chart_vision_confidence ?? 0); out.chart_vision_risk_flags = Array.isArray(parsed.risk_flags) ? parsed.risk_flags.join('; ') : String(parsed.risk_flags || parsed.chart_vision_red_flags || ''); out.chart_vision_summary = String(parsed.summary || parsed.chart_vision_summary || '').slice(0, 800); out.chart_vision_status = 'ANALYZED_REALTIME_WIDGET_SCREENSHOT'; out.chart_vision_completed_at = new Date().toISOString();\n  } catch (e) { out.chart_vision_status = 'ERROR_FAIL_OPEN'; out.chart_vision_error = String((e && e.response && e.response.body && JSON.stringify(e.response.body)) || (e && e.response && e.response.data && JSON.stringify(e.response.data)) || (e && e.message) || e).slice(0, 900); out.chart_vision_fail_open_alert = true; out.chart_vision_call_mode = out.chart_vision_call_mode || 'REALTIME_WIDGET_SCREENSHOT_RESPONSES_ERROR_FAIL_OPEN'; out.chart_vision_version = 'QTP_CHART_VISION_REALTIME_v4.4.0_CCPRIMARY_20260706'; }\n  return out;\n}\n\nconst _creds_IE = ($getWorkflowStaticData('global')._credentials) || {};\nconst POLYGON_KEY = _creds_IE.polygon_key;\nif (!POLYGON_KEY) throw new Error('SE-C1: polygon_key missing from staticData._credentials');\n\n// Determine if enrichment is needed\nconst needsRsi    = !item.rsi    || item.rsi    === 'N/A' || item.rsi    === 0 || item.rsi    === '0';\nconst needsMacd   = !item.macd_hist || item.macd_hist === 'N/A' || item.macd_hist === 0 || item.macd_hist === '0';\nconst needsSma50  = !item.sma50  || item.sma50  === 'N/A' || item.sma50  === 0 || item.sma50  === '0';\nconst needsEma200 = !item.ema200 || item.ema200 === 'N/A' || item.ema200 === 0 || item.ema200 === '0';\nconst needsVwap   = !item.vwap   || item.vwap   === 'N/A' || item.vwap   === 0 || item.vwap   === '0';\n\nconst ticker = item.ticker;\nif (!ticker || ticker === 'UNKNOWN') return [{ json: await qtpChartVisionShadow.call(this, item) }];\n\n// If everything is present, pass through immediately — no API calls\nif (!needsRsi && !needsMacd && !needsSma50 && !needsEma200 && !needsVwap) {\n  console.log('[ENRICH] All indicators present for', ticker, '— pass-through');\n  return [{ json: await qtpChartVisionShadow.call(this, item) }];\n}\n\n// Determine timespan for RSI/MACD based on signal timeframe\nconst tf = (item.timeframe || '').toString().toUpperCase();\nconst isScalp = ['1','1M','3','3M','5','5M','15','15M'].includes(tf);\nconst indTimespan = isScalp ? 'minute' : 'day';\n\nconst enriched = { ...item };\n\n// Helper: safe fetch\nasync function safeFetch(url) {\n  try {\n    return await this.helpers.httpRequest({ method: 'GET', url, timeout: 5000 });\n  } catch (e) {\n    console.error('[ENRICH] Fetch error:', e.message);\n    return null;\n  }\n}\n\n// Fetch RSI (14)\nif (needsRsi) {\n  const url = `https://api.polygon.io/v1/indicators/rsi/${ticker}?timespan=${indTimespan}&adjusted=true&window=14&series_type=close&order=desc&limit=1&apiKey=${POLYGON_KEY}`;\n  const data = await safeFetch.call(this, url);\n  const v = data?.results?.values?.[0]?.value;\n  if (v !== undefined) enriched.rsi = parseFloat(v).toFixed(2);\n  console.log('[ENRICH] RSI', ticker, '=', enriched.rsi);\n}\n\n// Fetch MACD histogram (12/26/9)\nif (needsMacd) {\n  const url = `https://api.polygon.io/v1/indicators/macd/${ticker}?timespan=${indTimespan}&adjusted=true&short_window=12&long_window=26&signal_window=9&series_type=close&order=desc&limit=1&apiKey=${POLYGON_KEY}`;\n  const data = await safeFetch.call(this, url);\n  const v = data?.results?.values?.[0]?.histogram;\n  if (v !== undefined) enriched.macd_hist = parseFloat(v).toFixed(4);\n  console.log('[ENRICH] MACD', ticker, '=', enriched.macd_hist);\n}\n\n// Fetch SMA50 (daily)\nif (needsSma50) {\n  const url = `https://api.polygon.io/v1/indicators/sma/${ticker}?timespan=day&adjusted=true&window=50&series_type=close&order=desc&limit=1&apiKey=${POLYGON_KEY}`;\n  const data = await safeFetch.call(this, url);\n  const v = data?.results?.values?.[0]?.value;\n  if (v !== undefined) enriched.sma50 = parseFloat(v).toFixed(2);\n  console.log('[ENRICH] SMA50', ticker, '=', enriched.sma50);\n}\n\n// Fetch EMA200 (daily)\nif (needsEma200) {\n  const url = `https://api.polygon.io/v1/indicators/ema/${ticker}?timespan=day&adjusted=true&window=200&series_type=close&order=desc&limit=1&apiKey=${POLYGON_KEY}`;\n  const data = await safeFetch.call(this, url);\n  const v = data?.results?.values?.[0]?.value;\n  if (v !== undefined) enriched.ema200 = parseFloat(v).toFixed(2);\n  console.log('[ENRICH] EMA200', ticker, '=', enriched.ema200);\n}\n\n// Fetch VWAP (from daily aggregate bar — field is 'vw' in Polygon aggs)\nif (needsVwap) {\n  const today = new Date().toISOString().split('T')[0];\n  const aggUrl = `https://api.polygon.io/v2/aggs/ticker/${ticker}/range/1/day/${today}/${today}?adjusted=true&apiKey=${POLYGON_KEY}`;\n  const aggData = await safeFetch.call(this, aggUrl);\n  let v = aggData?.results?.[0]?.vw;\n  // Fallback: try snapshot endpoint if agg not available yet (pre-market)\n  if (!v || v === 0) {\n    const snapUrl = `https://api.polygon.io/v2/snapshot/locale/us/markets/stocks/tickers/${ticker}?apiKey=${POLYGON_KEY}`;\n    const snapData = await safeFetch.call(this, snapUrl);\n    v = snapData?.ticker?.day?.vwap || snapData?.ticker?.min?.av;\n  }\n  if (v !== undefined && v !== 0) enriched.vwap = parseFloat(v).toFixed(2);\n  console.log('[ENRICH] VWAP', ticker, '=', enriched.vwap);\n}\n\nenriched._enriched = true;\nenriched._enriched_fields = ['rsi','macd','sma50','ema200','vwap'].filter((f,i) => [\n  needsRsi && enriched.rsi !== item.rsi,\n  needsMacd && enriched.macd_hist !== item.macd_hist,\n  needsSma50 && enriched.sma50 !== item.sma50,\n  needsEma200 && enriched.ema200 !== item.ema200,\n  needsVwap && enriched.vwap !== item.vwap\n][i]).join(',');\n\nconsole.log('[ENRICH] Done for', ticker, '— filled:', enriched._enriched_fields || 'none');\n// Fix #17 Batch 2 (hotfix): expose polygon_key to downstream HTTP nodes\nenriched._polygon_key = POLYGON_KEY;\nreturn [{ json: await qtpChartVisionShadow.call(this, enriched) }];"
       },
       "name": "Indicator Enrichment",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        272,
-        384
+        2000,
+        2416
       ],
       "id": "fd1c4d3b-ef8c-4645-a788-357d2466fb65"
     },
@@ -711,8 +711,8 @@
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        3024,
-        352
+        14320,
+        1136
       ],
       "name": "Channel Gate",
       "id": "64021f48-214d-4d1e-a89f-0e8b3592c4b2"
@@ -724,8 +724,8 @@
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        2592,
-        64
+        -464,
+        0
       ],
       "name": "Code in JavaScript",
       "id": "13a72aea-ed32-415d-9b79-f045a0dd168f"
@@ -737,7 +737,7 @@
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        3168,
+        -464,
         -224
       ],
       "name": "Code in JavaScript1",
@@ -767,8 +767,8 @@
       "type": "n8n-nodes-base.executeWorkflow",
       "typeVersion": 1.3,
       "position": [
-        1264,
-        1072
+        13648,
+        224
       ],
       "name": "Supabase Shadow Logger",
       "notesInFlow": true,
@@ -784,8 +784,8 @@
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        192,
-        576
+        -240,
+        2416
       ],
       "id": "15aa87d2-9fe6-48c8-b292-879c2ab1c485",
       "notes": "Fail-closed auth gate. Rejects TV alerts missing/mismatched _secret. Internal alert_types bypass."
@@ -798,8 +798,8 @@
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        3568,
-        1248
+        13424,
+        416
       ],
       "id": "ca813660-6019-445d-bcba-939e402aec80",
       "continueOnFail": true,
@@ -814,8 +814,8 @@
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        3568,
-        592
+        9168,
+        1872
       ],
       "id": "8f47bc9b-66c5-41db-9485-610cb218c557",
       "continueOnFail": true,
@@ -846,8 +846,8 @@
       "type": "n8n-nodes-base.executeWorkflow",
       "typeVersion": 1.3,
       "position": [
-        3792,
-        688
+        9392,
+        1872
       ],
       "id": "e3358a6a-17fd-4ad8-962e-9f11eb16acbe",
       "continueOnFail": true,
@@ -855,14 +855,14 @@
     },
     {
       "parameters": {
-        "jsCode": "\n// QTP Supabase Candidate Trace Builder v4.2.1\n// Fail-open diagnostic logger. No VC, Bias, Risk, Pause, Alpaca, or protective-exit logic changes.\nfunction esc(v) { return String(v ?? '').replace(/\\\\/g, '\\\\\\\\').replace(/'/g, \"''\").replace(/\\r/g, '\\\\r').replace(/\\n/g, '\\\\n'); }\nfunction s(v) { return `'${esc(v)}'`; }\nfunction n(v) { const x = Number(v); return Number.isFinite(x) ? String(x) : 'NULL'; }\nfunction b(v) {\n  if (v === true) return 'true';\n  if (v === false) return 'false';\n  const t = String(v ?? '').toLowerCase();\n  if (t === 'true') return 'true';\n  if (t === 'false') return 'false';\n  return 'NULL';\n}\nconst out = [];\nfor (const item of items) {\n  const j = item.json || {};\n  const ticker = String(j.ticker || j.symbol || '').toUpperCase();\n  const direction = String(j.execution || j.signal || j.side || j.trade_action || '').toUpperCase();\n  const legacyLive = Number(j.live_vc_score ?? j._vc_score_legacy ?? j.vc_score);\n  const liveV2 = Number(j.live_vc_score_v2 ?? j._vc_score ?? j.vc_score);\n  const shadow = Number(j._vc_shadow_scanner_score);\n  const parityDelta = Number(j._vc_parity_delta ?? (Number.isFinite(liveV2) && Number.isFinite(legacyLive) ? Math.round((liveV2 - legacyLive) * 10) / 10 : NaN));\n  const traceId = `trace10fc_${Date.now()}_${ticker || 'NA'}_${Math.random().toString(36).slice(2, 8)}`;\n  const trace = {\n    trace_id: traceId,\n    observed_at: new Date().toISOString(),\n    ticker,\n    signal_direction: direction,\n    scanner_score: Number(j.score ?? j.raw_score ?? j.composite_score ?? j.ai_super_score ?? 0),\n    ssm_action: j._sm_action || '',\n    ssm_reason: j._sm_reason || '',\n    live_vc_score: Number.isFinite(legacyLive) ? legacyLive : null,\n    shadow_vc_score: Number.isFinite(shadow) ? shadow : null,\n    vc_delta: Number.isFinite(legacyLive) && Number.isFinite(shadow) ? Math.round((shadow - legacyLive) * 10) / 10 : null,\n    vc_verdict: j._vc_verdict || j._vc_shadow_scanner_verdict || '',\n    pause_guard_action: j._pause_guard_action || '',\n    live_vc_score_v2: Number.isFinite(liveV2) ? liveV2 : null,\n    vc_score_legacy: Number.isFinite(legacyLive) ? legacyLive : null,\n    vc_parity_delta: Number.isFinite(parityDelta) ? parityDelta : null,\n    vc_gate_candidate_v2_pass: j._vc_gate_candidate_v2_pass,\n    vc_gate_candidate_legacy_pass: j._vc_gate_candidate_legacy_pass,\n    vc_score_parser_version: j._vc_score_parser_version || ''\n  };\n  const stmt = `\n    INSERT INTO quantum.candidate_path_trace_10fc (\n      trace_id, observed_at, workflow_execution_id, ticker, signal_direction,\n      scanner_score, ssm_action, ssm_reason, live_vc_score, shadow_vc_score,\n      vc_delta, vc_verdict, risk_gate_status, pause_guard_action, alpaca_route,\n      blocked_stage, blocked_reason, raw_payload,\n      live_vc_score_v2, vc_score_legacy, vc_parity_delta,\n      vc_gate_candidate_v2_pass, vc_gate_candidate_legacy_pass, vc_score_parser_version\n    ) VALUES (\n      ${s(trace.trace_id)}, CURRENT_TIMESTAMP, ${s(String($execution.id || ''))}, ${s(trace.ticker)}, ${s(trace.signal_direction)},\n      ${n(trace.scanner_score)}, ${s(trace.ssm_action)}, ${s(trace.ssm_reason)}, ${n(trace.live_vc_score)}, ${n(trace.shadow_vc_score)},\n      ${n(trace.vc_delta)}, ${s(trace.vc_verdict)}, ${s(j._risk_gate_status || '')}, ${s(j._pause_guard_action || '')}, ${s(j._alpaca_route || '')},\n      ${s(j._blocked_stage || '')}, ${s(j._blocked_reason || '')}, ${s(JSON.stringify(j).slice(0, 12000))},\n      ${n(trace.live_vc_score_v2)}, ${n(trace.vc_score_legacy)}, ${n(trace.vc_parity_delta)},\n      ${b(trace.vc_gate_candidate_v2_pass)}, ${b(trace.vc_gate_candidate_legacy_pass)}, ${s(trace.vc_score_parser_version)}\n    );\n    SELECT 'INSERTED' AS candidate_trace_status, ${s(trace.trace_id)} AS trace_id;\n  `;\n  out.push({ json: { ...j, _10fc_trace: trace, _10fc_trace_logged: true, _candidate_trace_sql: stmt, _candidate_trace_source: 'supabase.candidate_path_trace_10fc' } });\n}\nreturn out;\n"
+        "jsCode": "\n// QTP Supabase Candidate Trace Builder v4.2.2\n// Fail-open diagnostic logger. No VC, Bias, Risk, Pause, Alpaca, or protective-exit logic changes.\nfunction esc(v) { return String(v ?? '').replace(/\\\\/g, '\\\\\\\\').replace(/'/g, \"''\").replace(/\\r/g, '\\\\r').replace(/\\n/g, '\\\\n').replace(/\\$(\\d)/g, 'USD $1').replace(/\\$\\{/g, 'USD{'); }\nfunction s(v) { return `'${esc(v)}'`; }\nfunction n(v) { const x = Number(v); return Number.isFinite(x) ? String(x) : 'NULL'; }\nfunction b(v) {\n  if (v === true) return 'true';\n  if (v === false) return 'false';\n  const t = String(v ?? '').toLowerCase();\n  if (t === 'true') return 'true';\n  if (t === 'false') return 'false';\n  return 'NULL';\n}\nconst out = [];\nfor (const item of items) {\n  const j = item.json || {};\n  const ticker = String(j.ticker || j.symbol || '').toUpperCase();\n  const direction = String(j.execution || j.signal || j.side || j.trade_action || '').toUpperCase();\n  const legacyLive = Number(j.live_vc_score ?? j._vc_score_legacy ?? j.vc_score);\n  const liveV2 = Number(j.live_vc_score_v2 ?? j._vc_score ?? j.vc_score);\n  const shadow = Number(j._vc_shadow_scanner_score);\n  const parityDelta = Number(j._vc_parity_delta ?? (Number.isFinite(liveV2) && Number.isFinite(legacyLive) ? Math.round((liveV2 - legacyLive) * 10) / 10 : NaN));\n  const traceId = `trace10fc_${Date.now()}_${ticker || 'NA'}_${Math.random().toString(36).slice(2, 8)}`;\n  const trace = {\n    trace_id: traceId,\n    observed_at: new Date().toISOString(),\n    ticker,\n    signal_direction: direction,\n    scanner_score: Number(j.score ?? j.raw_score ?? j.composite_score ?? j.ai_super_score ?? 0),\n    ssm_action: j._sm_action || '',\n    ssm_reason: j._sm_reason || '',\n    live_vc_score: Number.isFinite(legacyLive) ? legacyLive : null,\n    shadow_vc_score: Number.isFinite(shadow) ? shadow : null,\n    vc_delta: Number.isFinite(legacyLive) && Number.isFinite(shadow) ? Math.round((shadow - legacyLive) * 10) / 10 : null,\n    vc_verdict: j._vc_verdict || j._vc_shadow_scanner_verdict || '',\n    pause_guard_action: j._pause_guard_action || '',\n    live_vc_score_v2: Number.isFinite(liveV2) ? liveV2 : null,\n    vc_score_legacy: Number.isFinite(legacyLive) ? legacyLive : null,\n    vc_parity_delta: Number.isFinite(parityDelta) ? parityDelta : null,\n    vc_gate_candidate_v2_pass: j._vc_gate_candidate_v2_pass,\n    vc_gate_candidate_legacy_pass: j._vc_gate_candidate_legacy_pass,\n    vc_score_parser_version: j._vc_score_parser_version || ''\n  };\n  const stmt = `\n    INSERT INTO quantum.candidate_path_trace_10fc (\n      trace_id, observed_at, workflow_execution_id, ticker, signal_direction,\n      scanner_score, ssm_action, ssm_reason, live_vc_score, shadow_vc_score,\n      vc_delta, vc_verdict, risk_gate_status, pause_guard_action, alpaca_route,\n      blocked_stage, blocked_reason, raw_payload,\n      live_vc_score_v2, vc_score_legacy, vc_parity_delta,\n      vc_gate_candidate_v2_pass, vc_gate_candidate_legacy_pass, vc_score_parser_version\n    ) VALUES (\n      ${s(trace.trace_id)}, CURRENT_TIMESTAMP, ${s(String($execution.id || ''))}, ${s(trace.ticker)}, ${s(trace.signal_direction)},\n      ${n(trace.scanner_score)}, ${s(trace.ssm_action)}, ${s(trace.ssm_reason)}, ${n(trace.live_vc_score)}, ${n(trace.shadow_vc_score)},\n      ${n(trace.vc_delta)}, ${s(trace.vc_verdict)}, ${s(j._risk_gate_status || '')}, ${s(j._pause_guard_action || '')}, ${s(j._alpaca_route || '')},\n      ${s(j._blocked_stage || '')}, ${s(j._blocked_reason || '')}, ${s(JSON.stringify(j).slice(0, 12000))},\n      ${n(trace.live_vc_score_v2)}, ${n(trace.vc_score_legacy)}, ${n(trace.vc_parity_delta)},\n      ${b(trace.vc_gate_candidate_v2_pass)}, ${b(trace.vc_gate_candidate_legacy_pass)}, ${s(trace.vc_score_parser_version)}\n    );\n    SELECT 'INSERTED' AS candidate_trace_status, ${s(trace.trace_id)} AS trace_id;\n  `;\n  out.push({ json: { ...j, _10fc_trace: trace, _10fc_trace_logged: true, _candidate_trace_sql: stmt, _candidate_trace_source: 'supabase.candidate_path_trace_10fc' } });\n}\nreturn out;\n// QTP_TRACE_SQL_DOLLAR_SANITIZE_v1_20260703\n"
       },
       "name": "QTP-10FC Candidate Trace Logger",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        3344,
-        592
+        7152,
+        1968
       ],
       "id": "02c0ce78-6308-4c20-9380-aca663dc71a5",
       "continueOnFail": true
@@ -875,8 +875,8 @@
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        3344,
-        1216
+        9616,
+        1648
       ],
       "notesInFlow": false,
       "id": "8f16a270-8c68-4ff5-a985-1463c372ba61",
@@ -920,8 +920,8 @@
       "type": "n8n-nodes-base.if",
       "typeVersion": 2,
       "position": [
-        3568,
-        896
+        9840,
+        1648
       ],
       "id": "18ec20e0-242b-4b5e-8109-e56a9a4afad0"
     },
@@ -933,8 +933,8 @@
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        3824,
-        1168
+        13648,
+        416
       ],
       "id": "af98795c-fc4d-4264-a8c4-c688d3810ff4"
     },
@@ -946,14 +946,14 @@
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        4048,
-        1168
+        13872,
+        416
       ],
       "id": "0f53c47c-fae5-48d9-b8f5-90ce8dc2c523"
     },
     {
       "parameters": {
-        "chatId": "-1003889511940",
+        "chatId": "REDACTED_CHAT_ID",
         "text": "={{ $json.message }}",
         "additionalFields": {
           "appendAttribution": false,
@@ -964,8 +964,8 @@
       "type": "n8n-nodes-base.telegram",
       "typeVersion": 1.2,
       "position": [
-        4272,
-        1168
+        14096,
+        416
       ],
       "id": "63142674-56b4-4dcf-a0cd-ac1db5e8301e",
       "webhookId": "d7c95e7b-9581-4d22-9524-39a2c35eeeb0"
@@ -978,8 +978,8 @@
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        2640,
-        784
+        4912,
+        2176
       ],
       "id": "3566e957-7512-48f3-9a93-f94428f3b50d"
     },
@@ -991,8 +991,8 @@
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        3104,
-        784
+        5584,
+        2176
       ],
       "id": "4557e689-b3c0-46c0-ad0c-3a38fd532ec1"
     },
@@ -1008,8 +1008,8 @@
       "type": "n8n-nodes-base.telegram",
       "typeVersion": 1.2,
       "position": [
-        3344,
-        912
+        5808,
+        2176
       ],
       "id": "b8644745-6ec8-48a2-9135-9bab6d2074f4",
       "webhookId": "90f0cf67-8558-4b3d-98af-156dfafaf1bd"
@@ -1022,8 +1022,8 @@
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        3600,
-        960
+        11184,
+        1600
       ],
       "id": "1733e2a2-c812-4007-99ce-d58b37afaedb"
     },
@@ -1035,8 +1035,8 @@
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        3488,
-        480
+        6256,
+        1968
       ],
       "id": "7f778122-a6f7-48f8-9342-3ef6aa3cdbc9"
     },
@@ -1048,8 +1048,8 @@
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        4176,
-        640
+        6480,
+        1968
       ],
       "id": "a8cb44b5-bd41-40be-a101-cc766b2849ca"
     },
@@ -1061,8 +1061,8 @@
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        3296,
-        416
+        5360,
+        1968
       ],
       "id": "5d1a5824-57c8-4679-bd9b-44acc0afc5d4"
     },
@@ -1074,8 +1074,8 @@
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        4096,
-        432
+        5584,
+        1968
       ],
       "id": "25b3f271-d552-4c6e-b8e7-368ca9321001"
     },
@@ -1087,8 +1087,8 @@
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        320,
-        576
+        -16,
+        2416
       ],
       "id": "7d47ea81-11ea-4535-8f7e-6422adf8e774"
     },
@@ -1100,8 +1100,8 @@
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        3824,
-        960
+        11632,
+        1408
       ],
       "id": "38420c84-702e-4267-90e8-7d308925aabc"
     },
@@ -1113,8 +1113,8 @@
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        4048,
-        960
+        11856,
+        1408
       ],
       "id": "ade5f460-e8e2-427a-9207-1a3dd8939ec1"
     },
@@ -1126,8 +1126,8 @@
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        2992,
-        896
+        8048,
+        1696
       ],
       "id": "c3bde0da-2642-44d1-ab1f-9bc96efd3653"
     },
@@ -1139,8 +1139,8 @@
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        3840,
-        992
+        12080,
+        1408
       ],
       "id": "66594da7-7859-4f11-96bb-eefcf5eeafed"
     },
@@ -1152,8 +1152,8 @@
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        3776,
-        1360
+        13648,
+        800
       ],
       "id": "a0943bdc-cbf9-4877-a6fe-d76ab693b98b"
     },
@@ -1165,8 +1165,8 @@
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        224,
-        528
+        1104,
+        2416
       ],
       "id": "cca185af-833c-41b0-938c-6ea660d02a18"
     },
@@ -1178,8 +1178,8 @@
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        3376,
-        896
+        8944,
+        1648
       ],
       "id": "7f15ec66-7bb0-4e15-b1da-313c4b68ac99"
     },
@@ -1193,8 +1193,8 @@
       "type": "n8n-nodes-base.postgres",
       "typeVersion": 2.6,
       "position": [
-        3664,
-        896
+        9168,
+        1648
       ],
       "id": "f4cc5f22-3378-4ebc-822b-2ba879ebe1f3"
     },
@@ -1206,8 +1206,8 @@
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        3968,
-        896
+        9392,
+        1648
       ],
       "id": "03e9a943-2ea3-495b-93ae-2080476a361f"
     },
@@ -1219,8 +1219,8 @@
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        4112,
-        992
+        12528,
+        1408
       ],
       "id": "3f7b7d4a-3485-4a8d-be29-077a5fa6254a"
     },
@@ -1234,8 +1234,8 @@
       "type": "n8n-nodes-base.postgres",
       "typeVersion": 2.6,
       "position": [
-        4400,
-        992
+        12752,
+        1408
       ],
       "id": "90efabdc-1903-4bbb-ad01-e8f7a7f8f699"
     },
@@ -1247,8 +1247,8 @@
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        4704,
-        992
+        12976,
+        1408
       ],
       "id": "8f9bcdc9-df35-4214-8427-45bb53aa12fd"
     },
@@ -1260,8 +1260,8 @@
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        3904,
-        864
+        13424,
+        1328
       ],
       "id": "ce028de9-6ae3-4e0c-abc9-89c717d844ac"
     },
@@ -1275,8 +1275,8 @@
       "type": "n8n-nodes-base.postgres",
       "typeVersion": 2.6,
       "position": [
-        4192,
-        864
+        13648,
+        1328
       ],
       "id": "4cd129ad-0fa1-4686-9874-74f4d97ceeaa"
     },
@@ -1288,8 +1288,8 @@
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        4496,
-        864
+        13872,
+        1328
       ],
       "id": "f0934d82-ceeb-4c31-b17a-e4d023edc1a2"
     },
@@ -1303,10 +1303,11 @@
       "type": "n8n-nodes-base.postgres",
       "typeVersion": 2.6,
       "position": [
-        3664,
-        592
+        7376,
+        1968
       ],
-      "id": "9047979b-3650-430f-9074-eec8c6a447bf"
+      "id": "9047979b-3650-430f-9074-eec8c6a447bf",
+      "onError": "continueRegularOutput"
     },
     {
       "parameters": {
@@ -1316,8 +1317,8 @@
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        3984,
-        592
+        7600,
+        1968
       ],
       "id": "c0afcd14-763a-4cad-a7ca-893588822d4e"
     },
@@ -1331,8 +1332,8 @@
       "type": "n8n-nodes-base.postgres",
       "typeVersion": 2.6,
       "position": [
-        4496,
-        640
+        6704,
+        1968
       ],
       "id": "896b9a81-4ba0-4be6-adc2-89ddff7db620"
     },
@@ -1344,8 +1345,8 @@
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        4816,
-        640
+        6928,
+        1968
       ],
       "id": "2a0c830a-cb27-474c-85e0-0e6e5a479951"
     },
@@ -1359,8 +1360,8 @@
       "type": "n8n-nodes-base.postgres",
       "typeVersion": 2.6,
       "position": [
-        4416,
-        432
+        5808,
+        1968
       ],
       "id": "c3c230ea-b197-4b7a-9834-c80e698646fa"
     },
@@ -1372,8 +1373,8 @@
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        4736,
-        432
+        6032,
+        1968
       ],
       "id": "b2a54c76-cd32-49a8-8e5b-d351c01c06a9"
     },
@@ -1387,8 +1388,8 @@
       "type": "n8n-nodes-base.postgres",
       "typeVersion": 2.6,
       "position": [
-        3200,
-        784
+        5136,
+        2176
       ],
       "id": "81db0be7-0387-453a-b985-fc29773967a8"
     },
@@ -1400,8 +1401,8 @@
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        3520,
-        784
+        5360,
+        2176
       ],
       "id": "d4dbe6fd-2dd9-47d0-a9a3-ebc0aa6f4ccf"
     },
@@ -1415,8 +1416,8 @@
       "type": "n8n-nodes-base.postgres",
       "typeVersion": 2.6,
       "position": [
-        512,
-        528
+        1328,
+        2416
       ],
       "id": "4cbf6007-7dd4-4bf4-a324-88ee0e1691fa"
     },
@@ -1428,8 +1429,8 @@
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        720,
-        592
+        1552,
+        2416
       ],
       "id": "5236d4f8-b51d-400e-9eec-7b750ba8f118"
     },
@@ -1443,8 +1444,8 @@
       "type": "n8n-nodes-base.postgres",
       "typeVersion": 2.6,
       "position": [
-        3248,
-        896
+        8272,
+        1696
       ],
       "id": "d84e0457-b773-4cc0-819c-2ebf6e02bf90"
     },
@@ -1456,8 +1457,8 @@
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        3488,
-        896
+        8496,
+        1696
       ],
       "id": "a4f52085-4bb0-47d9-b04e-dfe6b058c3b2"
     },
@@ -1468,8 +1469,8 @@
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        3904,
-        1392
+        13424,
+        1680
       ],
       "name": "QTP Late Audit Patcher (Risk Gate Verdict)",
       "notesInFlow": true,
@@ -1485,8 +1486,8 @@
       "type": "n8n-nodes-base.postgres",
       "typeVersion": 2.6,
       "position": [
-        4208,
-        1392
+        13648,
+        1680
       ],
       "name": "Query Supabase Late Audit Patch",
       "notesInFlow": true,
@@ -1501,8 +1502,8 @@
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        3664,
-        800
+        10064,
+        1600
       ],
       "id": "3f8ba7db-4022-4063-8d7b-53d901a91f96"
     },
@@ -1514,8 +1515,8 @@
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        3856,
-        800
+        10288,
+        1600
       ],
       "id": "147e41f1-2e2b-4422-a03e-de7b7113422c"
     },
@@ -1527,8 +1528,8 @@
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        4064,
-        800
+        10512,
+        1600
       ],
       "id": "73e2eac6-a733-4d84-bf2a-cac11cf12bf4"
     },
@@ -1540,8 +1541,8 @@
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        3824,
-        1248
+        13648,
+        608
       ],
       "notesInFlow": true,
       "id": "bca1b293-1ace-4e7f-b5db-694754a0a1f1",
@@ -1559,8 +1560,8 @@
       "type": "n8n-nodes-base.postgres",
       "typeVersion": 2.6,
       "position": [
-        4128,
-        1248
+        13872,
+        608
       ],
       "notesInFlow": true,
       "id": "6f410a38-13d3-453a-914b-a465a69a9671",
@@ -1576,8 +1577,8 @@
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        272,
-        656
+        656,
+        2416
       ],
       "notesInFlow": true,
       "id": "85fa4e2b-5f7c-46a2-a3ef-4fe4da6174d5",
@@ -1591,8 +1592,8 @@
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        464,
-        1024
+        880,
+        2416
       ],
       "notesInFlow": true,
       "id": "00525a66-db50-424c-bd5a-fd86ee7c8247",
@@ -1600,14 +1601,14 @@
     },
     {
       "parameters": {
-        "jsCode": "// ============================================================\n// QTP_SCANNER_REGIME_CONFLICT_FILTER_v1_20260526\n// Block signals where options/dark-pool regime opposes execution direction.\n// Mode: LOG_ONLY (no blocks yet — observe for 2 hours, then promote to HARD_VETO).\n// Inserted between Grok AI Analysis and VC Agent Gatekeeper.\n// Constraint: stamp-only in LOG_ONLY; never drop items.\n// ============================================================\n// QTP_REGIME_FILTER_PROMOTE_HARD_VETO_v1_20260527: promoting after 2 days\n// of LOG_ONLY observation confirmed 100% of flagged signals correctly identified\n// as R3.2 conflicts. HARD_VETO blocks at filter, saves LLM tokens and audit noise.\nconst REGIME_FILTER_MODE   = 'HARD_VETO';\nconst REGIME_FILTER_MARKER = 'QTP_SCANNER_REGIME_CONFLICT_FILTER_v1_20260526';\n\nfunction detectRegimeConflict(side, optionsRegime, darkPoolRegime) {\n  const opt   = String(optionsRegime  || '').toUpperCase();\n  const dp    = String(darkPoolRegime || '').toUpperCase();\n  const sideU = String(side           || '').toUpperCase();\n\n  // QTP_SCANNER_REGIME_CONFLICT_FILTER_v1_20260526: BUY conflicts with bearish regimes\n  const buyOptConflict  = sideU === 'BUY'  && /CONTRARIAN_SHORT|GAMMA_SQUEEZE_DOWN|DISTRIBUTION/.test(opt);\n  const buyDpConflict   = sideU === 'BUY'  && /CONTRARIAN_SHORT|DISTRIBUTION/.test(dp);\n  // QTP_SCANNER_REGIME_CONFLICT_FILTER_v1_20260526: SELL conflicts with bullish regimes\n  const sellOptConflict = sideU === 'SELL' && /CONTRARIAN_LONG|GAMMA_SQUEEZE_UP|ACCUMULATION/.test(opt);\n  const sellDpConflict  = sideU === 'SELL' && /CONTRARIAN_LONG|ACCUMULATION/.test(dp);\n\n  const optConflict = buyOptConflict  || sellOptConflict;\n  const dpConflict  = buyDpConflict   || sellDpConflict;\n\n  if (optConflict && dpConflict) return 'CONTRA_BOTH';\n  if (optConflict) return 'CONTRA_OPT';\n  if (dpConflict)  return 'CONTRA_DP';\n  return null;\n}\n\nconst out = [];\nfor (const item of $input.all()) {\n  const j = item.json || {};\n  const side = j.execution || j.side;\n  const optRegime = j.opt_regime || j.options_regime;\n  const dpRegime  = j.dp_regime;\n\n  const conflict = detectRegimeConflict(side, optRegime, dpRegime);\n\n  // Stamp every item for audit visibility\n  j._regime_filter_marker  = REGIME_FILTER_MARKER;\n  j._regime_filter_mode    = REGIME_FILTER_MODE;\n  j._regime_filter_checked = true;\n  j._regime_filter_side    = String(side || '').toUpperCase();\n  j._regime_filter_opt     = String(optRegime || '').toUpperCase();\n  j._regime_filter_dp      = String(dpRegime  || '').toUpperCase();\n\n  if (conflict) {\n    j._regime_conflict = conflict;\n    j._regime_filter_verdict = 'CONFLICT_DETECTED';\n    console.log('[REGIME_FILTER] ' + (j.ticker || j.symbol || '?') + ' ' + (side || '?') + ' conflict=' + conflict +\n                ' opt=' + (optRegime || 'N/A') + ' dp=' + (dpRegime || 'N/A') + ' mode=' + REGIME_FILTER_MODE);\n\n    if (REGIME_FILTER_MODE === 'HARD_VETO') {\n      // QTP_SCANNER_REGIME_CONFLICT_FILTER_v1_20260526: drop the item — fail closed, no downstream VC call\n      j._regime_filter_action = 'BLOCKED';\n      continue;\n    }\n    // LOG_ONLY: pass through with stamp\n    j._regime_filter_action = 'LOGGED_ONLY';\n  } else {\n    j._regime_filter_verdict = 'NO_CONFLICT';\n    j._regime_filter_action  = 'PASS';\n  }\n\n  out.push({ json: j });\n}\n\nreturn out;\n"
+        "jsCode": "// ============================================================\n// QTP_SCANNER_REGIME_CONFLICT_FILTER_v1_20260526\n// Block signals where options/dark-pool regime opposes execution direction.\n// Mode: LOG_ONLY (no blocks yet — observe for 2 hours, then promote to HARD_VETO).\n// Inserted between Grok AI Analysis and VC Agent Gatekeeper.\n// Constraint: stamp-only in LOG_ONLY; never drop items.\n// ============================================================\n// QTP_REGIME_FILTER_PROMOTE_HARD_VETO_v1_20260527: promoting after 2 days\n// of LOG_ONLY observation confirmed 100% of flagged signals correctly identified\n// as R3.2 conflicts. HARD_VETO blocks at filter, saves LLM tokens and audit noise.\nconst REGIME_FILTER_MODE   = 'HARD_VETO';\nconst REGIME_FILTER_MARKER = 'QTP_SCANNER_REGIME_CONFLICT_FILTER_v1_20260526';\n// QTP_RCF_OBS_v1_20260706: observability only — record dropped items (console + _rcf_drop_log on survivors). NO pass/drop behavior change.\nconst RCF_OBS_MARKER = 'QTP_RCF_OBS_SHADOW_v2_20260706';\n// QTP_RCF_SHADOW_V1_20260706: shadow-policy evaluation (log-only, zero behavior change):\n// shadow_both_required_pass = would this dropped item PASS if HARD_VETO required CONTRA_BOTH\n// (options AND dark-pool both opposed) instead of any single-leg conflict?\nconst RCF_SHADOW_POLICY = 'QTP_RCF_SHADOW_V1_20260706';\nconst rcfDrops = [];\n\nfunction detectRegimeConflict(side, optionsRegime, darkPoolRegime) {\n  const opt   = String(optionsRegime  || '').toUpperCase();\n  const dp    = String(darkPoolRegime || '').toUpperCase();\n  const sideU = String(side           || '').toUpperCase();\n\n  // QTP_SCANNER_REGIME_CONFLICT_FILTER_v1_20260526: BUY conflicts with bearish regimes\n  const buyOptConflict  = sideU === 'BUY'  && /CONTRARIAN_SHORT|GAMMA_SQUEEZE_DOWN|DISTRIBUTION/.test(opt);\n  const buyDpConflict   = sideU === 'BUY'  && /CONTRARIAN_SHORT|DISTRIBUTION/.test(dp);\n  // QTP_SCANNER_REGIME_CONFLICT_FILTER_v1_20260526: SELL conflicts with bullish regimes\n  const sellOptConflict = sideU === 'SELL' && /CONTRARIAN_LONG|GAMMA_SQUEEZE_UP|ACCUMULATION/.test(opt);\n  const sellDpConflict  = sideU === 'SELL' && /CONTRARIAN_LONG|ACCUMULATION/.test(dp);\n\n  const optConflict = buyOptConflict  || sellOptConflict;\n  const dpConflict  = buyDpConflict   || sellDpConflict;\n\n  if (optConflict && dpConflict) return 'CONTRA_BOTH';\n  if (optConflict) return 'CONTRA_OPT';\n  if (dpConflict)  return 'CONTRA_DP';\n  return null;\n}\n\nconst out = [];\nfor (const item of $input.all()) {\n  const j = item.json || {};\n  const side = j.execution || j.side;\n  const optRegime = j.opt_regime || j.options_regime;\n  const dpRegime  = j.dp_regime;\n\n  const conflict = detectRegimeConflict(side, optRegime, dpRegime);\n\n  // Stamp every item for audit visibility\n  j._regime_filter_marker  = REGIME_FILTER_MARKER;\n  j._regime_filter_mode    = REGIME_FILTER_MODE;\n  j._regime_filter_checked = true;\n  j._regime_filter_side    = String(side || '').toUpperCase();\n  j._regime_filter_opt     = String(optRegime || '').toUpperCase();\n  j._regime_filter_dp      = String(dpRegime  || '').toUpperCase();\n\n  if (conflict) {\n    j._regime_conflict = conflict;\n    j._regime_filter_verdict = 'CONFLICT_DETECTED';\n    console.log('[REGIME_FILTER] ' + (j.ticker || j.symbol || '?') + ' ' + (side || '?') + ' conflict=' + conflict +\n                ' opt=' + (optRegime || 'N/A') + ' dp=' + (dpRegime || 'N/A') + ' mode=' + REGIME_FILTER_MODE);\n\n    if (REGIME_FILTER_MODE === 'HARD_VETO') {\n      // QTP_SCANNER_REGIME_CONFLICT_FILTER_v1_20260526: drop the item — fail closed, no downstream VC call\n      j._regime_filter_action = 'BLOCKED';\n      // QTP_RCF_OBS_v1_20260706: record the drop before discarding (dropped item is still NOT returned — no behavior change)\n      rcfDrops.push({\n        ticker: j.ticker || j.symbol || '?',\n        side: String(side || '').toUpperCase(),\n        reason: 'REGIME_CONFLICT_' + conflict,\n        composite_opposition_count: (j.composite_opposition_count !== undefined ? j.composite_opposition_count : null),\n        legs: 'conflict=' + conflict + ' opt=' + (optRegime || 'N/A') + ' dp=' + (dpRegime || 'N/A') + ' mode=' + REGIME_FILTER_MODE,\n        shadow_both_required_pass: conflict !== 'CONTRA_BOTH',\n        shadow_policy_version: RCF_SHADOW_POLICY\n      });\n      continue;\n    }\n    // LOG_ONLY: pass through with stamp\n    j._regime_filter_action = 'LOGGED_ONLY';\n  } else {\n    j._regime_filter_verdict = 'NO_CONFLICT';\n    j._regime_filter_action  = 'PASS';\n  }\n\n  out.push({ json: j });\n}\n\n// QTP_RCF_OBS_v1_20260706: attach drop log to SURVIVING items only. Downstream of this node is\n// 'VC Agent Gatekeeper' (a Code node) — there is NO IF/filter/switch that would route flagged items\n// away from the trading path, so returning dropped items would change behavior. Therefore:\n// drops are console-logged always, and piggybacked on survivors as _rcf_drop_log when any survive.\nif (rcfDrops.length > 0) {\n  const _rcfDropLog = JSON.stringify(rcfDrops);\n  console.log('[RCF_OBS] ' + RCF_OBS_MARKER + ' dropped=' + rcfDrops.length + ' survivors=' + out.length + ' drops=' + _rcfDropLog);\n  for (const it of out) {\n    it.json._rcf_obs_marker = RCF_OBS_MARKER;\n    it.json._rcf_drop_log = _rcfDropLog;\n  }\n  if (out.length === 0) {\n    console.log('[RCF_OBS] ' + RCF_OBS_MARKER + ' ALL_ITEMS_DROPPED — node emits nothing; drop records exist only in this log line');\n  }\n}\n\nreturn out;\n"
       },
       "name": "QTP Regime Conflict Filter",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        2576,
-        368
+        4464,
+        2080
       ],
       "id": "1c2c4219-a593-47eb-ae49-4c6f19f55b04"
     },
@@ -1620,8 +1621,8 @@
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        432,
-        320
+        208,
+        2416
       ],
       "notesInFlow": true,
       "notes": "Additive extended-hours session classifier. No execution behavior change by itself."
@@ -1635,8 +1636,8 @@
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        864,
-        368
+        432,
+        2416
       ],
       "notesInFlow": true,
       "notes": "Regular-hours-only default. Extended-hours paper mode toggle context."
@@ -1650,8 +1651,8 @@
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        4064,
-        880
+        12304,
+        1408
       ],
       "notesInFlow": true,
       "notes": "Paper-only extended-hours caps before Supabase Risk Gate. Does not bypass risk gate."
@@ -1665,8 +1666,8 @@
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        3840,
-        880
+        10736,
+        1600
       ]
     },
     {
@@ -1697,8 +1698,8 @@
       "type": "n8n-nodes-base.if",
       "typeVersion": 2,
       "position": [
-        3712,
-        960
+        11408,
+        1504
       ],
       "id": "187db570-1801-40fc-965c-9f0f2f772fcd",
       "name": "QTP Bias Filter Pass Splitter"
@@ -1710,8 +1711,8 @@
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        3712,
-        1184
+        11632,
+        1648
       ],
       "id": "2a204534-069f-444d-a924-abe633104207",
       "name": "QTP Bias Filter Drop SQL Builder"
@@ -1725,8 +1726,8 @@
       "type": "n8n-nodes-base.postgres",
       "typeVersion": 2.6,
       "position": [
-        3920,
-        1184
+        11856,
+        1648
       ],
       "id": "20d7c8b4-cb48-4b10-af85-8dd03a5ed6a3",
       "name": "Query Supabase Bias Filter Drop Update",
@@ -1742,8 +1743,8 @@
       "type": "n8n-nodes-base.postgres",
       "typeVersion": 2.5,
       "position": [
-        3840,
-        1360
+        11408,
+        1840
       ],
       "id": "pfm-flag-reader-v1"
     },
@@ -1755,8 +1756,8 @@
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        4080,
-        1360
+        11632,
+        1840
       ],
       "id": "pfm-bypass-gate-v1"
     },
@@ -1768,8 +1769,8 @@
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        4320,
-        1360
+        11856,
+        1840
       ],
       "id": "pfm-executor-v1"
     },
@@ -1781,8 +1782,8 @@
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        4560,
-        1360
+        12080,
+        1840
       ],
       "id": "pfm-trade-sql-builder-v1"
     },
@@ -1796,8 +1797,8 @@
       "type": "n8n-nodes-base.postgres",
       "typeVersion": 2.5,
       "position": [
-        4800,
-        1360
+        12304,
+        1840
       ],
       "id": "pfm-trade-insert-v1"
     },
@@ -1809,8 +1810,8 @@
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        5040,
-        1360
+        12528,
+        1840
       ],
       "id": "pfm-telegram-notifier-v1"
     },
@@ -1825,8 +1826,8 @@
       "type": "n8n-nodes-base.postgres",
       "typeVersion": 2.6,
       "position": [
-        -48,
-        880
+        10736,
+        2608
       ]
     },
     {
@@ -1838,8 +1839,8 @@
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        3968,
-        928
+        10960,
+        1600
       ]
     },
     {
@@ -1851,8 +1852,8 @@
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        1104,
-        448
+        13200,
+        1136
       ]
     },
     {
@@ -1864,8 +1865,8 @@
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        1344,
-        448
+        13424,
+        1136
       ]
     },
     {
@@ -1879,8 +1880,8 @@
       "type": "n8n-nodes-base.postgres",
       "typeVersion": 2.6,
       "position": [
-        1584,
-        448
+        13648,
+        1136
       ]
     },
     {
@@ -1892,8 +1893,8 @@
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        0,
-        1200
+        -240,
+        2752
       ],
       "onError": "continueRegularOutput"
     },
@@ -1908,8 +1909,8 @@
       "type": "n8n-nodes-base.postgres",
       "typeVersion": 2.6,
       "position": [
-        224,
-        1200
+        -16,
+        2752
       ],
       "onError": "continueRegularOutput"
     }
@@ -3173,9 +3174,9 @@
   },
   "staticData": null,
   "meta": {
-    "exportedAt": "2026-07-03T14:58:31Z",
-    "activeVersionId": "a67e2239-683a-4907-9190-5f9d41b9ad89",
+    "exportedAt": "2026-07-06T19:44:30Z",
+    "versionId": "f0c0a21a-b607-4f52-b1a9-58113383a5c1",
     "exportedBy": "claude-architect",
-    "note": "Disaster-recovery export of PUBLISHED (active) version. Secrets redacted with REDACTED_* placeholders; staticData intentionally null. Re-add credentials + staticData secrets after import."
+    "note": "Draft f0c0a21a exported pre-publish; publishes 2026-07-06 16:15 ET (scheduled); active at export time ce6472d7. Contains: trace-SQL $-sanitize v4.2.2 + onError continue (07-03), RCF observability v1 + shadow-policy v2 (QTP_RCF_OBS_SHADOW_v2_20260706), chart-vision v4.4.0 CC-primary."
   }
 }

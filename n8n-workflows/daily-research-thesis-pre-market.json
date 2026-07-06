@@ -1,0 +1,368 @@
+{
+  "name": "Daily Research Thesis — Pre-Market (QTP)",
+  "nodes": [
+    {
+      "id": "2750b9fc-4dc2-4dc0-ad55-5618518ad9eb",
+      "name": "Weekdays 08:30 ET",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.3,
+      "position": [
+        0,
+        300
+      ],
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "cronExpression",
+              "expression": "30 8 * * 1-5"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "a3f11513-f466-4272-9b2d-76a0650f84ee",
+      "name": "Fetch Watchlist Inputs",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [
+        220,
+        300
+      ],
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT (SELECT coalesce(json_agg(symbol), '[]'::json) FROM (SELECT symbol FROM quantum.exec_flow_audit WHERE ts > now() - interval '5 days' GROUP BY symbol ORDER BY count(*) DESC LIMIT 8) q) AS top_symbols, (SELECT coalesce(json_object_agg(coalesce(side, 'UNKNOWN'), n), '{}'::json) FROM (SELECT side, count(*) AS n FROM quantum.exec_flow_audit WHERE (ts AT TIME ZONE 'America/New_York')::date = ((now() AT TIME ZONE 'America/New_York')::date - 1) GROUP BY side) s) AS yesterday_sides",
+        "options": {}
+      }
+    },
+    {
+      "id": "465ed279-a561-4d9a-a1d3-b8306c1fe9f4",
+      "name": "Build Crew Prompts",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        440,
+        300
+      ],
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "language": "javaScript",
+        "jsCode": "const et = $now.setZone('America/New_York');\nconst dateStr = et.toFormat('yyyy-MM-dd');\nconst HOLIDAYS_2026 = ['2026-01-01','2026-01-19','2026-02-16','2026-04-03','2026-05-25','2026-06-19','2026-07-03','2026-09-07','2026-11-26','2026-12-25'];\nif (et.weekday > 5) { console.log('QTP_DRT skip: weekend ' + dateStr); return []; }\nif (HOLIDAYS_2026.includes(dateStr)) { console.log('QTP_DRT skip: NYSE holiday ' + dateStr); return []; }\nconst row = $input.first().json;\nlet symbols = row.top_symbols;\nif (typeof symbols === 'string') { try { symbols = JSON.parse(symbols); } catch (e) { symbols = []; } }\nif (!Array.isArray(symbols)) symbols = [];\nlet sides = row.yesterday_sides;\nif (typeof sides === 'string') { try { sides = JSON.parse(sides); } catch (e) { sides = {}; } }\nif (!sides || typeof sides !== 'object' || Array.isArray(sides)) sides = {};\nconst degradations = [];\nif (symbols.length === 0) degradations.push('watchlist_empty_no_exec_flow_audit_rows_last_5d');\nif (Object.keys(sides).length === 0) degradations.push('no_yesterday_signal_counts');\nconst symList = symbols.length ? symbols.join(', ') : '(none available)';\nconst sidesTxt = Object.keys(sides).length ? Object.keys(sides).map(function (k) { return k + '=' + sides[k]; }).join(', ') : '(none)';\nconst ctx = 'Trading date: ' + dateStr + ' (pre-market, approx 08:30 ET).\\n' +\n  'Active QTP watchlist (top symbols by 5-day pipeline signal frequency): ' + symList + '.\\n' +\n  'Yesterday pipeline signal counts by side: ' + sidesTxt + '.\\n';\nconst bullPrompt = ctx + '\\nYou are the BULL analyst on a quant trading desk. Make the strongest evidence-based case FOR long exposure today: (1) market regime read, (2) sector-level opportunities, (3) a per-name bull case for EACH watchlist symbol above. Be concrete about what evidence would support each claim (macro backdrop, trend structure, breadth, positioning, catalysts). Acknowledge nothing about the bear side; that is another analyst. Maximum 600 words, plain prose only - no JSON, no curly braces, no markdown headers.';\nconst bearPrompt = ctx + '\\nYou are the BEAR analyst on a quant trading desk. Make the strongest evidence-based case AGAINST long exposure today and FOR the short side: (1) market regime risks, (2) sector-level vulnerabilities, (3) a per-name bear case for EACH watchlist symbol above. Be concrete about what evidence would support each claim (macro risks, distribution patterns, crowding, downside catalysts). Acknowledge nothing about the bull side; that is another analyst. Maximum 600 words, plain prose only - no JSON, no curly braces, no markdown headers.';\nconst judgeSystem = 'You are the JUDGE on a quant trading desk. You will receive a BULL brief and a BEAR brief for the same trading day and watchlist. Weigh both and issue a verdict. Output STRICT JSON only - a single JSON object, no markdown fences, no commentary, no trailing text. Required top-level keys: market_regime (string, e.g. RISK_ON, RISK_OFF, CHOP, TRENDING_UP, TRENDING_DOWN); regime_confidence (number between 0 and 1); regime_rationale (string); spy_view (string, one-paragraph directional view on SPY for today); sector_tilts (array of objects, each with keys: sector as string, tilt as one of overweight or neutral or underweight, note as string); names (array of objects, each with keys: symbol as string, stance as one of long or short or avoid, confidence as number between 0 and 1, bull_case as string, bear_case as string, judge_note as string). The names array MUST contain exactly one entry for EVERY provided symbol.';\nreturn [{ json: { trading_date: dateStr, symbols: symbols, yesterday_sides: sides, degradations: degradations, bull_prompt: bullPrompt, bear_prompt: bearPrompt, judge_system: judgeSystem } }];"
+      }
+    },
+    {
+      "id": "cce877ed-d18a-428a-8da0-fac1316599d6",
+      "name": "Bull Analyst",
+      "type": "@n8n/n8n-nodes-langchain.chainLlm",
+      "typeVersion": 1.9,
+      "position": [
+        660,
+        300
+      ],
+      "parameters": {
+        "promptType": "define",
+        "text": "={{ $json.bull_prompt }}",
+        "messages": {
+          "messageValues": [
+            {
+              "type": "SystemMessagePromptTemplate",
+              "message": "You are a rigorous sell-side equity strategist. Respond in plain prose, no JSON, no markdown headers, no curly braces."
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "bcc0ebef-9aad-4d80-803b-37e45f83e089",
+      "name": "Grok Bull Model",
+      "type": "@n8n/n8n-nodes-langchain.lmChatXAiGrok",
+      "typeVersion": 1,
+      "position": [
+        660,
+        520
+      ],
+      "parameters": {
+        "model": "grok-3-mini",
+        "options": {
+          "temperature": 0.3,
+          "timeout": 30000
+        }
+      }
+    },
+    {
+      "id": "1c236fe1-0a7a-42dd-8fbf-839f16799bb7",
+      "name": "Bear Analyst",
+      "type": "@n8n/n8n-nodes-langchain.chainLlm",
+      "typeVersion": 1.9,
+      "position": [
+        900,
+        300
+      ],
+      "parameters": {
+        "promptType": "define",
+        "text": "={{ $('Build Crew Prompts').item.json.bear_prompt }}",
+        "messages": {
+          "messageValues": [
+            {
+              "type": "SystemMessagePromptTemplate",
+              "message": "You are a rigorous sell-side equity strategist. Respond in plain prose, no JSON, no markdown headers, no curly braces."
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "c0f99f6c-c0cb-4580-9fb5-2d89dca5d461",
+      "name": "Grok Bear Model",
+      "type": "@n8n/n8n-nodes-langchain.lmChatXAiGrok",
+      "typeVersion": 1,
+      "position": [
+        900,
+        520
+      ],
+      "parameters": {
+        "model": "grok-3-mini",
+        "options": {
+          "temperature": 0.3,
+          "timeout": 30000
+        }
+      }
+    },
+    {
+      "id": "895f27b0-b281-41e5-b560-2cd029ad9baa",
+      "name": "Assemble Judge Request",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1140,
+        300
+      ],
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "language": "javaScript",
+        "jsCode": "const base = $('Build Crew Prompts').first().json;\nconst bullOut = $('Bull Analyst').first().json;\nconst bearOut = $('Bear Analyst').first().json;\nconst bullText = bullOut && typeof bullOut.text === 'string' && bullOut.text.trim() ? bullOut.text.trim() : null;\nconst bearText = bearOut && typeof bearOut.text === 'string' && bearOut.text.trim() ? bearOut.text.trim() : null;\nif (!bullText) { throw new Error('QTP_DRT FAIL LOUD: Bull analyst returned no text. Raw output head: ' + JSON.stringify(bullOut).slice(0, 500)); }\nif (!bearText) { throw new Error('QTP_DRT FAIL LOUD: Bear analyst returned no text. Raw output head: ' + JSON.stringify(bearOut).slice(0, 500)); }\nconst sides = base.yesterday_sides || {};\nconst sidesTxt = Object.keys(sides).length ? Object.keys(sides).map(function (k) { return k + '=' + sides[k]; }).join(', ') : '(none)';\nconst judgeUser = 'Trading date: ' + base.trading_date + '\\nSymbols to judge (one names entry each): ' + (base.symbols.length ? base.symbols.join(', ') : '(none - return empty names array)') + '\\nYesterday pipeline signal counts by side: ' + sidesTxt + '\\n\\n=== BULL ANALYST BRIEF ===\\n' + bullText + '\\n\\n=== BEAR ANALYST BRIEF ===\\n' + bearText + '\\n\\nWeigh both briefs and output the strict JSON verdict now.';\nreturn [{ json: { judge_user: judgeUser, bull_text: bullText, bear_text: bearText } }];"
+      }
+    },
+    {
+      "id": "032670bd-eec0-4fd7-927a-15bdc22f4daa",
+      "name": "Judge",
+      "type": "@n8n/n8n-nodes-langchain.chainLlm",
+      "typeVersion": 1.9,
+      "position": [
+        1360,
+        300
+      ],
+      "parameters": {
+        "promptType": "define",
+        "text": "={{ $json.judge_user }}",
+        "messages": {
+          "messageValues": [
+            {
+              "type": "SystemMessagePromptTemplate",
+              "message": "={{ $('Build Crew Prompts').item.json.judge_system }}"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "749d68e1-a5d1-426f-a200-e7b76641a8a4",
+      "name": "Grok Judge Model",
+      "type": "@n8n/n8n-nodes-langchain.lmChatXAiGrok",
+      "typeVersion": 1,
+      "position": [
+        1360,
+        520
+      ],
+      "parameters": {
+        "model": "grok-3",
+        "options": {
+          "temperature": 0,
+          "timeout": 30000
+        }
+      }
+    },
+    {
+      "id": "69259bc6-75e9-42b9-9bff-b38a1192334e",
+      "name": "Prepare Insert",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1600,
+        300
+      ],
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "language": "javaScript",
+        "jsCode": "const judgeOut = $input.first().json;\nconst meta = $('Build Crew Prompts').first().json;\nconst crew = $('Assemble Judge Request').first().json;\nconst rawJudge = judgeOut && typeof judgeOut.text === 'string' && judgeOut.text.trim() ? judgeOut.text.trim() : null;\nif (!rawJudge) { throw new Error('QTP_DRT FAIL LOUD: Judge returned no text. Raw output head: ' + JSON.stringify(judgeOut).slice(0, 500)); }\nlet jsonText = String(rawJudge).trim();\nconst FENCE = String.fromCharCode(96, 96, 96);\nif (jsonText.indexOf(FENCE) !== -1) {\n  const firstFence = jsonText.indexOf(FENCE);\n  let start = jsonText.indexOf('\\n', firstFence);\n  if (start === -1) start = firstFence + 3; else start = start + 1;\n  const end = jsonText.lastIndexOf(FENCE);\n  if (end > start) jsonText = jsonText.slice(start, end);\n  jsonText = jsonText.trim();\n}\nlet verdict;\ntry { verdict = JSON.parse(jsonText); } catch (e) {\n  throw new Error('QTP_DRT FAIL LOUD: Judge output is not valid strict JSON after fence-stripping. Parse error: ' + e.message + '. Output head: ' + jsonText.slice(0, 400));\n}\nconst missing = [];\nif (typeof verdict.market_regime !== 'string' || !verdict.market_regime) missing.push('market_regime');\nif (typeof verdict.regime_rationale !== 'string') missing.push('regime_rationale');\nif (typeof verdict.spy_view !== 'string') missing.push('spy_view');\nif (!Array.isArray(verdict.sector_tilts)) missing.push('sector_tilts');\nif (!Array.isArray(verdict.names)) missing.push('names');\nif (missing.length) { throw new Error('QTP_DRT FAIL LOUD: Judge JSON missing/invalid required fields: ' + missing.join(', ') + '. Output head: ' + jsonText.slice(0, 400)); }\nconst degradations = (meta.degradations || []).slice();\ndegradations.push('vix_level_not_sourced_in_v1');\nfunction sanDollar(s) { return String(s).replace(/\\$(?=\\d)/g, 'USD '); }\nfunction sqlText(v) { return \"'\" + sanDollar(v == null ? '' : v).replace(/'/g, \"''\") + \"'\"; }\nfunction deepSan(o) { if (typeof o === 'string') return sanDollar(o); if (Array.isArray(o)) return o.map(deepSan); if (o && typeof o === 'object') { const r = {}; for (const k of Object.keys(o)) { r[k] = deepSan(o[k]); } return r; } return o; }\nfunction jsonbLit(o) { return \"'\" + JSON.stringify(deepSan(o)).replace(/'/g, \"''\") + \"'::jsonb\"; }\nlet rc = Number(verdict.regime_confidence);\nlet rcSql;\nif (Number.isFinite(rc)) { rcSql = String(Math.max(0, Math.min(1, rc))); } else { rcSql = 'NULL'; degradations.push('regime_confidence_not_numeric'); }\nconst et = $now.setZone('America/New_York');\nconst thesisId = 'drt_' + et.toFormat('yyyyMMdd_HHmm');\nconst ttlSql = \"('\" + meta.trading_date + \" 16:30:00'::timestamp AT TIME ZONE 'America/New_York')\";\nconst rawPayload = { bull: crew.bull_text, bear: crew.bear_text, judge_raw: rawJudge };\nconst notes = 'QTP_DRT v1: ' + (degradations.length ? 'degradations: ' + degradations.join('; ') : 'clean run');\nconst insertSql = 'INSERT INTO quantum.daily_research_thesis (thesis_id, thesis_date, market_regime, regime_confidence, regime_rationale, vix_level, spy_view, sector_tilts, names, bull_model, bear_model, judge_model, crew_version, ttl_expires_at, raw_payload, notes) VALUES (' +\n  sqlText(thesisId) + ', ' +\n  \"'\" + meta.trading_date + \"'::date, \" +\n  sqlText(verdict.market_regime) + ', ' +\n  rcSql + ', ' +\n  sqlText(verdict.regime_rationale) + ', ' +\n  'NULL, ' +\n  sqlText(verdict.spy_view) + ', ' +\n  jsonbLit(verdict.sector_tilts) + ', ' +\n  jsonbLit(verdict.names) + ', ' +\n  \"'grok-3-mini', 'grok-3-mini', 'grok-3', \" +\n  \"'QTP_DRT_CREW_v1.0_20260706', \" +\n  ttlSql + ', ' +\n  jsonbLit(rawPayload) + ', ' +\n  sqlText(notes) +\n  ') RETURNING thesis_id, thesis_date, market_regime, regime_confidence;';\nif (/\\$\\d/.test(insertSql)) { throw new Error('QTP_DRT FAIL LOUD: insert_sql still contains a $<digit> sequence after sanitization - refusing to send (pg-param bug guard).'); }\nreturn [{ json: { insert_sql: insertSql, thesis_id: thesisId } }];"
+      }
+    },
+    {
+      "id": "81ac1ba1-319b-4ef4-b4c8-2463313fcd38",
+      "name": "Write Thesis",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [
+        1820,
+        300
+      ],
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "={{ $json.insert_sql }}",
+        "options": {}
+      }
+    },
+    {
+      "id": "4cf86e42-1b51-47fe-aaec-eb388f634524",
+      "name": "Sticky Note b9e8bd63",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        -50,
+        250
+      ],
+      "parameters": {
+        "content": "## Daily Research Thesis - Pre-Market (QTP)\n\n**Purpose:** slow-path morning research crew (Bull -> Bear -> Judge, xAI Grok) writing ONE row/day to quantum.daily_research_thesis.\n\n**Schedule:** cron 30 8 * * 1-5, workflow timezone America/New_York (set in settings). NYSE-2026 holiday + weekend guard in Build Crew Prompts skips by returning 0 items (logged, downstream does not run).\n\n**Credentials:** Postgres = \"Postgres account\" (lnLr649ylxATlCF8, SSL-ignore like other QTP wfs). xAI = n8n credential \"xAi account\" (qyUISF3PUWktrFtN, type xAiApi) attached to the three Grok model subnodes - NO staticData key seeding needed for this workflow.\n\n**Models:** bull/bear = grok-3-mini (temp 0.3), judge = grok-3 (temp 0), 30s timeout each. Judge must emit STRICT JSON; fences stripped; parse failure throws (fail loud). NO continueOnFail anywhere.\n\n**pg-param guard:** all free text is single-quote doubled AND $<digit> rewritten to \"USD <digit>\"; a final regex guard refuses to send SQL containing $<digit>.\n\n**TTL:** row expires 16:30 ET same day. crew_version QTP_DRT_CREW_v1.0_20260706.",
+        "color": 4,
+        "width": 740,
+        "height": 200
+      }
+    }
+  ],
+  "connections": {
+    "Weekdays 08:30 ET": {
+      "main": [
+        [
+          {
+            "node": "Fetch Watchlist Inputs",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Fetch Watchlist Inputs": {
+      "main": [
+        [
+          {
+            "node": "Build Crew Prompts",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build Crew Prompts": {
+      "main": [
+        [
+          {
+            "node": "Bull Analyst",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Bull Analyst": {
+      "main": [
+        [
+          {
+            "node": "Bear Analyst",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Grok Bull Model": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "Bull Analyst",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Bear Analyst": {
+      "main": [
+        [
+          {
+            "node": "Assemble Judge Request",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Grok Bear Model": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "Bear Analyst",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Assemble Judge Request": {
+      "main": [
+        [
+          {
+            "node": "Judge",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Judge": {
+      "main": [
+        [
+          {
+            "node": "Prepare Insert",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Grok Judge Model": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "Judge",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare Insert": {
+      "main": [
+        [
+          {
+            "node": "Write Thesis",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "timezone": "America/New_York",
+    "executionOrder": "v1",
+    "availableInMCP": true
+  },
+  "staticData": null,
+  "meta": {
+    "exportedAt": "2026-07-06T19:44:30Z",
+    "versionId": "d327daf0-e710-459a-9a69-5e96c0b47b42",
+    "exportedBy": "claude-architect",
+    "note": "Active/published version d327daf0 exported (workflow.versionId == activeVersionId at export time). QTP_DRT_CREW_v1.0_20260706 Bull -> Bear -> Judge Grok crew, one row/day to quantum.daily_research_thesis. Secrets redacted with REDACTED_* placeholders; staticData intentionally null. Re-attach credentials (Postgres lnLr649ylxATlCF8, xAi qyUISF3PUWktrFtN) after import."
+  }
+}
