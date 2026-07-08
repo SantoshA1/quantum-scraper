@@ -1,5 +1,19 @@
 # LLM Analyst Decision Memo — Grok, alternatives, and the RCF questions resolved (2026-07-06)
 
+> **RATIFIED by Quantlys Conclave 2026-07-06 — with binding amendments.** The amendments below SUPERSEDE the corresponding clauses in the body:
+>
+> **A1 (supersedes Q4's quorum):** Auto-promote is calibration-gated, NOT bp-gated. Promotion of HOLD→neutral requires ALL of: n≥50 RCF-dropped BUYs with forward returns; Brier calibration improvement vs baseline; expectancy positive with t≥2; shadow window includes calmer-VIX days (not solely a VIX~24 regime). Deadline unchanged (review at n≥50 or 2026-07-20). The raw "+20bp/1h at n=50" trigger is VOID.
+>
+> **A2 (amends bake-off):** the HOLD>60% kill-criterion fires only at n≥30 gate-passing signals per model — no model dies on noise.
+>
+> **A3 (thesis dependency):** hot-path thesis consumption must be a single pre-computed-row read (direct Postgres, not PostgREST — immune to the recurring PGRST002/G10 cold-cache bug; still include fail-open if the read errors), with an explicit p95 latency budget (≤500ms) inside `vaqfCaELhOEWnkdo`; thesis-staleness alerting attaches to an EXISTING dead-man's-switch monitor, not a new one; any future thesis-schema migration includes an explicit schema-reload step.
+>
+> **Integration mandate:** RCF shadow analysis shares the MTF counterfactual harness — drop cohorts are cross-tabulated with MTF state (15m/1h/4h) + forward returns; no parallel observability silo.
+>
+> **Architectural decision (council lean, adopted):** the daily thesis IS the advocate. The separate Bull/Bear/Judge debate stage stays deferred until RCF evidence and the v8 score are both in hand.
+>
+> Everything remains column-additive and shadow-only until the evidence quorum AND a clean two-week attribution window are satisfied; live promotions are single-version republishes; one live promotion at a time.
+
 Architect resolution of the Conclave brief (`CONCLAVE_BRIEF_RCF_BUY_POLICY_20260706.md`) plus the model-selection question, per IDSD. Everything live-touching remains shadow-first.
 
 ## The core diagnosis: it's the harness, not the model

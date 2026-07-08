@@ -1,0 +1,160 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Quantum Engineering Trading — Architecture v5.9 (Architect Revision)</title>
+<style>
+:root{--bg:#0d1117;--panel:#161b22;--line:#30363d;--txt:#e6edf3;--dim:#8b949e;--red:#f85149;--green:#3fb950;--amber:#d29922;--blue:#58a6ff;--purple:#bc8cff}
+body{background:var(--bg);color:var(--txt);font:14px/1.55 -apple-system,Segoe UI,Roboto,sans-serif;margin:0;padding:32px;max-width:1100px;margin:auto}
+h1{font-size:22px;margin:0 0 4px}h2{font-size:17px;border-bottom:1px solid var(--line);padding-bottom:6px;margin-top:34px}
+h3{font-size:14px;margin:18px 0 6px}
+.sub{color:var(--dim);font-size:12.5px;margin-bottom:20px}
+.outcome{background:linear-gradient(90deg,#1a2333,#161b22);border:1px solid var(--blue);border-left:5px solid var(--blue);border-radius:8px;padding:16px 20px;margin:22px 0}
+.outcome b{color:var(--blue)}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:14px 18px;margin:12px 0}
+.keep{border-left:4px solid var(--green)}.kill{border-left:4px solid var(--red)}.fix{border-left:4px solid var(--amber)}.new{border-left:4px solid var(--purple)}
+.tag{display:inline-block;font-size:10.5px;font-weight:700;letter-spacing:.5px;padding:1px 8px;border-radius:10px;margin-right:6px;vertical-align:middle}
+.t-keep{background:#12351f;color:var(--green)}.t-kill{background:#3d1416;color:var(--red)}.t-fix{background:#3a2d10;color:var(--amber)}.t-new{background:#2a1f3d;color:var(--purple)}.t-done{background:#0f2f4d;color:var(--blue)}
+table{width:100%;border-collapse:collapse;font-size:12.5px;margin:10px 0}
+th,td{border:1px solid var(--line);padding:6px 9px;text-align:left;vertical-align:top}
+th{background:#1c2129;color:var(--dim);font-weight:600}
+code{background:#22272e;border-radius:4px;padding:1px 5px;font-size:12px}
+.dim{color:var(--dim)}.g{color:var(--green)}.r{color:var(--red)}.a{color:var(--amber)}.b{color:var(--blue)}
+ul{margin:6px 0 6px 18px;padding:0}li{margin:4px 0}
+.plane{display:flex;gap:10px;flex-wrap:wrap;margin:8px 0}
+.pnode{background:#1c2129;border:1px solid var(--line);border-radius:6px;padding:8px 12px;font-size:12.5px;flex:1;min-width:180px}
+.pnode b{display:block;font-size:12px;margin-bottom:2px}
+.arrow{align-self:center;color:var(--dim)}
+</style>
+</head>
+<body>
+
+<h1>Quantum Engineering Trading — Architecture v5.9</h1>
+<div class="sub">Architect revision · July 7, 2026 · supersedes v5.8 (July 5) · ground-truthed against live workflow versions, Supabase state, and this week's shipped fixes</div>
+
+<div class="outcome">
+<b>THE OUTCOME, FIRST:</b> The architecture that beats Citadel is <b>not the one with more layers, more AI models, or more nodes — it's the one already hiding inside v5.8: the evidence machine.</b> Scanner → <i>few, measured</i> gates → cost-accounted execution → nightly reject-backtest → Conclave-gated promotion. Everything in v5.8 that feeds that loop is right and stays. Everything that bypasses it — vibes-scored discovery, unconsumed AI enrichment, unmeasured gates — is overplanned and gets mothballed or put on trial. v5.8's honest gap register already proved the point: the platform's losses have come from <i>unmeasured machinery believed to be working</i>, never from missing machinery. v5.9 therefore deletes ambition and adds proof. Citadel's edge is not 40 nodes; it is that nothing at Citadel runs unmeasured for three weeks.
+</div>
+
+<div class="card keep" style="border-left:5px solid var(--green)">
+<span class="tag t-keep">CONCLAVE RATIFIED — 2026-07-07 — WITH BINDING AMENDMENTS</span>
+<p style="margin:8px 0 4px"><b>Directional ratification; the following amendments SUPERSEDE the corresponding text below:</b></p>
+<ul>
+<li><b>D1 amended — air-gap, don't delete.</b> Discovery workflows set inactive (not deleted); candidates → <code>quantum.strategy_candidates</code> as <code>hypothesis_only</code>. Resurrection bar: candidate must be a deterministic, backtestable rule that beats the trade-all baseline on the frozen-episode harness out-of-sample. LLM screenshot scores permanently barred as a ranking signal — they may only <i>nominate</i> rules for the harness to judge. G15 = this harness bridge.</li>
+<li><b>D2 amended — Filter/Guard doctrine (load-bearing).</b> "Every layer proves itself or dies" would have executed the tail guards (L3 VIX, L7 DD halt, L10 sentiment kill, L14, fail-closed Risk Gate). New rule: a layer is a GUARD iff (1) fires on &lt;5% of episodes, (2) prevents tail-shaped/catastrophic events, (3) makes no alpha claim. FILTERS must prove blocked-cohort expectancy ≤0 (cost-adjusted, day-level t≥2) within 60 days or retire. GUARDS survive by scenario doc + <b>quarterly fire-drill</b> (synthetic episode must trip them — a guard that never demonstrably fired = a dead guard) + 5% false-positive ceiling (breach → reclassified as Filter). Mixed gates (L5, L9, L13) split. The regime-conflict veto will claim Guard status and be forced onto the Filter track by the ceiling — the rule doing exactly the needed work. Mechanism: migration <code>qtp_gate_registry_and_evidence_runs_20260707</code> → <code>quantum.gate_registry</code>; unclassified gates may not block live trades.</li>
+<li><b>D3 amended — add the Regime Service.</b> One authoritative regime label emitted from the Research plane; Alpha, Safety, and the thesis crew consume it instead of computing regime three ways. Validation/stratification tag first; earns block authority only via the Filter harness.</li>
+<li><b>D4 amended — staging deferral REVERSED.</b> G14-lite ships now: shadow clone of the SM on a separate webhook path, live signal fan-in, output-parity assertion vs the deterministic contract, <code>environment='shadow'</code> writes, no live execution, frozen-episode replay before any publish. Rationale: the fake-judge incident was a divergence-detection failure; staging is cheapest while stakes are fake.</li>
+<li><b>D5 amended — the milestone is a statistical gate, not a headcount.</b> ≥150 episodes is a floor. Pass requires: ≥20 trading days across ≥3 regime labels (none &gt;50%, no day &gt;12%); day-block bootstrap (10k iters, ~5-day blocks) with 5th-percentile cost-adjusted return &gt; modeled round-trip cost; day-level HAC t≥2; positive bootstrapped delta vs the correctly-sized trade-all baseline; ≥98% fills with slippage + ≥98% orders with lifecycle events + zero orphans; Brier improvement where scores gate; survives best-day and best-ticker removal.</li>
+<li><b>Q6 finding — the cost model violates the rule first.</b> Before "cost truth online" is declared done, the modeled costs must be back-tested against real Alpaca paper fills with the residual distribution published. The cost model measures itself before it gates anything.</li>
+</ul>
+<p class="dim" style="margin:6px 0 0">Conclave ship order: (1) gate registry + Filter/Guard classification → (2) order-lifecycle ingestion + cost-model self-validation → (3) G14-lite shadow clone → (4) Regime Service → (5) ATR brackets + 07-20 calibrated promotion → (6) amended milestone gate.</p>
+</div>
+
+<h2>1 · Verdict on the red items (KT · SM · VC · S5 · G1–G21)</h2>
+
+<div class="card keep"><span class="tag t-keep">CORRECTLY RED — REAL & FIXABLE</span>
+<b>G16 (score anti-predictive), G19 (bracket geometry), G17 (slippage/borrow), G18 (statistical risk), G21 (risk-gate views), G12 (latency SLI), G13 (AI spend)</b> — these are the true alpha blockers, correctly circled, correctly prioritized. G16+G19 remain the top of the roadmap. No dispute. One correction: G12's sink says "emit to Databricks" — Databricks is decommissioned; the sink is Supabase (<code>infra_telemetry_15m</code> or a new <code>latency_sli</code> table).</div>
+
+<div class="card fix"><span class="tag t-done">STALE — ALREADY RESOLVED SINCE JULY 5</span>
+<ul>
+<li><b>G3 (broker order-resolution) — RESOLVED Jul 6–7.</b> TSM v4.3.0/4.3.1/4.3.2 shipped the full cancel/replace path: stop-width sanity (held legs &gt;1.2% are cancel/replaced with 0.9% GTC), naked-position recovery (<code>UNPROTECTED_AUDIT_ONLY</code> → GTC stop; verified live on F, order <code>7422286b</code>), EOD 403 retry with leg-cancel, and orphan-carryover flatten. Chain: <code>b876d429 → 860cc8cc → c41e30cf → 1e790e21</code>.</li>
+<li><b>Chart-vision status is wrong in v5.8's changelog.</b> The Jul-6 verification showed <code>store:false</code> did NOT cure the primary — every call served via chat-completions fallback. v4.4.0 (CC-primary) shipped Jul 6 in <code>f0c0a21a</code>. Doc must not claim the Responses API works.</li>
+<li><b>SM active version is <code>f0c0a21a</code></b> (trace-SQL fix + RCF observability/shadow + vision v4.4.0), not <code>a67e2239</code>.</li>
+<li><b>AFTO is at v4.3.2</b> (after-hours advisory spam fixed Jul 7), not v4.3.1.</li>
+<li><b>RCF blindness is partially closed:</b> drop-log + <code>shadow_both_required_pass</code> live since Jul 6 16:15 ET — the doc's regime-conflict node should no longer be described as fully unobserved.</li>
+</ul></div>
+
+<div class="card kill"><span class="tag t-kill">OVERPLANNED — MOTHBALL OR PUT ON TRIAL</span>
+<ul>
+<li><b>Discovery Engine (Section A: Playwright scraper + Grok-4 vision scoring + Google Sheets + Telegram picks) — the biggest overplan in the doc.</b> It ranks strategies by <i>LLM opinion</i> ("senior quant trader, be decisive", 1–10 score, $0.05/screenshot) with no backtest evidence and no bridge to production (G15, by the doc's own admission). Phase 0 just proved your <i>deployed, quantitative</i> score was anti-predictive — an LLM eyeballing screenshots is strictly weaker evidence. And it double-fails the doc's own S5 discipline: no frozen cohort, no counterfactual, no promotion gate. <b>Verdict: MOTHBALL now.</b> Revive only when candidates are ranked by replay expectancy on the episode harness (the same one Phase 0 used), with G15's manifest + G2's approval gate. Deletes: Playwright infra maintenance, Google-Sheets-as-database (contradicts the Supabase consolidation), a Grok-4 vision spend line, and ~⅓ of the node count — for zero alpha cost, because its output was never consumed.</li>
+<li><b>Chart-vision on the hot path.</b> Advisory enrichment that was broken for weeks with zero P&amp;L impact — proof nothing consumes it. Either give it exactly one measured consumer (a logged field in the v8 shadow evaluation) within 30 days, or turn it off and bank the latency + spend (G12/G13). Decoration is not defense-in-depth.</li>
+<li><b>"3 AI models in production" — the count is stale and the framing is backwards.</b> Perplexity is retired from the loop (design review moved to Quantlys Conclave in July). What matters is not how many models run but how many have a <i>measured consumer</i>: today that's Grok-3 text (VC gate — consequential), Grok-3 sentiment kill (consequential), AIJSON advisory (measured as of Jul 2, consumer pending bake-off). The 30-day model bake-off (Conclave-ratified, n≥30 kill-criterion) decides seats — the architecture doc should list <i>evidence-seated</i> models only.</li>
+<li><b>14 defense layers as a headline stat.</b> Phase 0's central lesson: several layers delete alpha (MTF swing/LT legs anti-predictive; RCF regime veto killed the 6×-alpha BUY side; blanket VIX opposition). Layer count is a cost metric, not a bragging metric. v5.9 target: every layer faces the S5 harness within 60 days — validated layers stay, inverted layers die, unmeasured layers get instrumented or retired. Expected steady state: ~6–8 layers that earn their kills.</li>
+<li><b>agilityserv.com public tool + CI/CD in the trading architecture.</b> Separate product, separate doc. It shares zero fate with the alpha engine and pads the perceived surface area.</li>
+</ul></div>
+
+<div class="card fix"><span class="tag t-fix">RIGHT IDEA, WRONG SHAPE</span>
+<ul>
+<li><b>G1/G2 (overlay table + manual approval) — merge into the Conclave governance plane.</b> As specced they are a parallel promotion path (hand-approved params into production) that bypasses S5. The ratified governance already defines promotion: shadow cohort → calibration gate (Brier + t≥2 + mixed-VIX) → single-version republish, one at a time, two clean weeks apart. G1's table is fine as the <i>mechanism</i>; G2's approver is the Conclave verdict + PO auth, not a Telegram button.</li>
+<li><b>G14 (staging mirror) — right instinct, premature at this scale.</b> The draft/publish + one-step-rollback discipline plus paper-only trading IS the staging layer today, and it caught or contained every incident this week. Re-scope to "webhook fan-out mirror" and schedule it for when real money is on the line, not before.</li>
+<li><b>G7 (Alpaca fail-closed) — half-resolved, wrong emphasis.</b> The risk gate already fail-closes the book on CRITICAL unprotected positions (proven — it froze the book on Jul 7). What's actually missing is only the AFTO credential seeding + the 5-min clock probe. Downgrade from "blocker" to "wiring".</li>
+</ul></div>
+
+<div class="card new"><span class="tag t-new">EXISTS IN PRODUCTION, MISSING FROM v5.8</span>
+<ul>
+<li><b>The slow path:</b> <code>quantum.daily_research_thesis</code> + "Daily Research Thesis — Pre-Market" crew (<code>pvSiSm1JxsCLH4Qm</code>, 08:30 ET, Bull/Bear/Judge, holiday-guarded). Two-for-two on regime calls (called RISK_ON Jul 6 while the book shorted a rally and lost; called CHOP Jul 7). <b>This is the advocate</b> — the Conclave's architectural decision: thesis feeds the hot path (A3 constraints: single pre-computed-row read, direct Postgres, p95 ≤500ms, TTL fail-open); the separate Bull/Bear/Judge debate stage stays deferred.</li>
+<li><b>The governance plane (ratified Jul 6):</b> calibration-gated auto-promotion (no raw-P&amp;L triggers), n≥30 bake-off floors, shared RCF/MTF counterfactual harness, one live promotion at a time. This is Layer 5 grown into a constitution — it belongs in the architecture as a first-class plane, not a changelog line.</li>
+<li><b>Orphan-position policy</b> (TSM v4.3.2): positions whose only protection is a recovery stop are flattened in the carryover window. New invariant: <i>no position may outlive its exit machinery.</i></li>
+<li><b>New gap, circled by this week's incidents — G22: stop/bracket orders are invisible to <code>order_events</code></b> (fill-webhook-only ingestion). Both stop incidents were diagnosable only via execution forensics. Ingest order lifecycle events (new/replaced/canceled), not just fills.</li>
+</ul></div>
+
+<h2>2 · The v5.9 target architecture — four planes</h2>
+<p class="dim">Same engine, honest shape. Node count goes down; measured surface goes up.</p>
+
+<h3>ALPHA PLANE (hot path — the only place latency matters)</h3>
+<div class="plane">
+<div class="pnode"><b>TradingView / RT Scanner</b>webhooks (G11 HMAC pending)</div><div class="arrow">→</div>
+<div class="pnode"><b>SM v7 + Enrichment</b>indicators · thesis field (A3) · AIJSON advisory</div><div class="arrow">→</div>
+<div class="pnode"><b>Validated Gates only</b>VC (evidence-seated) · risk gate · gates on S5 trial: RCF, Bias, MTF→v8</div><div class="arrow">→</div>
+<div class="pnode"><b>Execution</b>ATR-fit brackets (G19 fix) · legs logged (G22) · TSM v4.3.2 protection ladder</div>
+</div>
+
+<h3>RESEARCH PLANE (slow path — minutes are fine, evidence is mandatory)</h3>
+<div class="plane">
+<div class="pnode"><b>Pre-market Thesis Crew</b>Bull/Bear/Judge → <code>daily_research_thesis</code> (TTL 16:30)</div>
+<div class="pnode"><b>Reject-Backtest Harness (S5)</b>frozen episode cohorts · fit-then-freeze · RCF+MTF shared counterfactuals</div>
+<div class="pnode"><b>Model Bake-off</b>30-day, sampled, Brier-scored · seats by calibration · kill at HOLD&gt;60% (n≥30)</div>
+<div class="pnode"><b>Discovery Engine</b class="r"><span class="r">MOTHBALLED</span> until replay-ranked (G15+G2 path)</div>
+</div>
+
+<h3>SAFETY PLANE (kill anything, anytime — all live today)</h3>
+<div class="plane">
+<div class="pnode"><b>Sentiment Kill (KT)</b>Grok-3 ≤ −0.75 → SM kill</div>
+<div class="pnode"><b>Risk Gate</b>fail-closed on CRITICAL positions (proven Jul 7)</div>
+<div class="pnode"><b>Protection Ladder</b>width sanity → naked recovery → EOD retry → orphan flatten</div>
+<div class="pnode"><b>Kill Switches</b>experiment flags · pause advisory (session-gated) · dead-man monitors</div>
+</div>
+
+<h3>PROOF PLANE (the actual moat)</h3>
+<div class="plane">
+<div class="pnode"><b>Telemetry</b>drop-logs · AIJSON · heartbeats · vision health (G20) · latency SLI (G12) · spend (G13)</div>
+<div class="pnode"><b>Cost Truth</b>slippage + borrow per fill (G17) — gates every shadow read-out</div>
+<div class="pnode"><b>Statistical Risk</b>exposure/skew/concentration floor (G18)</div>
+<div class="pnode"><b>Governance</b>Conclave verdicts · calibration-gated promotion · versioned rollbacks · git DR exports</div>
+</div>
+
+<h2>3 · Gap register v5.9 (re-statused)</h2>
+<table>
+<tr><th>Gap</th><th>v5.8 status</th><th>v5.9 status</th><th>Call</th></tr>
+<tr><td>G16 score anti-predictive</td><td class="r">CRITICAL</td><td class="r">CRITICAL — #1</td><td>v8 A/B/C shadows on shared harness</td></tr>
+<tr><td>G19 bracket geometry</td><td class="r">CRITICAL</td><td class="r">CRITICAL — #1 (paired)</td><td>ATR re-fit, fit-then-freeze, next work session</td></tr>
+<tr><td>G17 slippage/borrow</td><td class="a">blocker</td><td class="a">#2 — gates all shadow numbers</td><td>per-fill columns + daily borrow pull</td></tr>
+<tr><td>G22 order-lifecycle ingestion</td><td class="dim">—</td><td class="a">NEW #2 (proven twice this week)</td><td>ingest stop/bracket events, not just fills</td></tr>
+<tr><td>G18 statistical risk</td><td class="a">new</td><td class="a">#3</td><td>exposure summary → Daily Summary</td></tr>
+<tr><td>G21 risk-gate views</td><td class="a">new</td><td class="a">#3 (unblocks G4, G7 signal)</td><td>migrate 2 views, small</td></tr>
+<tr><td>G3 order resolution</td><td class="r">blocker</td><td class="g">RESOLVED (TSM v4.3.x, verified)</td><td>close</td></tr>
+<tr><td>G10 PGRST002</td><td class="g">resolved</td><td class="g">resolved</td><td>close</td></tr>
+<tr><td>G7 Alpaca fail-closed</td><td class="r">open</td><td class="a">re-scoped: cred seeding + clock probe</td><td>wiring, not blocker</td></tr>
+<tr><td>G1/G2 overlay + approval</td><td class="r">Phase-2 blockers</td><td class="a">merged into governance plane</td><td>Conclave verdict + PO auth is the approver</td></tr>
+<tr><td>G11 webhook HMAC</td><td class="r">blocker</td><td class="r">real — schedule</td><td>HMAC + nonce window</td></tr>
+<tr><td>G12 latency SLI</td><td class="a">new</td><td class="a">real — sink is Supabase, not Databricks</td><td>p50/95/99 per run</td></tr>
+<tr><td>G13 AI spend</td><td class="a">new</td><td class="a">real — shrinks if Discovery mothballs</td><td>daily roll-up + hard stop</td></tr>
+<tr><td>G14 staging mirror</td><td class="a">new</td><td class="dim">deferred until real money</td><td>draft/publish+paper IS staging today</td></tr>
+<tr><td>G15 discovery bridge</td><td class="r">blocker</td><td class="dim">moot while Discovery mothballed</td><td>revisit with replay-ranking</td></tr>
+<tr><td>G5, G6, G8, G9, G20</td><td>open</td><td>open, correctly scoped</td><td>batch behind #1–#3</td></tr>
+</table>
+
+<h2>4 · The 6-week proof line (what "beating Citadel" means next)</h2>
+<table>
+<tr><th>Gate</th><th>Definition of done</th></tr>
+<tr><td>1. Exit model fixed</td><td>ATR bracket fit on frozen episodes; shadow cohort stops coin-flipping (SL-hit ≪ 59%)</td></tr>
+<tr><td>2. First calibrated promotion</td><td>RCF 50-drop cohort under Brier+t≥2 gate (deadline Jul 20) — first data-earned live gate change</td></tr>
+<tr><td>3. Cost truth online</td><td>every fill carries slippage_bp; shorts carry borrow; shadow read-outs quoted NET</td></tr>
+<tr><td>4. Score replaced</td><td>v8 candidate beats "trade everything, sized" out-of-sample on the shared harness</td></tr>
+<tr><td>5. <b>THE MILESTONE</b></td><td><b>≥150-episode shadow cohort, net-positive after modeled costs</b> → scale paper size → statistical risk floor → then, and only then, revisit discovery & the debate layer</td></tr>
+</table>
+
+<p class="dim" style="margin-top:26px">v5.9 · July 7, 2026 · Architect: QTP-IDSD-QuantElite (Claude) · QA: Maya · Sources: live n8n versions (f0c0a21a / 1e790e21 / 9c2bc8fd / d327daf0), Supabase quantum.* state, Phase 0 read-out, Conclave verdicts Jul 2 &amp; Jul 6, incident forensics Jul 3–7. Rule of the road: <b>nothing ships unmeasured, nothing unmeasured survives.</b></p>
+
+</body>
+</html>

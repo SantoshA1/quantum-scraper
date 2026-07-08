@@ -360,9 +360,9 @@
   },
   "staticData": null,
   "meta": {
-    "exportedAt": "2026-07-06T19:44:30Z",
+    "exportedAt": "2026-07-08T05:53:58Z",
     "versionId": "d327daf0-e710-459a-9a69-5e96c0b47b42",
     "exportedBy": "claude-architect",
-    "note": "Active/published version d327daf0 exported (workflow.versionId == activeVersionId at export time). QTP_DRT_CREW_v1.0_20260706 Bull -> Bear -> Judge Grok crew, one row/day to quantum.daily_research_thesis. Secrets redacted with REDACTED_* placeholders; staticData intentionally null. Re-attach credentials (Postgres lnLr649ylxATlCF8, xAi qyUISF3PUWktrFtN) after import."
+    "note": "DR export of ACTIVE/published version d327daf0 (unchanged since 2026-07-06 export; re-verified against live active version 2026-07-08). QTP_DRT_CREW_v1.0_20260706 Bull -> Bear -> Judge Grok crew, one thesis row/day to quantum.daily_research_thesis. Secrets redacted with REDACTED_* placeholders; staticData intentionally null. Re-attach credentials (Postgres lnLr649ylxATlCF8, xAi qyUISF3PUWktrFtN) after import."
   }
 }
