@@ -11,7 +11,7 @@ const CHANNEL_ID = "-1003889511940";
 // QTP_TSM_CREDENTIAL_MIGRATION_v2.0_20260710 — reads go through the QTP Alpaca Paper
 // Broker Proxy (named credential Alpaca-PAPER). No embedded keys, no $vars.
 const QTP_PROXY_URL = 'https://tradenextgen.app.n8n.cloud/webhook/qtp-alpaca-paper-proxy-x9v27';
-const QTP_PROXY_TOKEN = '2679400ed5f501a97697e39257b1ea7904b6c5884f915d25';
+const QTP_PROXY_TOKEN = String((typeof $vars !== 'undefined' && $vars.QTP_PROXY_TOKEN) || ''); // v2.2: rotated to n8n Variable after secret-scanner alert; proxies fail closed on mismatch
 
 const state = $getWorkflowStaticData('global');
 if (!state._fillActivityMonitorStartedAt) state._fillActivityMonitorStartedAt = PATCH_STARTED_AT;

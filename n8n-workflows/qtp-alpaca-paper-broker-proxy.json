@@ -1,12 +1,12 @@
 {
   "success": true,
-  "versionId": "d18468e2-ea8f-4da6-8f27-a2ffdd55be69",
+  "versionId": "9c4e5ca5-65d9-4210-a821-0db21cb0ba53",
   "workflowId": "nacafqPWhtsJjLvv",
   "authors": "Santosh Adari (via MCP)",
   "name": null,
   "description": null,
-  "createdAt": "2026-07-10T17:47:31.884Z",
-  "updatedAt": "2026-07-10T17:47:31.884Z",
+  "createdAt": "2026-07-10T20:32:50.050Z",
+  "updatedAt": "2026-07-10T20:32:50.050Z",
   "nodes": [
     {
       "id": "0fd471a9-9064-4efa-ac8c-59d973161748",
@@ -36,7 +36,7 @@
       ],
       "parameters": {
         "mode": "runOnceForAllItems",
-        "jsCode": "// QTP Alpaca Paper Broker Proxy v1.0 (2026-07-10)\n// Holds the Alpaca-PAPER credential so legacy Code-node workflows (TSM etc.)\n// never embed keys. PAPER + market-data hosts only. Token-gated.\nconst b = ($input.first().json.body) || {};\nconst TOKEN = '2679400ed5f501a97697e39257b1ea7904b6c5884f915d25';\nif (String(b.token || '') !== TOKEN) { throw new Error('QTP_PROXY_FORBIDDEN'); }\nconst m = String(b.method || 'GET').toUpperCase();\nif (!['GET','POST','DELETE','PATCH'].includes(m)) { throw new Error('QTP_PROXY_METHOD_NOT_ALLOWED: ' + m); }\nconst isData = b.host === 'data';\nif (isData && m !== 'GET') { throw new Error('QTP_PROXY_DATA_HOST_READONLY'); }\nconst host = isData ? 'https://data.alpaca.markets' : 'https://paper-api.alpaca.markets';\nconst path = String(b.path || '');\nif (!path.startsWith('/v2/')) { throw new Error('QTP_PROXY_PATH_NOT_ALLOWED'); }\nreturn [{ json: { method: m, url: host + path, bodyStr: b.body ? JSON.stringify(b.body) : '' } }];"
+        "jsCode": "// QTP Alpaca Paper Broker Proxy v1.1 (2026-07-10) — token moved to n8n Variable\n// QTP_PROXY_TOKEN after secret-scanner alert. FAIL-CLOSED: unset variable rejects everything.\nconst b = ($input.first().json.body) || {};\nconst TOKEN = String((typeof $vars !== 'undefined' && $vars.QTP_PROXY_TOKEN) || '');\nif (!TOKEN) { throw new Error('QTP_PROXY_TOKEN_NOT_CONFIGURED'); }\nif (String(b.token || '') !== TOKEN) { throw new Error('QTP_PROXY_FORBIDDEN'); }\nconst m = String(b.method || 'GET').toUpperCase();\nif (!['GET','POST','DELETE','PATCH'].includes(m)) { throw new Error('QTP_PROXY_METHOD_NOT_ALLOWED: ' + m); }\nconst isData = b.host === 'data';\nif (isData && m !== 'GET') { throw new Error('QTP_PROXY_DATA_HOST_READONLY'); }\nconst host = isData ? 'https://data.alpaca.markets' : 'https://paper-api.alpaca.markets';\nconst path = String(b.path || '');\nif (!path.startsWith('/v2/')) { throw new Error('QTP_PROXY_PATH_NOT_ALLOWED'); }\nreturn [{ json: { method: m, url: host + path, bodyStr: b.body ? JSON.stringify(b.body) : '' } }];"
       }
     },
     {

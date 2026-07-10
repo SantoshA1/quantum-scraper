@@ -36,7 +36,7 @@
 const BASE = 'https://paper-api.alpaca.markets'; // paper-endpoint safety guards below still check this string
 const DATA = 'https://data.alpaca.markets';
 const QTP_PROXY_URL = 'https://tradenextgen.app.n8n.cloud/webhook/qtp-alpaca-paper-proxy-x9v27';
-const QTP_PROXY_TOKEN = '2679400ed5f501a97697e39257b1ea7904b6c5884f915d25';
+const QTP_PROXY_TOKEN = String((typeof $vars !== 'undefined' && $vars.QTP_PROXY_TOKEN) || ''); // v2.2: rotated to n8n Variable after secret-scanner alert; proxies fail closed on mismatch
 const QTP_TG_PROXY_URL = 'https://tradenextgen.app.n8n.cloud/webhook/qtp-telegram-proxy-k4p8w'; // v2.1: bot token removed — Telegram credential lives in QTP Telegram Proxy (oYZVDxX2yhX75Eu0)
 const CHAT   = '6648680513';
 

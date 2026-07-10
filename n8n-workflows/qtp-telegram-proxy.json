@@ -1,12 +1,12 @@
 {
   "success": true,
-  "versionId": "b446be18-c6d4-4f8b-960d-9b895072fec7",
+  "versionId": "7c86f54b-0ab5-4bd2-8623-3f4c1c28edd1",
   "workflowId": "oYZVDxX2yhX75Eu0",
-  "authors": "Santosh Adari",
+  "authors": "Santosh Adari (via MCP)",
   "name": null,
   "description": null,
-  "createdAt": "2026-07-10T18:59:38.364Z",
-  "updatedAt": "2026-07-10T18:59:38.364Z",
+  "createdAt": "2026-07-10T20:32:56.327Z",
+  "updatedAt": "2026-07-10T20:32:56.327Z",
   "nodes": [
     {
       "id": "872c8cca-f483-4455-89a1-0e684b46f97f",
@@ -35,7 +35,7 @@
       ],
       "parameters": {
         "mode": "runOnceForAllItems",
-        "jsCode": "// QTP Telegram Proxy v1.0 (2026-07-10) — holds the Telegram credential so legacy\n// Code-node workflows (TSM etc.) never embed the bot token. Token-gated.\nconst b = ($input.first().json.body) || {};\nconst TOKEN = '2679400ed5f501a97697e39257b1ea7904b6c5884f915d25';\nif (String(b.token || '') !== TOKEN) { throw new Error('QTP_TG_PROXY_FORBIDDEN'); }\nconst chatId = String(b.chat_id || '');\nconst text = String(b.text || '');\nif (!chatId || !text) { throw new Error('QTP_TG_PROXY_MISSING_FIELDS'); }\nreturn [{ json: { chat_id: chatId, text: text.slice(0, 4000) } }];"
+        "jsCode": "// QTP Telegram Proxy v1.1 (2026-07-10) — token moved to n8n Variable QTP_PROXY_TOKEN\n// after secret-scanner alert. FAIL-CLOSED: unset variable rejects everything.\nconst b = ($input.first().json.body) || {};\nconst TOKEN = String((typeof $vars !== 'undefined' && $vars.QTP_PROXY_TOKEN) || '');\nif (!TOKEN) { throw new Error('QTP_TG_PROXY_TOKEN_NOT_CONFIGURED'); }\nif (String(b.token || '') !== TOKEN) { throw new Error('QTP_TG_PROXY_FORBIDDEN'); }\nconst chatId = String(b.chat_id || '');\nconst text = String(b.text || '');\nif (!chatId || !text) { throw new Error('QTP_TG_PROXY_MISSING_FIELDS'); }\nreturn [{ json: { chat_id: chatId, text: text.slice(0, 4000) } }];"
       }
     },
     {
