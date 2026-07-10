@@ -1,0 +1,186 @@
+{
+  "name": "QET H4 - Exit-Fill Sync",
+  "workflowId": "bBIAbsClonHP94hk",
+  "versionId": "f26312e7-76ea-43c7-a84b-9fc90797ba5e",
+  "versionCreatedAt": "2026-07-10T04:29:09.300Z",
+  "authors": "Santosh Adari (via MCP)",
+  "nodes": [
+    {
+      "id": "014f8552-035d-4f8f-b027-8f5e1157609b",
+      "name": "Every 5 Minutes",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.3,
+      "position": [0, 0],
+      "parameters": {
+        "rule": {
+          "interval": [{ "field": "minutes", "minutesInterval": 5 }]
+        }
+      }
+    },
+    {
+      "id": "13588098-7f0e-4e26-b497-52e6f7d5d274",
+      "name": "Get Open Ledger Rows",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [224, 0],
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT id, user_id, strategy, mode, symbol, side, entry_order_id, entry_fill_price, intended_stop, intended_target FROM public.trade_ledger WHERE status = 'open' AND mode = 'paper' AND entry_order_id IS NOT NULL ORDER BY created_at LIMIT 50"
+      },
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 1000
+    },
+    {
+      "id": "be0de3fc-f668-4349-a5a8-2298bf27e8ad",
+      "name": "Fetch Order Status",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [448, 0],
+      "parameters": {
+        "method": "GET",
+        "url": "=https://paper-api.alpaca.markets/v2/orders/{{ $json.entry_order_id }}",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpCustomAuth",
+        "sendQuery": true,
+        "specifyQuery": "keypair",
+        "queryParameters": {
+          "parameters": [{ "name": "nested", "value": "true" }]
+        }
+      },
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 1000
+    },
+    {
+      "id": "64f73206-a3cb-4bce-bd7f-b0e754a195ef",
+      "name": "Build Exit Updates",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [672, 0],
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const rows = $('Get Open Ledger Rows').all().map(i => i.json);\nconst orders = $input.all().map(i => i.json);\nconst esc = (s) => s == null ? '' : String(s).replace(/'/g, \"''\");\nconst num = (v) => (v === null || v === undefined || v === '' || isNaN(Number(v))) ? 'NULL' : Number(v);\nconst out = [];\nfor (let i = 0; i < rows.length; i++) {\n  const r = rows[i];\n  const o = orders[i] || {};\n  const sets = [];\n  let action = 'waiting';\n  const terminalUnfilled = ['canceled','expired','rejected'].includes(o.status) && !o.filled_at;\n  if (terminalUnfilled) {\n    sets.push(\"status = 'busted'\");\n    action = 'busted';\n  } else {\n    if (o.filled_avg_price && !r.entry_fill_price) {\n      sets.push('entry_fill_price = ' + num(o.filled_avg_price));\n      sets.push(\"entry_fill_time = '\" + esc(o.filled_at) + \"'::timestamptz\");\n      action = 'entry_synced';\n    }\n    const legs = o.legs || [];\n    const leg = legs.find(l => l.status === 'filled');\n    if (leg && o.filled_avg_price) {\n      const t = String(leg.type || '');\n      const reason = t.indexOf('trailing') >= 0 ? 'trail' : (t.indexOf('stop') >= 0 ? 'stop' : 'target');\n      const intended = reason === 'stop' ? r.intended_stop : (reason === 'target' ? r.intended_target : null);\n      sets.push(\"exit_reason = '\" + reason + \"'\");\n      sets.push(\"exit_order_id = '\" + esc(leg.id) + \"'\");\n      sets.push('intended_exit = ' + num(intended));\n      sets.push('exit_fill_price = ' + num(leg.filled_avg_price));\n      sets.push(\"exit_fill_time = '\" + esc(leg.filled_at) + \"'::timestamptz\");\n      sets.push(\"status = 'closed'\");\n      action = 'closed';\n    }\n  }\n  if (sets.length) {\n    out.push({ json: { action: action, symbol: r.symbol, strategy: r.strategy, ledger_id: r.id, sql: 'UPDATE public.trade_ledger SET ' + sets.join(', ') + \" WHERE id = '\" + esc(r.id) + \"'::uuid RETURNING id, status, net_pnl, r_multiple\" } });\n  }\n}\nif (!out.length) out.push({ json: { action: 'none', symbol: '', strategy: '', ledger_id: '', sql: 'SELECT 1 AS noop' } });\nreturn out;"
+      }
+    },
+    {
+      "id": "8cad4374-4038-4aa7-b1ee-6aa089b23ac4",
+      "name": "Apply Ledger Updates",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [896, 0],
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "={{ $json.sql }}"
+      },
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 1000
+    },
+    {
+      "id": "dba139be-8701-44a8-acc6-ae29173f3f0f",
+      "name": "Summarize Exit Sync",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1120, 0],
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const built = $('Build Exit Updates').all().map(i => i.json);\nconst results = $input.all().map(i => i.json);\nconst esc = (s) => s == null ? '' : String(s).replace(/'/g, \"''\");\nconst closed = [];\nlet busted = 0, entrySynced = 0;\nfor (let i = 0; i < built.length; i++) {\n  const b = built[i];\n  const res = results[i] || {};\n  if (b.action === 'closed') closed.push({ symbol: b.symbol, strategy: b.strategy, net_pnl: res.net_pnl, r: res.r_multiple });\n  if (b.action === 'busted') busted++;\n  if (b.action === 'entry_synced') entrySynced++;\n}\nconst summary = 'exit_sync: ' + closed.length + ' closed, ' + entrySynced + ' entry_synced, ' + busted + ' busted';\nconst raw = JSON.stringify({ closed: closed, busted: busted, entry_synced: entrySynced }).split('$qet$').join('');\nconst audit_sql = \"INSERT INTO public.audit_log (user_id, workflow_name, execution_id, mode, decision, reason, raw) VALUES (NULL, 'qet-h4-exit-sync', '\" + esc($execution.id) + \"', 'paper', '\" + ((closed.length || busted) ? 'executed' : 'skipped') + \"', '\" + esc(summary) + \"', $qet$\" + raw + \"$qet$::jsonb)\";\nlet text = '[QET H4] ' + summary;\nfor (const c of closed) { text += '\\n' + c.symbol + ' (' + c.strategy + '): net ' + c.net_pnl + ' | R ' + c.r; }\nreturn [{ json: { closed_count: closed.length, busted: busted, text: text, audit_sql: audit_sql } }];"
+      }
+    },
+    {
+      "id": "4cd8f306-5c88-4525-aed1-9ca49df9b70a",
+      "name": "Write Audit Log",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [1344, 0],
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "={{ $json.audit_sql }}"
+      },
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 1000
+    },
+    {
+      "id": "d1a93de7-f03a-4a6e-8523-165dc92f8d29",
+      "name": "Any Closes or Busts?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [1568, 0],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose"
+          },
+          "combinator": "and",
+          "conditions": [
+            {
+              "leftValue": "={{ $('Summarize Exit Sync').item.json.closed_count + $('Summarize Exit Sync').item.json.busted }}",
+              "operator": { "type": "number", "operation": "gt" },
+              "rightValue": 0
+            }
+          ]
+        },
+        "looseTypeValidation": true
+      }
+    },
+    {
+      "id": "69d856f7-de6d-452e-bf90-7cad6b4b6f1c",
+      "name": "Telegram Close Alert",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [1792, 0],
+      "parameters": {
+        "resource": "message",
+        "operation": "sendMessage",
+        "chatId": "6648680513",
+        "text": "={{ $('Summarize Exit Sync').item.json.text }}"
+      },
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 1000,
+      "onError": "continueRegularOutput",
+      "webhookId": "faeea2ec-a7e1-4822-9f75-5095b828bfe0"
+    },
+    {
+      "id": "603db75f-67ef-48d7-a8d6-8b302046656a",
+      "name": "Sticky Note b82067a0",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [896, 64],
+      "parameters": {
+        "content": "## QET H4 - Exit-Fill Sync\n\nEvery 5 min: polls open trade_ledger rows (paper), fetches Alpaca order + bracket legs, writes entry fills, exit fills, and busted (never-filled) states back to the ledger. The DB trigger derives slippage, net P&L, and R on close. Audit row every run with work done; Telegram alert only when trades close or bust.\n\nLive-mode rows are NOT processed yet - extend the SELECT and add Alpaca-LIVE credential when live trading starts."
+      }
+    }
+  ],
+  "connections": {
+    "Every 5 Minutes": {
+      "main": [[{ "node": "Get Open Ledger Rows", "type": "main", "index": 0 }]]
+    },
+    "Get Open Ledger Rows": {
+      "main": [[{ "node": "Fetch Order Status", "type": "main", "index": 0 }]]
+    },
+    "Fetch Order Status": {
+      "main": [[{ "node": "Build Exit Updates", "type": "main", "index": 0 }]]
+    },
+    "Build Exit Updates": {
+      "main": [[{ "node": "Apply Ledger Updates", "type": "main", "index": 0 }]]
+    },
+    "Apply Ledger Updates": {
+      "main": [[{ "node": "Summarize Exit Sync", "type": "main", "index": 0 }]]
+    },
+    "Summarize Exit Sync": {
+      "main": [[{ "node": "Write Audit Log", "type": "main", "index": 0 }]]
+    },
+    "Write Audit Log": {
+      "main": [[{ "node": "Any Closes or Busts?", "type": "main", "index": 0 }]]
+    },
+    "Any Closes or Busts?": {
+      "main": [[{ "node": "Telegram Close Alert", "type": "main", "index": 0 }]]
+    }
+  },
+  "nodeGroups": []
+}

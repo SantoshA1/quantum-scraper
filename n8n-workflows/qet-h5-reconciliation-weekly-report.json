@@ -1,0 +1,241 @@
+{
+  "name": "QET H5 - Nightly Reconciliation + Weekly Edge Report",
+  "workflowId": "RKK5aLIXKhNrVPpD",
+  "versionId": "c5b3a6e0-3b34-48ae-8324-80010f9570c0",
+  "versionCreatedAt": "2026-07-10T04:29:10.752Z",
+  "authors": "Santosh Adari (via MCP)",
+  "nodes": [
+    {
+      "id": "fcaae3bc-0315-427c-81a8-a0068a77768d",
+      "name": "Nightly 2 AM",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.3,
+      "position": [0, 0],
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "days",
+              "daysInterval": 1,
+              "triggerAtHour": 2,
+              "triggerAtMinute": 0
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "6b48ace8-9fc5-4395-845a-7527fb22d0fe",
+      "name": "Fetch Broker Fills",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [224, 0],
+      "parameters": {
+        "method": "GET",
+        "url": "https://paper-api.alpaca.markets/v2/account/activities/FILL",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpCustomAuth",
+        "sendQuery": true,
+        "specifyQuery": "keypair",
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "after",
+              "value": "={{ $now.minus({ days: 2 }).toISO() }}"
+            }
+          ]
+        }
+      },
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 1000,
+      "alwaysOutputData": true
+    },
+    {
+      "id": "808f30c4-7ea1-4cea-80e9-f6f63bef28ff",
+      "name": "Get Recent Ledger Rows",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [448, 0],
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT id, status, entry_order_id, exit_order_id, entry_fill_price, entry_fill_time FROM public.trade_ledger WHERE mode = 'paper' AND created_at >= now() - interval '3 days'"
+      },
+      "executeOnce": true,
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 1000
+    },
+    {
+      "id": "ad1ae27e-8f03-45d6-adf1-c3e35bd65851",
+      "name": "Reconcile Fills vs Ledger",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [672, 0],
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const fills = $('Fetch Broker Fills').all().map(i => i.json).filter(f => f && f.order_id);\nconst rows = $input.all().map(i => i.json).filter(r => r && r.id);\nconst esc = (s) => s == null ? '' : String(s).replace(/'/g, \"''\");\nconst known = new Set();\nfor (const r of rows) {\n  if (r.entry_order_id) known.add(r.entry_order_id);\n  if (r.exit_order_id) known.add(r.exit_order_id);\n}\nconst orphans = fills.filter(f => !known.has(f.order_id));\nconst now = Date.now();\nconst stale = rows.filter(r => r.status === 'open' && r.entry_fill_price && r.entry_fill_time && (now - new Date(r.entry_fill_time).getTime()) > 2 * 86400000);\nconst mismatches = orphans.length + stale.length;\nconst summary = 'reconciliation: ' + fills.length + ' broker fills, ' + orphans.length + ' orphan fills, ' + stale.length + ' stale open rows';\nconst raw = JSON.stringify({ orphan_fills: orphans.slice(0, 20), stale_row_ids: stale.map(r => r.id) }).split('$qet$').join('');\nconst audit_sql = \"INSERT INTO public.audit_log (user_id, workflow_name, execution_id, mode, decision, reason, raw) VALUES (NULL, 'qet-h5-reconciliation', '\" + esc($execution.id) + \"', 'paper', '\" + (mismatches ? 'errored' : 'skipped') + \"', '\" + esc(summary) + \"', $qet$\" + raw + \"$qet$::jsonb)\";\nreturn [{ json: { mismatches: mismatches, text: '[QET H5 ALERT] ' + summary, audit_sql: audit_sql } }];"
+      }
+    },
+    {
+      "id": "9e1fa3f2-89c1-4f41-9c96-eb5ce355ec3d",
+      "name": "Write Recon Audit",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [896, 0],
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "={{ $json.audit_sql }}"
+      },
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 1000
+    },
+    {
+      "id": "3043fae2-c0b6-4cf9-8b3e-19ea36d6184a",
+      "name": "Any Mismatches?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [1120, 0],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose"
+          },
+          "combinator": "and",
+          "conditions": [
+            {
+              "leftValue": "={{ $('Reconcile Fills vs Ledger').item.json.mismatches }}",
+              "operator": { "type": "number", "operation": "gt" },
+              "rightValue": 0
+            }
+          ]
+        },
+        "looseTypeValidation": true
+      }
+    },
+    {
+      "id": "bcca8233-9402-4177-9c1b-de11fa0d3860",
+      "name": "Telegram Mismatch Alert",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [1344, 0],
+      "parameters": {
+        "resource": "message",
+        "operation": "sendMessage",
+        "chatId": "6648680513",
+        "text": "={{ $('Reconcile Fills vs Ledger').item.json.text }}"
+      },
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 1000,
+      "onError": "continueRegularOutput",
+      "webhookId": "032c4ee6-59c9-4022-9b8c-2a0130ce7a5e"
+    },
+    {
+      "id": "ead83319-6261-40ca-bd90-6f744487a006",
+      "name": "Sunday 8 AM",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.3,
+      "position": [0, 224],
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "weeks",
+              "weeksInterval": 1,
+              "triggerAtDay": [0],
+              "triggerAtHour": 8,
+              "triggerAtMinute": 0
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "a108bd9c-43ce-4b19-abbd-e1be7b7340b2",
+      "name": "Get Edge Metrics",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [224, 224],
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT strategy, mode, n_trades, win_rate, round(expectancy_r, 3) AS expectancy_r, profit_factor, t_stat, sharpe_annualized, kelly_star, round(avg_entry_slip_bps, 1) AS entry_slip, round(avg_exit_slip_bps, 1) AS exit_slip, round(total_net_pnl, 2) AS net_pnl FROM public.edge_metrics_by_strategy ORDER BY mode, strategy"
+      },
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 1000
+    },
+    {
+      "id": "609ee54d-3209-4afe-9665-becc229d045a",
+      "name": "Format Weekly Report",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [448, 224],
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const rows = $input.all().map(i => i.json);\nlet text = '[QET WEEKLY EDGE REPORT]';\nfor (const r of rows) {\n  text += '\\n' + r.strategy + ' (' + r.mode + '): n=' + r.n_trades + ' | W=' + r.win_rate + ' | E[R]=' + r.expectancy_r + ' | PF=' + (r.profit_factor == null ? '-' : r.profit_factor) + ' | t=' + (r.t_stat == null ? '-' : r.t_stat) + ' | Sharpe=' + (r.sharpe_annualized == null ? '-' : r.sharpe_annualized) + ' | f*=' + (r.kelly_star == null ? '-' : r.kelly_star) + ' | slip=' + r.entry_slip + '/' + r.exit_slip + 'bps | net=' + r.net_pnl;\n}\ntext += '\\n\\nRatchet rule: no sizing change except in response to these numbers.';\nreturn [{ json: { text: text } }];"
+      }
+    },
+    {
+      "id": "68404fad-2665-4290-91e2-2a37287b1a9e",
+      "name": "Telegram Weekly Report",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [672, 224],
+      "parameters": {
+        "resource": "message",
+        "operation": "sendMessage",
+        "chatId": "6648680513",
+        "text": "={{ $json.text }}"
+      },
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 1000,
+      "onError": "continueRegularOutput",
+      "webhookId": "23514898-9a26-4210-b7d4-94509614a26d"
+    },
+    {
+      "id": "8d01cd5e-a1f7-4f22-ba41-d3e56e1a5b99",
+      "name": "Sticky Note 470e2b17",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [672, 288],
+      "parameters": {
+        "content": "## QET H5 - Nightly Reconciliation + Weekly Edge Report\n\nNightly 2 AM (ET): fetches yesterday+ broker fills from Alpaca, compares against trade_ledger order IDs, flags orphan fills (broker fill with no ledger row) and stale open rows (filled entry, no exit after 2 days). Audit row every run; Telegram alert only on mismatch.\n\nSunday 8 AM: posts edge_metrics_by_strategy scoreboard to Telegram - the ONLY input to sizing-parameter changes (ratchet rule)."
+      }
+    }
+  ],
+  "connections": {
+    "Nightly 2 AM": {
+      "main": [[{ "node": "Fetch Broker Fills", "type": "main", "index": 0 }]]
+    },
+    "Fetch Broker Fills": {
+      "main": [[{ "node": "Get Recent Ledger Rows", "type": "main", "index": 0 }]]
+    },
+    "Get Recent Ledger Rows": {
+      "main": [[{ "node": "Reconcile Fills vs Ledger", "type": "main", "index": 0 }]]
+    },
+    "Reconcile Fills vs Ledger": {
+      "main": [[{ "node": "Write Recon Audit", "type": "main", "index": 0 }]]
+    },
+    "Write Recon Audit": {
+      "main": [[{ "node": "Any Mismatches?", "type": "main", "index": 0 }]]
+    },
+    "Any Mismatches?": {
+      "main": [[{ "node": "Telegram Mismatch Alert", "type": "main", "index": 0 }]]
+    },
+    "Sunday 8 AM": {
+      "main": [[{ "node": "Get Edge Metrics", "type": "main", "index": 0 }]]
+    },
+    "Get Edge Metrics": {
+      "main": [[{ "node": "Format Weekly Report", "type": "main", "index": 0 }]]
+    },
+    "Format Weekly Report": {
+      "main": [[{ "node": "Telegram Weekly Report", "type": "main", "index": 0 }]]
+    }
+  },
+  "nodeGroups": []
+}

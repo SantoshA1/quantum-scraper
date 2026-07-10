@@ -1,0 +1,804 @@
+{
+  "name": "QET Kelly Risk Gate (H2)",
+  "workflowId": "vc3nTeFEaaXAAEAb",
+  "versionId": "fc247235-8120-4509-b2c1-494d597b5362",
+  "versionCreatedAt": "2026-07-10T04:21:31.299Z",
+  "authors": "Santosh Adari (via MCP)",
+  "nodes": [
+    {
+      "id": "59818f14-2d28-4996-8954-daa6efe1ed0d",
+      "name": "Signal Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2.1,
+      "position": [0, 480],
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "qet-signal-ingest",
+        "responseMode": "onReceived"
+      },
+      "webhookId": "c465760c-fbe9-4d23-8fa5-0fe385b7bec6"
+    },
+    {
+      "id": "7d755907-6577-4586-b9f9-8b0fafd93e23",
+      "name": "Normalize Signal",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [224, 480],
+      "parameters": {
+        "mode": "manual",
+        "includeOtherFields": false,
+        "assignments": {
+          "assignments": [
+            {
+              "id": "a-mode",
+              "name": "MODE",
+              "value": "={{ $json.body?.MODE ?? $json.MODE ?? \"\" }}",
+              "type": "string"
+            },
+            {
+              "id": "a-user",
+              "name": "user_id",
+              "value": "={{ $json.body?.user_id ?? $json.user_id ?? \"\" }}",
+              "type": "string"
+            },
+            {
+              "id": "a-port",
+              "name": "portfolio_id",
+              "value": "={{ $json.body?.portfolio_id ?? $json.portfolio_id ?? \"\" }}",
+              "type": "string"
+            },
+            {
+              "id": "a-sig",
+              "name": "signal_id",
+              "value": "={{ $json.body?.signal_id ?? $json.signal_id ?? \"\" }}",
+              "type": "string"
+            },
+            {
+              "id": "a-strat",
+              "name": "strategy",
+              "value": "={{ $json.body?.strategy ?? $json.strategy ?? \"\" }}",
+              "type": "string"
+            },
+            {
+              "id": "a-sym",
+              "name": "symbol",
+              "value": "={{ $json.body?.symbol ?? $json.symbol ?? \"\" }}",
+              "type": "string"
+            },
+            {
+              "id": "a-side",
+              "name": "side",
+              "value": "={{ $json.body?.side ?? $json.side ?? \"\" }}",
+              "type": "string"
+            },
+            {
+              "id": "a-entry",
+              "name": "entry",
+              "value": "={{ Number($json.body?.entry ?? $json.entry ?? 0) }}",
+              "type": "number"
+            },
+            {
+              "id": "a-stop",
+              "name": "stop",
+              "value": "={{ Number($json.body?.stop ?? $json.stop ?? 0) }}",
+              "type": "number"
+            },
+            {
+              "id": "a-target",
+              "name": "target",
+              "value": "={{ Number($json.body?.target ?? $json.target ?? 0) }}",
+              "type": "number"
+            },
+            {
+              "id": "a-conf",
+              "name": "confidence",
+              "value": "={{ Number($json.body?.confidence ?? $json.confidence ?? 0) }}",
+              "type": "number"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "745c2ce8-e675-408b-aa4e-ef04037033a6",
+      "name": "Valid Signal?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [448, 480],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose"
+          },
+          "combinator": "and",
+          "conditions": [
+            {
+              "leftValue": "={{ $json.MODE }}",
+              "operator": { "type": "string", "operation": "notEmpty" },
+              "rightValue": ""
+            },
+            {
+              "leftValue": "={{ $json.strategy }}",
+              "operator": { "type": "string", "operation": "notEmpty" },
+              "rightValue": ""
+            },
+            {
+              "leftValue": "={{ $json.entry }}",
+              "operator": { "type": "number", "operation": "gt" },
+              "rightValue": 0
+            },
+            {
+              "leftValue": "={{ $json.stop }}",
+              "operator": { "type": "number", "operation": "gt" },
+              "rightValue": 0
+            }
+          ]
+        },
+        "looseTypeValidation": true
+      }
+    },
+    {
+      "id": "97023fd6-c5a4-4373-8b76-a9863e0fc730",
+      "name": "Live Mode?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [672, 384],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "combinator": "and",
+          "conditions": [
+            {
+              "leftValue": "={{ $json.MODE }}",
+              "operator": { "type": "string", "operation": "equals" },
+              "rightValue": "live"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "b4221fdf-6f6d-47e0-a9f8-73d387c01f53",
+      "name": "Fetch Equity (Live)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [896, 192],
+      "parameters": {
+        "method": "GET",
+        "url": "https://api.alpaca.markets/v2/account",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpCustomAuth"
+      },
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 1000
+    },
+    {
+      "id": "d520c177-c091-4258-9bb1-0b1a3998f9ce",
+      "name": "Kelly Gate (Live)",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [1120, 192],
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT public.compute_kelly_gate($1::uuid, $2::uuid, $3, $4, $5::numeric, $6::numeric, $7::numeric, $8::numeric) AS verdict",
+        "options": {
+          "queryReplacement": "={{ $('Normalize Signal').item.json.user_id }},{{ $('Normalize Signal').item.json.portfolio_id }},{{ $('Normalize Signal').item.json.strategy }},{{ $('Normalize Signal').item.json.MODE }},{{ $json.equity }},{{ $('Normalize Signal').item.json.entry }},{{ $('Normalize Signal').item.json.stop }},{{ $('Normalize Signal').item.json.confidence }}"
+        }
+      },
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 1000
+    },
+    {
+      "id": "adf8265e-d0b1-4323-b29f-1bca4f4501a2",
+      "name": "Gate Approved? (Live)",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [1344, 192],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose"
+          },
+          "combinator": "and",
+          "conditions": [
+            {
+              "leftValue": "={{ $json.verdict.approved }}",
+              "operator": { "type": "boolean", "operation": "true" },
+              "rightValue": ""
+            }
+          ]
+        },
+        "looseTypeValidation": true
+      }
+    },
+    {
+      "id": "2e90d047-ac2d-4c49-bac4-cc0ea5a7b4d6",
+      "name": "Live Approval (Telegram)",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [1568, 96],
+      "parameters": {
+        "resource": "message",
+        "operation": "sendAndWait",
+        "chatId": "6648680513",
+        "message": "=QET LIVE ORDER APPROVAL\nSymbol: {{ $('Normalize Signal').item.json.symbol }} | Side: {{ $('Normalize Signal').item.json.side }}\nQty: {{ $json.verdict.qty }} @ ~{{ $('Normalize Signal').item.json.entry }} | Stop: {{ $('Normalize Signal').item.json.stop }} | Target: {{ $('Normalize Signal').item.json.target }}\nRisk: ${{ $json.verdict.risk_dollars }} ({{ $json.verdict.risk_pct }}% of equity) | Drawdown: {{ $json.verdict.drawdown_pct }}%\nStrategy: {{ $('Normalize Signal').item.json.strategy }} | Execution: {{ $execution.id }}\nTimes out (= REJECT) in 5 minutes.",
+        "responseType": "approval",
+        "approvalOptions": {
+          "values": {
+            "approvalType": "double",
+            "approveLabel": "APPROVE ORDER",
+            "disapproveLabel": "REJECT"
+          }
+        },
+        "options": {
+          "limitWaitTime": {
+            "values": {
+              "limitType": "afterTimeInterval",
+              "resumeAmount": 5,
+              "resumeUnit": "minutes"
+            }
+          },
+          "appendAttribution": false
+        }
+      },
+      "webhookId": "229540bc-5cf4-42fc-b1bf-93f49e13dcbe"
+    },
+    {
+      "id": "545df647-9d16-4918-a669-6a043e0ecf53",
+      "name": "Human Approved?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [1792, 96],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose"
+          },
+          "combinator": "and",
+          "conditions": [
+            {
+              "leftValue": "={{ $json.data?.approved ?? false }}",
+              "operator": { "type": "boolean", "operation": "true" },
+              "rightValue": ""
+            }
+          ]
+        },
+        "looseTypeValidation": true
+      }
+    },
+    {
+      "id": "8d1b4508-4efa-4c6a-b365-ba86d697d515",
+      "name": "Place Bracket Order (Live)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [2016, 0],
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.alpaca.markets/v2/orders",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpCustomAuth",
+        "sendBody": true,
+        "contentType": "json",
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify(Object.assign({ symbol: $('Normalize Signal').item.json.symbol, qty: String($json.verdict.qty), side: $('Normalize Signal').item.json.side, type: 'market', time_in_force: 'day', client_order_id: 'qet-' + $execution.id, stop_loss: { stop_price: String($('Normalize Signal').item.json.stop) } }, $('Normalize Signal').item.json.target > 0 ? { order_class: 'bracket', take_profit: { limit_price: String($('Normalize Signal').item.json.target) } } : { order_class: 'oto' })) }}"
+      },
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 1000
+    },
+    {
+      "id": "6a3f5de0-d213-4640-8f6c-12a0225bb3fe",
+      "name": "Build Ledger Insert (Live)",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [2240, 0],
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const n = $('Normalize Signal').first().json;\nconst k = $('Kelly Gate (Live)').first().json.verdict;\nconst o = $input.first().json;\nconst eq = $('Fetch Equity (Live)').first().json.equity;\nconst esc = (s) => s == null ? null : String(s).replace(/'/g, \"''\");\nconst num = (v) => (v === null || v === undefined || v === '' || isNaN(Number(v))) ? 'NULL' : Number(v);\nconst str = (v) => (v == null || v === '') ? 'NULL' : \"'\" + esc(v) + \"'\";\nconst uuid = (v) => (v == null || v === '') ? 'NULL' : \"'\" + esc(v) + \"'::uuid\";\nconst meta = JSON.stringify(k || {}).split('$qet$').join('');\nconst sql = 'INSERT INTO public.trade_ledger (user_id, portfolio_id, signal_id, strategy, mode, symbol, side, qty, confidence, signal_time, intended_entry, intended_stop, intended_target, risk_amount, risk_pct_applied, sizing_meta, equity_at_entry, entry_order_id, entry_fill_price, entry_fill_time) VALUES (' + uuid(n.user_id) + ', ' + uuid(n.portfolio_id) + ', ' + uuid(n.signal_id) + ', ' + str(n.strategy) + ', ' + str(n.MODE) + ', ' + str(n.symbol) + ', ' + str(n.side) + ', ' + num(k.qty) + ', ' + num(n.confidence) + ', now(), ' + num(n.entry) + ', ' + num(n.stop) + ', ' + (n.target > 0 ? num(n.target) : 'NULL') + ', ' + num(k.risk_dollars) + ', ' + num(k.risk_pct) + ', $qet$' + meta + '$qet$::jsonb, ' + num(eq) + ', ' + str(o.id) + ', ' + num(o.filled_avg_price) + ', ' + (o.filled_at ? \"'\" + esc(o.filled_at) + \"'::timestamptz\" : 'NULL') + ') RETURNING id';\nreturn [{ json: { sql: sql } }];"
+      }
+    },
+    {
+      "id": "59461d4f-93b0-4967-8058-b972ea53c273",
+      "name": "Write Trade Ledger (Live)",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [2464, 0],
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "={{ $json.sql }}"
+      },
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 1000
+    },
+    {
+      "id": "c743a4fa-3999-4920-b176-8b8b9a92c60d",
+      "name": "Prep Audit: Executed (Live)",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [2688, 0],
+      "parameters": {
+        "mode": "manual",
+        "includeOtherFields": true,
+        "assignments": {
+          "assignments": [
+            {
+              "id": "sl-dec",
+              "name": "decision",
+              "value": "executed",
+              "type": "string"
+            },
+            {
+              "id": "sl-rea",
+              "name": "reason",
+              "value": "={{ $('Kelly Gate (Live)').item.json.verdict.reason }}",
+              "type": "string"
+            },
+            {
+              "id": "sl-led",
+              "name": "ledger_id",
+              "value": "={{ $json.id }}",
+              "type": "string"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "999a1c50-11f3-4ac1-b39c-6909da963189",
+      "name": "Prepare Audit Entry",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [2912, 480],
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const n = $('Normalize Signal').first().json;\nconst item = $input.first().json;\nconst esc = (s) => s == null ? '' : String(s).replace(/'/g, \"''\");\nconst mode = n.MODE === 'live' ? 'live' : 'paper';\nconst decision = item.decision || 'rejected';\nconst reason = item.reason || 'unspecified';\nconst raw = JSON.stringify({ signal: n, context: item }).split('$qet$').join('');\nconst sql = \"INSERT INTO public.audit_log (user_id, workflow_name, execution_id, mode, decision, reason, signal_id, raw) VALUES (\" + ((n.user_id == null || n.user_id === '') ? 'NULL' : \"'\" + esc(n.user_id) + \"'::uuid\") + \", 'qet-kelly-risk-gate', '\" + esc($execution.id) + \"', '\" + mode + \"', '\" + esc(decision) + \"', '\" + esc(reason) + \"', \" + ((n.signal_id == null || n.signal_id === '') ? 'NULL' : \"'\" + esc(n.signal_id) + \"'::uuid\") + ', $qet$' + raw + '$qet$::jsonb)';\nreturn [{ json: { decision: decision, reason: reason, sql: sql } }];"
+      }
+    },
+    {
+      "id": "b8f80c8e-7c98-4ccd-abf5-4d3d0508c117",
+      "name": "Prep Audit: Approval Denied",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [2688, 192],
+      "parameters": {
+        "mode": "manual",
+        "includeOtherFields": true,
+        "assignments": {
+          "assignments": [
+            {
+              "id": "ra-dec",
+              "name": "decision",
+              "value": "rejected",
+              "type": "string"
+            },
+            {
+              "id": "ra-rea",
+              "name": "reason",
+              "value": "human_approval_denied_or_timeout",
+              "type": "string"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "c76f9486-e934-4713-af41-0d884fe22479",
+      "name": "Prep Audit: Gate Rejected (Live)",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [2688, 384],
+      "parameters": {
+        "mode": "manual",
+        "includeOtherFields": true,
+        "assignments": {
+          "assignments": [
+            {
+              "id": "rl-dec",
+              "name": "decision",
+              "value": "rejected",
+              "type": "string"
+            },
+            {
+              "id": "rl-rea",
+              "name": "reason",
+              "value": "={{ $json.verdict.reason }}",
+              "type": "string"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "d1127f44-d7dc-4e79-845d-a112d276af37",
+      "name": "Fetch Equity (Paper)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [1344, 672],
+      "parameters": {
+        "method": "GET",
+        "url": "https://paper-api.alpaca.markets/v2/account",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpCustomAuth"
+      },
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 1000
+    },
+    {
+      "id": "28f6a74a-476f-4725-9f05-8aa8f2206b2c",
+      "name": "Kelly Gate (Paper)",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [1568, 672],
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT public.compute_kelly_gate($1::uuid, $2::uuid, $3, $4, $5::numeric, $6::numeric, $7::numeric, $8::numeric) AS verdict",
+        "options": {
+          "queryReplacement": "={{ $('Normalize Signal').item.json.user_id }},{{ $('Normalize Signal').item.json.portfolio_id }},{{ $('Normalize Signal').item.json.strategy }},{{ $('Normalize Signal').item.json.MODE }},{{ $json.equity }},{{ $('Normalize Signal').item.json.entry }},{{ $('Normalize Signal').item.json.stop }},{{ $('Normalize Signal').item.json.confidence }}"
+        }
+      },
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 1000
+    },
+    {
+      "id": "7123d216-53f7-4ddb-b512-54addb2b4b03",
+      "name": "Gate Approved? (Paper)",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [1792, 672],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose"
+          },
+          "combinator": "and",
+          "conditions": [
+            {
+              "leftValue": "={{ $json.verdict.approved }}",
+              "operator": { "type": "boolean", "operation": "true" },
+              "rightValue": ""
+            }
+          ]
+        },
+        "looseTypeValidation": true
+      }
+    },
+    {
+      "id": "56c9b165-7db7-4480-9aa5-0016b40c2f06",
+      "name": "Place Bracket Order (Paper)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [2016, 576],
+      "parameters": {
+        "method": "POST",
+        "url": "https://paper-api.alpaca.markets/v2/orders",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpCustomAuth",
+        "sendBody": true,
+        "contentType": "json",
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify(Object.assign({ symbol: $('Normalize Signal').item.json.symbol, qty: String($json.verdict.qty), side: $('Normalize Signal').item.json.side, type: 'market', time_in_force: 'day', client_order_id: 'qet-' + $execution.id, stop_loss: { stop_price: String($('Normalize Signal').item.json.stop) } }, $('Normalize Signal').item.json.target > 0 ? { order_class: 'bracket', take_profit: { limit_price: String($('Normalize Signal').item.json.target) } } : { order_class: 'oto' })) }}"
+      },
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 1000
+    },
+    {
+      "id": "9cafbf1f-0aac-48ac-aacf-e89bd56be8d1",
+      "name": "Build Ledger Insert (Paper)",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [2240, 576],
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const n = $('Normalize Signal').first().json;\nconst k = $('Kelly Gate (Paper)').first().json.verdict;\nconst o = $input.first().json;\nconst eq = $('Fetch Equity (Paper)').first().json.equity;\nconst esc = (s) => s == null ? null : String(s).replace(/'/g, \"''\");\nconst num = (v) => (v === null || v === undefined || v === '' || isNaN(Number(v))) ? 'NULL' : Number(v);\nconst str = (v) => (v == null || v === '') ? 'NULL' : \"'\" + esc(v) + \"'\";\nconst uuid = (v) => (v == null || v === '') ? 'NULL' : \"'\" + esc(v) + \"'::uuid\";\nconst meta = JSON.stringify(k || {}).split('$qet$').join('');\nconst sql = 'INSERT INTO public.trade_ledger (user_id, portfolio_id, signal_id, strategy, mode, symbol, side, qty, confidence, signal_time, intended_entry, intended_stop, intended_target, risk_amount, risk_pct_applied, sizing_meta, equity_at_entry, entry_order_id, entry_fill_price, entry_fill_time) VALUES (' + uuid(n.user_id) + ', ' + uuid(n.portfolio_id) + ', ' + uuid(n.signal_id) + ', ' + str(n.strategy) + ', ' + str(n.MODE) + ', ' + str(n.symbol) + ', ' + str(n.side) + ', ' + num(k.qty) + ', ' + num(n.confidence) + ', now(), ' + num(n.entry) + ', ' + num(n.stop) + ', ' + (n.target > 0 ? num(n.target) : 'NULL') + ', ' + num(k.risk_dollars) + ', ' + num(k.risk_pct) + ', $qet$' + meta + '$qet$::jsonb, ' + num(eq) + ', ' + str(o.id) + ', ' + num(o.filled_avg_price) + ', ' + (o.filled_at ? \"'\" + esc(o.filled_at) + \"'::timestamptz\" : 'NULL') + ') RETURNING id';\nreturn [{ json: { sql: sql } }];"
+      }
+    },
+    {
+      "id": "54efeb1a-f7d9-49d9-9a06-2e4c5f2dbed9",
+      "name": "Write Trade Ledger (Paper)",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [2464, 576],
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "={{ $json.sql }}"
+      },
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 1000
+    },
+    {
+      "id": "0feeacfd-fbdb-4232-838d-801a1ba6d708",
+      "name": "Prep Audit: Executed (Paper)",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [2688, 576],
+      "parameters": {
+        "mode": "manual",
+        "includeOtherFields": true,
+        "assignments": {
+          "assignments": [
+            {
+              "id": "s-dec",
+              "name": "decision",
+              "value": "executed",
+              "type": "string"
+            },
+            {
+              "id": "s-rea",
+              "name": "reason",
+              "value": "={{ $('Kelly Gate (Paper)').item.json.verdict.reason }}",
+              "type": "string"
+            },
+            {
+              "id": "s-led",
+              "name": "ledger_id",
+              "value": "={{ $json.id }}",
+              "type": "string"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "ba74649e-839f-43cd-8d3a-b374307c3120",
+      "name": "Prep Audit: Gate Rejected (Paper)",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [2688, 768],
+      "parameters": {
+        "mode": "manual",
+        "includeOtherFields": true,
+        "assignments": {
+          "assignments": [
+            {
+              "id": "rp-dec",
+              "name": "decision",
+              "value": "rejected",
+              "type": "string"
+            },
+            {
+              "id": "rp-rea",
+              "name": "reason",
+              "value": "={{ $json.verdict.reason }}",
+              "type": "string"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "e8aaf470-a056-40c3-ba77-0de13d467b10",
+      "name": "Prep Audit: Invalid Input",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [2688, 960],
+      "parameters": {
+        "mode": "manual",
+        "includeOtherFields": true,
+        "assignments": {
+          "assignments": [
+            {
+              "id": "ri-dec",
+              "name": "decision",
+              "value": "rejected",
+              "type": "string"
+            },
+            {
+              "id": "ri-rea",
+              "name": "reason",
+              "value": "invalid_input_missing_mode_strategy_stop_or_entry",
+              "type": "string"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "74081dfd-f8e2-4277-b621-9070df933fac",
+      "name": "Write Audit Log",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [3136, 480],
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "={{ $json.sql }}"
+      },
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 1000
+    },
+    {
+      "id": "ef4ab5a3-f10c-4241-80e0-9da7c87fe99c",
+      "name": "Telegram Alert",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [3360, 480],
+      "parameters": {
+        "resource": "message",
+        "operation": "sendMessage",
+        "chatId": "6648680513",
+        "text": "=[QET] {{ $('Prepare Audit Entry').item.json.decision }} - {{ $('Prepare Audit Entry').item.json.reason }} | {{ $('Normalize Signal').item.json.MODE }} {{ $('Normalize Signal').item.json.symbol }} {{ $('Normalize Signal').item.json.side }} | strategy {{ $('Normalize Signal').item.json.strategy }} | exec {{ $execution.id }}"
+      },
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 1000,
+      "onError": "continueRegularOutput",
+      "webhookId": "0833a064-d12f-4265-8781-fba327ac1609"
+    },
+    {
+      "id": "d97457fc-dc24-40ea-af58-095e68523b9b",
+      "name": "Was Executed?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [3584, 480],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "combinator": "and",
+          "conditions": [
+            {
+              "leftValue": "={{ $('Prepare Audit Entry').item.json.decision }}",
+              "operator": { "type": "string", "operation": "equals" },
+              "rightValue": "executed"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "9f52fee3-0d39-45c3-b06c-9cb06dda5252",
+      "name": "Commit Signal Metadata (GitHub)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [3808, 480],
+      "parameters": {
+        "method": "PUT",
+        "url": "<__PLACEHOLDER_VALUE__GitHub contents API URL, e.g. https://api.github.com/repos/<owner>/qet-strategies/contents/audit/<file>.json__>",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "contentType": "json",
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ message: 'chore(qet): kelly-risk-gate audit - run ' + $execution.id, content: JSON.stringify({ workflow_name: 'qet-kelly-risk-gate', execution_id: $execution.id, mode: $('Normalize Signal').item.json.MODE, signal: $('Normalize Signal').item.json, decision: $('Prepare Audit Entry').item.json.decision, reason: $('Prepare Audit Entry').item.json.reason, timestamp: $now.toISO() }).base64Encode() }) }}"
+      },
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 1000,
+      "onError": "continueRegularOutput"
+    },
+    {
+      "id": "997b8e11-311b-4763-a4f8-71d68327e699",
+      "name": "Sticky Note eb8a1e45",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [1904, 1024],
+      "parameters": {
+        "content": "## QET Kelly Risk Gate (H2)\n\nGate 1+K: compute_kelly_gate RPC (sizes from measured edge, fails closed)\nGate 2: bracket/OTO exit legs on every order\nGate 3: GitHub commit slot (wire GitHub-QET credential + repo URL)\nGate 4: Telegram approval on LIVE branch only, 5-min timeout = reject\nGate 5: Mode toggle, separate Alpaca-PAPER / Alpaca-LIVE credentials, no hostname swap\nGate 6: retry x3 on all external calls, audit_log on every path, Telegram alert\n\nWebhook contract (H2): POST {MODE, user_id, portfolio_id, signal_id, strategy, symbol, side, entry, stop, target, confidence}"
+      }
+    }
+  ],
+  "connections": {
+    "Signal Webhook": {
+      "main": [[{ "node": "Normalize Signal", "type": "main", "index": 0 }]]
+    },
+    "Normalize Signal": {
+      "main": [[{ "node": "Valid Signal?", "type": "main", "index": 0 }]]
+    },
+    "Valid Signal?": {
+      "main": [
+        [{ "node": "Live Mode?", "type": "main", "index": 0 }],
+        [{ "node": "Prep Audit: Invalid Input", "type": "main", "index": 0 }]
+      ]
+    },
+    "Live Mode?": {
+      "main": [
+        [{ "node": "Fetch Equity (Live)", "type": "main", "index": 0 }],
+        [{ "node": "Fetch Equity (Paper)", "type": "main", "index": 0 }]
+      ]
+    },
+    "Fetch Equity (Live)": {
+      "main": [[{ "node": "Kelly Gate (Live)", "type": "main", "index": 0 }]]
+    },
+    "Kelly Gate (Live)": {
+      "main": [[{ "node": "Gate Approved? (Live)", "type": "main", "index": 0 }]]
+    },
+    "Gate Approved? (Live)": {
+      "main": [
+        [{ "node": "Live Approval (Telegram)", "type": "main", "index": 0 }],
+        [{ "node": "Prep Audit: Gate Rejected (Live)", "type": "main", "index": 0 }]
+      ]
+    },
+    "Live Approval (Telegram)": {
+      "main": [[{ "node": "Human Approved?", "type": "main", "index": 0 }]]
+    },
+    "Human Approved?": {
+      "main": [
+        [{ "node": "Place Bracket Order (Live)", "type": "main", "index": 0 }],
+        [{ "node": "Prep Audit: Approval Denied", "type": "main", "index": 0 }]
+      ]
+    },
+    "Place Bracket Order (Live)": {
+      "main": [[{ "node": "Build Ledger Insert (Live)", "type": "main", "index": 0 }]]
+    },
+    "Build Ledger Insert (Live)": {
+      "main": [[{ "node": "Write Trade Ledger (Live)", "type": "main", "index": 0 }]]
+    },
+    "Write Trade Ledger (Live)": {
+      "main": [[{ "node": "Prep Audit: Executed (Live)", "type": "main", "index": 0 }]]
+    },
+    "Prep Audit: Executed (Live)": {
+      "main": [[{ "node": "Prepare Audit Entry", "type": "main", "index": 0 }]]
+    },
+    "Prepare Audit Entry": {
+      "main": [[{ "node": "Write Audit Log", "type": "main", "index": 0 }]]
+    },
+    "Prep Audit: Approval Denied": {
+      "main": [[{ "node": "Prepare Audit Entry", "type": "main", "index": 0 }]]
+    },
+    "Prep Audit: Gate Rejected (Live)": {
+      "main": [[{ "node": "Prepare Audit Entry", "type": "main", "index": 0 }]]
+    },
+    "Fetch Equity (Paper)": {
+      "main": [[{ "node": "Kelly Gate (Paper)", "type": "main", "index": 0 }]]
+    },
+    "Kelly Gate (Paper)": {
+      "main": [[{ "node": "Gate Approved? (Paper)", "type": "main", "index": 0 }]]
+    },
+    "Gate Approved? (Paper)": {
+      "main": [
+        [{ "node": "Place Bracket Order (Paper)", "type": "main", "index": 0 }],
+        [{ "node": "Prep Audit: Gate Rejected (Paper)", "type": "main", "index": 0 }]
+      ]
+    },
+    "Place Bracket Order (Paper)": {
+      "main": [[{ "node": "Build Ledger Insert (Paper)", "type": "main", "index": 0 }]]
+    },
+    "Build Ledger Insert (Paper)": {
+      "main": [[{ "node": "Write Trade Ledger (Paper)", "type": "main", "index": 0 }]]
+    },
+    "Write Trade Ledger (Paper)": {
+      "main": [[{ "node": "Prep Audit: Executed (Paper)", "type": "main", "index": 0 }]]
+    },
+    "Prep Audit: Executed (Paper)": {
+      "main": [[{ "node": "Prepare Audit Entry", "type": "main", "index": 0 }]]
+    },
+    "Prep Audit: Gate Rejected (Paper)": {
+      "main": [[{ "node": "Prepare Audit Entry", "type": "main", "index": 0 }]]
+    },
+    "Prep Audit: Invalid Input": {
+      "main": [[{ "node": "Prepare Audit Entry", "type": "main", "index": 0 }]]
+    },
+    "Write Audit Log": {
+      "main": [[{ "node": "Telegram Alert", "type": "main", "index": 0 }]]
+    },
+    "Telegram Alert": {
+      "main": [[{ "node": "Was Executed?", "type": "main", "index": 0 }]]
+    },
+    "Was Executed?": {
+      "main": [[{ "node": "Commit Signal Metadata (GitHub)", "type": "main", "index": 0 }]]
+    }
+  },
+  "nodeGroups": []
+}
