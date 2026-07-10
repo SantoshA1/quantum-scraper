@@ -1,0 +1,105 @@
+{
+  "success": true,
+  "versionId": "b446be18-c6d4-4f8b-960d-9b895072fec7",
+  "workflowId": "oYZVDxX2yhX75Eu0",
+  "authors": "Santosh Adari",
+  "name": null,
+  "description": null,
+  "createdAt": "2026-07-10T18:59:38.364Z",
+  "updatedAt": "2026-07-10T18:59:38.364Z",
+  "nodes": [
+    {
+      "id": "872c8cca-f483-4455-89a1-0e684b46f97f",
+      "name": "Telegram Proxy Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2.1,
+      "position": [
+        0,
+        0
+      ],
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "qtp-telegram-proxy-k4p8w",
+        "responseMode": "onReceived"
+      },
+      "webhookId": "ed3df72a-da84-4de2-bc79-8192cf62dea7"
+    },
+    {
+      "id": "5776f5f5-b7b6-44da-97e3-1d5d273a3411",
+      "name": "Validate Message",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        224,
+        0
+      ],
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "// QTP Telegram Proxy v1.0 (2026-07-10) — holds the Telegram credential so legacy\n// Code-node workflows (TSM etc.) never embed the bot token. Token-gated.\nconst b = ($input.first().json.body) || {};\nconst TOKEN = '2679400ed5f501a97697e39257b1ea7904b6c5884f915d25';\nif (String(b.token || '') !== TOKEN) { throw new Error('QTP_TG_PROXY_FORBIDDEN'); }\nconst chatId = String(b.chat_id || '');\nconst text = String(b.text || '');\nif (!chatId || !text) { throw new Error('QTP_TG_PROXY_MISSING_FIELDS'); }\nreturn [{ json: { chat_id: chatId, text: text.slice(0, 4000) } }];"
+      }
+    },
+    {
+      "id": "0e8d9af8-e6a2-4c12-aa45-95a0a74256dd",
+      "name": "Send Telegram",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [
+        448,
+        0
+      ],
+      "parameters": {
+        "resource": "message",
+        "operation": "sendMessage",
+        "chatId": "={{ $json.chat_id }}",
+        "text": "={{ $json.text }}",
+        "additionalFields": {
+          "parse_mode": "HTML",
+          "appendAttribution": false
+        }
+      },
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 1000,
+      "onError": "continueRegularOutput",
+      "webhookId": "79a0bdff-8f5d-4037-9cc7-44e652a9e395"
+    },
+    {
+      "id": "30e179ae-81e1-468c-9798-45f81fd6368b",
+      "name": "Sticky Note dfacbae8",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        224,
+        64
+      ],
+      "parameters": {
+        "content": "## QTP Telegram Proxy v1.0\n\nToken-gated sender so legacy Code nodes never embed the bot token. Contract: POST {token, chat_id, text(HTML)} -> fire-and-forget (webhook responds onReceived).\n\nBot token rotation = update the Telegram credential here. Nothing else."
+      }
+    }
+  ],
+  "connections": {
+    "Telegram Proxy Webhook": {
+      "main": [
+        [
+          {
+            "node": "Validate Message",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Validate Message": {
+      "main": [
+        [
+          {
+            "node": "Send Telegram",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "nodeGroups": []
+}

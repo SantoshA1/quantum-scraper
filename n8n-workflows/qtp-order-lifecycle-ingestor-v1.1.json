@@ -1,0 +1,180 @@
+{
+  "success": true,
+  "versionId": "b2119e51-9845-4c9d-8cac-644cb7caf594",
+  "workflowId": "n31KzRDp6wR5BlFb",
+  "authors": "Santosh Adari (via MCP)",
+  "name": null,
+  "description": null,
+  "createdAt": "2026-07-10T15:06:11.838Z",
+  "updatedAt": "2026-07-10T15:06:11.838Z",
+  "nodes": [
+    {
+      "id": "04c5760e-5b75-41c9-b77a-48dec7044f58",
+      "name": "Every 10 Min Trigger",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.3,
+      "position": [
+        240,
+        300
+      ],
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "cronExpression",
+              "expression": "0 0/10 * * * *"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "279802e6-498a-45cb-a557-dc9eba0177d9",
+      "name": "Fetch Order Lifecycle",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        560,
+        300
+      ],
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "language": "javaScript",
+        "jsCode": "// QTP Order Lifecycle Ingestor v1.1 (Conclave gap G22)\n// MIGRATED 2026-07-10: Alpaca fetch moved to 'Fetch Orders (Alpaca-PAPER)' HTTP node using the\n// named Alpaca-PAPER n8n credential. This node now only stages the idempotent SQL.\n// No embedded keys, no $vars, no staticData.\nconst orders = $input.all().map(i => i.json).filter(o => o && o.id);\nif (orders.length === 0) { return []; }\nfunction esc(v) { return String(v).replace(/'/g, \"''\").replace(/\\$(\\d)/g, 'USD $1'); }\nfunction txt(v) { if (v === null || v === undefined || v === '') { return 'NULL'; } return \"'\" + esc(v) + \"'\"; }\nfunction num(v) { if (v === null || v === undefined || v === '') { return 'NULL::numeric'; } const n = Number(v); if (!isFinite(n)) { return 'NULL::numeric'; } return \"'\" + n + \"'::numeric\"; }\nfunction toRow(o) {\n  const ts = o.updated_at || o.submitted_at || o.created_at || '';\n  if (!o.id || !ts) { return null; }\n  const eventId = o.id + ':' + o.status + ':' + ts;\n  let rp = JSON.stringify(o) || '{}';\n  if (rp.length > 8000) { rp = JSON.stringify({ _truncated: true, id: o.id, status: o.status, symbol: o.symbol, order_type: o.type, updated_at: o.updated_at }); }\n  const side = o.position_intent ? String(o.side || '') + ':' + o.position_intent : String(o.side || 'unknown');\n  const vals = [\n    txt(eventId), txt(o.id), txt(o.id), \"'alpaca_paper'\",\n    txt(ts) + '::timestamptz', txt(String(ts).slice(0, 10)) + '::date',\n    txt(o.symbol || 'UNKNOWN'), txt(side), txt(o.type), txt(o.time_in_force),\n    txt(String(o.status || 'unknown').toUpperCase()),\n    num(o.qty), num(o.filled_qty), num(o.limit_price), num(o.stop_price), num(o.filled_avg_price),\n    txt(rp) + '::jsonb', txt(eventId), 'now()'\n  ];\n  return { eventId: eventId, sql: '(' + vals.join(', ') + ')' };\n}\nconst rows = [];\nconst seen = {};\nfor (const o of orders) {\n  const fam = [o].concat(Array.isArray(o.legs) ? o.legs : []);\n  for (const ord of fam) {\n    const r = toRow(ord);\n    if (r && !seen[r.eventId]) { seen[r.eventId] = true; rows.push(r.sql); }\n  }\n}\nif (rows.length === 0) { return []; }\nconst cols = 'order_event_id, order_id, broker_order_id, account_id, event_ts, event_date, symbol, side, order_type, time_in_force, order_status, requested_quantity, filled_quantity, limit_price, stop_price, avg_fill_price, raw_payload, idempotency_key, ingested_at';\nconst sql = 'INSERT INTO quantum.order_events (' + cols + ') SELECT * FROM (VALUES ' + rows.join(', ') + ') AS v(' + cols + ') WHERE NOT EXISTS (SELECT 1 FROM quantum.order_events oe WHERE oe.order_event_id = v.order_event_id)';\nreturn [{ json: { __supabase_insert_sql: sql, fetched_orders: orders.length, candidate_rows: rows.length, base_used: 'https://paper-api.alpaca.markets via n8n credential Alpaca-PAPER', window_et_ok: true } }];"
+      }
+    },
+    {
+      "id": "b40fc8d5-a8e3-41fb-ac52-fed81d9b8d38",
+      "name": "Upsert Order Events",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [
+        880,
+        300
+      ],
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "={{ $json.__supabase_insert_sql }}",
+        "options": {}
+      }
+    },
+    {
+      "id": "b7bd7ae2-3779-48d8-8fd6-fa725c5121c3",
+      "name": "Sticky Note b656e6fa",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        190,
+        250
+      ],
+      "parameters": {
+        "content": "## QTP Order Lifecycle Ingestor (G22)\nPolls Alpaca paper for ALL order lifecycle states (stop/bracket/cancel/replace, nested legs) every 10 min; ET 09-16 weekday gate enforced inside the Code node (timezone-safe regardless of instance TZ). Insert is idempotent via NOT EXISTS on order_event_id because quantum.order_events has NO PK or unique constraint (ON CONFLICT impossible).\n\nAlpaca creds: n8n instance vars ALPACA_API_KEY + ALPACA_SECRET_KEY (same pattern as Trailing Stop Manager); fallback = this workflow staticData _alpaca_key/_alpaca_secret. Fails loud with OLI_NO_ALPACA_CREDS if unseeded.",
+        "width": 940,
+        "height": 200
+      }
+    },
+    {
+      "id": "2473e297-2097-48c1-980c-7a9ad66e2a94",
+      "name": "Market Window Gate",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        360,
+        300
+      ],
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "language": "javaScript",
+        "jsCode": "// Weekday 09-16 ET gate (moved out of the fetch node during credential migration 2026-07-10)\nconst nowET = new Date(new Date().toLocaleString('en-US', { timeZone: 'America/New_York' }));\nconst dowET = nowET.getDay();\nconst hourET = nowET.getHours();\nconst inWindow = dowET >= 1 && dowET <= 5 && hourET >= 9 && hourET <= 16;\nif ($execution.mode === 'production' && !inWindow) { return []; }\nreturn [{ json: { window_et_ok: inWindow } }];"
+      }
+    },
+    {
+      "id": "28e45ac7-fcd1-4c55-b9f0-fe2cf4490939",
+      "name": "Fetch Orders (Alpaca-PAPER)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [
+        560,
+        140
+      ],
+      "parameters": {
+        "method": "GET",
+        "url": "https://paper-api.alpaca.markets/v2/orders",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpCustomAuth",
+        "sendQuery": true,
+        "specifyQuery": "keypair",
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "status",
+              "value": "all"
+            },
+            {
+              "name": "limit",
+              "value": "500"
+            },
+            {
+              "name": "direction",
+              "value": "desc"
+            },
+            {
+              "name": "nested",
+              "value": "true"
+            }
+          ]
+        }
+      },
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 1000
+    }
+  ],
+  "connections": {
+    "Fetch Order Lifecycle": {
+      "main": [
+        [
+          {
+            "node": "Upsert Order Events",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Every 10 Min Trigger": {
+      "main": [
+        [
+          {
+            "node": "Market Window Gate",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Market Window Gate": {
+      "main": [
+        [
+          {
+            "node": "Fetch Orders (Alpaca-PAPER)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Fetch Orders (Alpaca-PAPER)": {
+      "main": [
+        [
+          {
+            "node": "Fetch Order Lifecycle",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "nodeGroups": []
+}

@@ -1,0 +1,135 @@
+{
+  "success": true,
+  "versionId": "d18468e2-ea8f-4da6-8f27-a2ffdd55be69",
+  "workflowId": "nacafqPWhtsJjLvv",
+  "authors": "Santosh Adari (via MCP)",
+  "name": null,
+  "description": null,
+  "createdAt": "2026-07-10T17:47:31.884Z",
+  "updatedAt": "2026-07-10T17:47:31.884Z",
+  "nodes": [
+    {
+      "id": "0fd471a9-9064-4efa-ac8c-59d973161748",
+      "name": "Proxy Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2.1,
+      "position": [
+        0,
+        0
+      ],
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "qtp-alpaca-paper-proxy-x9v27",
+        "responseMode": "lastNode",
+        "responseData": "firstEntryJson"
+      },
+      "webhookId": "79e170e5-b71a-4f68-a174-570024d49808"
+    },
+    {
+      "id": "30d944bc-ac12-4811-ab73-bf3eaf0b3f02",
+      "name": "Validate Request",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        224,
+        0
+      ],
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "// QTP Alpaca Paper Broker Proxy v1.0 (2026-07-10)\n// Holds the Alpaca-PAPER credential so legacy Code-node workflows (TSM etc.)\n// never embed keys. PAPER + market-data hosts only. Token-gated.\nconst b = ($input.first().json.body) || {};\nconst TOKEN = '2679400ed5f501a97697e39257b1ea7904b6c5884f915d25';\nif (String(b.token || '') !== TOKEN) { throw new Error('QTP_PROXY_FORBIDDEN'); }\nconst m = String(b.method || 'GET').toUpperCase();\nif (!['GET','POST','DELETE','PATCH'].includes(m)) { throw new Error('QTP_PROXY_METHOD_NOT_ALLOWED: ' + m); }\nconst isData = b.host === 'data';\nif (isData && m !== 'GET') { throw new Error('QTP_PROXY_DATA_HOST_READONLY'); }\nconst host = isData ? 'https://data.alpaca.markets' : 'https://paper-api.alpaca.markets';\nconst path = String(b.path || '');\nif (!path.startsWith('/v2/')) { throw new Error('QTP_PROXY_PATH_NOT_ALLOWED'); }\nreturn [{ json: { method: m, url: host + path, bodyStr: b.body ? JSON.stringify(b.body) : '' } }];"
+      }
+    },
+    {
+      "id": "38fc0fed-f1b0-42aa-98e8-b4d27a139ee1",
+      "name": "Alpaca Call",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [
+        448,
+        0
+      ],
+      "parameters": {
+        "method": "={{ $json.method }}",
+        "url": "={{ $json.url }}",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpCustomAuth",
+        "sendBody": true,
+        "contentType": "raw",
+        "rawContentType": "application/json",
+        "body": "={{ $json.bodyStr }}",
+        "options": {
+          "timeout": 30000,
+          "response": {
+            "response": {
+              "fullResponse": true,
+              "neverError": true
+            }
+          }
+        }
+      }
+    },
+    {
+      "id": "9ca3f08e-5484-465d-8a9b-5c4b8c4bb116",
+      "name": "Wrap Response",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        672,
+        0
+      ],
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const r = $input.first().json || {};\nif (r.error) {\n  return [{ json: { __qtp_proxy_error: { status: r.error.status || null, message: String(r.error.message || r.error).slice(0, 300), body: '' } } }];\n}\nconst sc = Number(r.statusCode || 200);\nif (sc >= 400) {\n  const bodyTxt = typeof r.body === 'string' ? r.body : JSON.stringify(r.body === undefined ? '' : r.body);\n  return [{ json: { __qtp_proxy_error: { status: sc, message: 'HTTP ' + sc, body: String(bodyTxt).slice(0, 500) } } }];\n}\nreturn [{ json: { __qtp_proxy_ok: true, status: sc, data: r.body === undefined ? null : r.body } }];"
+      }
+    },
+    {
+      "id": "4046f087-eec7-4a5b-ac8e-7b004a31dbd7",
+      "name": "Sticky Note 8a12112e",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        336,
+        64
+      ],
+      "parameters": {
+        "content": "## QTP Alpaca Paper Broker Proxy v1.0\n\nToken-gated internal proxy so legacy Code-node workflows (Trailing Stop Manager, monitors) can reach Alpaca WITHOUT embedded keys. The Alpaca-PAPER n8n credential lives ONLY here.\n\nGuards: shared token, GET/POST/DELETE/PATCH only, paths must start /v2/, data host is read-only, PAPER host hardcoded (cannot reach live API by construction).\n\nContract: POST {token, host: paper|data, method, path, body} -> {__qtp_proxy_ok, status, data} | {__qtp_proxy_error: {status, message, body}}.\n\nKey rotation = update the Alpaca-PAPER credential. Nothing else."
+      }
+    }
+  ],
+  "connections": {
+    "Proxy Webhook": {
+      "main": [
+        [
+          {
+            "node": "Validate Request",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Validate Request": {
+      "main": [
+        [
+          {
+            "node": "Alpaca Call",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Alpaca Call": {
+      "main": [
+        [
+          {
+            "node": "Wrap Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "nodeGroups": []
+}
