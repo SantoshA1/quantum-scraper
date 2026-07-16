@@ -1,0 +1,46 @@
+name: CI — QTP commit gate
+
+# Runs on every PR and every push (all branches). This is the pre-merge
+# quality gate from the QTP build plan (Workstream A3): gate logic must pass
+# its harnesses, shippable code must be syntactically valid, and no NEW secret
+# may be committed. Deploy is a separate workflow (deploy-railway.yml) and is
+# unaffected — this gate only asserts correctness, it does not deploy.
+
+on:
+  pull_request:
+  push:
+    branches-ignore: []
+
+permissions:
+  contents: read
+
+jobs:
+  quality-gate:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      # Gate logic harnesses use only Node builtins (fs/path/assert), so no
+      # npm install is required — keeps the gate fast and hermetic.
+      - name: Secret-leak gate (baseline ratchet)
+        run: node .ci/check-secrets.js
+
+      - name: Syntax check shippable JS (tolerates n8n node-body top-level await)
+        run: node .ci/check-syntax.js
+
+      - name: Validate n8n workflow JSON is parseable
+        run: |
+          set -e
+          for f in n8n-workflows/*.json; do
+            node -e "JSON.parse(require('fs').readFileSync(process.argv[1],'utf8'))" "$f" \
+              || { echo "INVALID JSON: $f"; exit 1; }
+          done
+
+      - name: Run gate/logic test harnesses
+        run: npm test
