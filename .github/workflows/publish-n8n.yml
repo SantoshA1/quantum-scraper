@@ -1,0 +1,57 @@
+name: Publish to n8n (manual, guarded)
+
+# DELIBERATELY manual (workflow_dispatch) — NOT push-triggered. Auto-publishing to
+# a live trading pipeline on every merge is unsafe; publishing is a reviewed act.
+# Flow: run the CI quality gate -> diff repo vs live -> (optional) publish one
+# workflow by id, protected by the `production` environment approval + the
+# n8n-sync staleness guard (refuses if live changed since last reconcile).
+#
+# Prereqs (one-time, PO):
+#   - Repo secret  N8N_API_KEY   (n8n Settings -> n8n API)
+#   - Repo variable N8N_BASE_URL (e.g. https://tradenextgen.app.n8n.cloud)
+#   - A GitHub Environment named `production` with required reviewers.
+#   - The repo must be reconciled to live first: run `node .ci/n8n-sync.js export`
+#     locally, commit, so the manifest versionId matches live.
+
+on:
+  workflow_dispatch:
+    inputs:
+      workflow_id:
+        description: 'n8n workflow id to publish (must exist in .ci/n8n-manifest.json)'
+        required: true
+      mode:
+        description: 'diff (read-only) or publish'
+        required: true
+        default: 'diff'
+        type: choice
+        options: [diff, publish]
+
+permissions:
+  contents: read
+
+jobs:
+  gate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: '20' }
+      - name: CI quality gate (must pass before any publish)
+        run: npm run ci
+
+  publish:
+    needs: gate
+    runs-on: ubuntu-latest
+    # Publishing requires manual approval configured on this environment.
+    environment: production
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: '20' }
+      - name: Diff or publish (staleness-guarded)
+        env:
+          N8N_BASE_URL: ${{ vars.N8N_BASE_URL }}
+          N8N_API_KEY: ${{ secrets.N8N_API_KEY }}
+          # Only the 'publish' choice sets N8N_ALLOW_PUBLISH; 'diff' stays read-only.
+          N8N_ALLOW_PUBLISH: ${{ inputs.mode == 'publish' && 'true' || 'false' }}
+        run: node .ci/n8n-sync.js ${{ inputs.mode }} --id "${{ inputs.workflow_id }}"
