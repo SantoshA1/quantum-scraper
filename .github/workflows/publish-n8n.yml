@@ -3,15 +3,22 @@ name: Publish to n8n (manual, guarded)
 # DELIBERATELY manual (workflow_dispatch) — NOT push-triggered. Auto-publishing to
 # a live trading pipeline on every merge is unsafe; publishing is a reviewed act.
 # Flow: run the CI quality gate -> diff repo vs live -> (optional) publish one
-# workflow by id, protected by the `production` environment approval + the
-# n8n-sync staleness guard (refuses if live changed since last reconcile).
+# workflow by id, guarded by the n8n-sync staleness guard (refuses if live changed
+# since last reconcile). The MANUAL trigger itself is the primary gate: nothing
+# publishes unless a human deliberately runs this workflow and picks mode=publish.
+#
+# OPTIONAL hardening (does NOT block use): a GitHub Environment named `production`
+# with Required Reviewers adds a SECOND approval click. Environment reviewer
+# protection needs GitHub Pro/Team on private repos and can be fiddly to enable —
+# so it is NOT required here. To add it later: create an env named exactly
+# `production` (Settings -> Environments), set yourself as a required reviewer,
+# then uncomment the `environment: production` line in the publish job below.
 #
 # Prereqs (one-time, PO):
 #   - Repo secret  N8N_API_KEY   (n8n Settings -> n8n API)
-#   - Repo variable N8N_BASE_URL (e.g. https://tradenextgen.app.n8n.cloud)
-#   - A GitHub Environment named `production` with required reviewers.
-#   - The repo must be reconciled to live first: run `node .ci/n8n-sync.js export`
-#     locally, commit, so the manifest versionId matches live.
+#   - Repo variable N8N_BASE_URL = https://tradenextgen.app.n8n.cloud
+#   - Reconcile the repo to live first: run `node .ci/n8n-sync.js export` (or let
+#     the architect reconcile via the n8n MCP), commit, so manifest versionId = live.
 
 on:
   workflow_dispatch:
@@ -42,8 +49,10 @@ jobs:
   publish:
     needs: gate
     runs-on: ubuntu-latest
-    # Publishing requires manual approval configured on this environment.
-    environment: production
+    # OPTIONAL second approval gate — uncomment once a `production` environment with
+    # required reviewers exists (see header). The workflow_dispatch manual trigger is
+    # the primary gate, so this is safe to leave off.
+    # environment: production
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
