@@ -1,5 +1,5 @@
 
-// QTP_ANTHROPIC_MIGRATION_v1_20260720: xAI/Grok -> Anthropic Claude Opus 4.8 (PO-authorized).
+// QTP_ANTHROPIC_MIGRATION_v1.1_20260720 (temperature REMOVED: claude-opus-4-8 400s on explicit temperature; bisected exec 421425): xAI/Grok -> Anthropic Claude Opus 4.8 (PO-authorized).
 // v5.0 (was Grok Signal Analyzer v4.3). Contracts preserved: STAND-ASIDE/FAST_ONLY guards,
 // fail-closed on missing key, retry + latency telemetry (_grok_latency_ms/_grok_attempts names
 // kept for bake-off continuity), SE-C3 fail-closed schema validation, WEAK/HOLD fallback.
@@ -54,7 +54,6 @@ const GROK_RETRY_BACKOFF_MS = 2000;
 const requestBody = {
   model: QTP_ANTHROPIC_MODEL,
   max_tokens: 512,
-  temperature: 0,
   system: "You are the Quantum Trading VC Gatekeeper. Analyze the incoming TradingView alert and return ONLY a valid JSON object (no markdown fences, no prose) with keys: spy_correlation, sentiment, sweep_verdict, strategy_performance, options_flow, cross_asset, signal_verdict, confidence, trade_action, regime_tags. Be ruthless and data-driven.",
   messages: [
     {

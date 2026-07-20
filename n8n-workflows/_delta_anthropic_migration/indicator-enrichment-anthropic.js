@@ -36,7 +36,7 @@ async function qtpChartVisionShadow(input) {
     const isEntryCandidate = ['BUY','SELL','LONG','SHORT','BULLISH','BEARISH'].includes(execution); const isNoise = alertType.includes('HEARTBEAT') || execution === 'STAND ASIDE' || execution === 'NEUTRAL' || execution === 'HOLD';
     if (mode === 'off' || mode === 'disabled') { out.chart_vision_call_mode = 'DISABLED_BY_QTP_CHART_VISION_MODE'; return out; }
     if (!testVision && !isEntryCandidate) { out.chart_vision_call_mode = 'REALTIME_SKIPPED_NON_ENTRY'; out.chart_vision_status = isNoise ? 'SKIPPED_HEARTBEAT_OR_NEUTRAL' : 'SKIPPED_NON_ENTRY'; return out; }
-    // QTP_ANTHROPIC_MIGRATION_v1_20260720: vision -> Claude Opus 4.8 (URL image source). Fail-open preserved.
+    // QTP_ANTHROPIC_MIGRATION_v1.1_20260720 (temperature REMOVED: claude-opus-4-8 400s on explicit temperature; bisected exec 421425): vision -> Claude Opus 4.8 (URL image source). Fail-open preserved.
     const creds = (($getWorkflowStaticData('global') || {})._credentials) || {};
     const apiKey = String((typeof $vars !== 'undefined' && ($vars.ANTHROPIC_API_KEY || $vars.anthropic_api_key)) || creds.anthropic_api_key || '').trim();
     const _keyReal = typeof apiKey === 'string' && apiKey.startsWith('sk-ant-') && apiKey.length >= 40 && !/PLACEHOLDER|CHANGEME|YOUR[_-]?KEY|EXAMPLE|XXXX/i.test(apiKey);
@@ -45,7 +45,7 @@ async function qtpChartVisionShadow(input) {
     const prompt = `Analyze this live TradingView 5-minute widget screenshot for ${chartSymbol}. Return strict JSON only with keys: chart_score number 0-100, trend BULLISH/BEARISH/NEUTRAL, pattern short string, confidence number 0-100, risk_flags array, summary one sentence. If chart is not visible, set pattern to NO_CHART_VISIBLE and confidence to 0. This is advisory enrichment only and must not assume execution.`;
     let response;
 // Single Anthropic Messages call (no secondary endpoint needed); outer catch keeps vision fail-open.
-const _am = await this.helpers.httpRequest({ method: 'POST', url: 'https://api.anthropic.com/v1/messages', headers: { 'x-api-key': apiKey, 'anthropic-version': '2023-06-01', 'Content-Type': 'application/json' }, body: { model, max_tokens: 512, temperature: 0, messages: [{ role: 'user', content: [{ type: 'image', source: { type: 'url', url: screenshotUrl } }, { type: 'text', text: prompt }] }] }, json: true, timeout: 25000 });
+const _am = await this.helpers.httpRequest({ method: 'POST', url: 'https://api.anthropic.com/v1/messages', headers: { 'x-api-key': apiKey, 'anthropic-version': '2023-06-01', 'Content-Type': 'application/json' }, body: { model, max_tokens: 512, messages: [{ role: 'user', content: [{ type: 'image', source: { type: 'url', url: screenshotUrl } }, { type: 'text', text: prompt }] }] }, json: true, timeout: 25000 });
 let _amText = ''; if (_am && Array.isArray(_am.content)) { for (const b of _am.content) { if (b && b.type === 'text' && b.text) _amText += b.text; } }
 response = { output_text: _amText };
 out.chart_vision_api = 'anthropic_messages_primary';

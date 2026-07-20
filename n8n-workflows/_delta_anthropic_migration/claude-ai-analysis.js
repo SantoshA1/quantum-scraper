@@ -1,5 +1,5 @@
 
-// QTP_ANTHROPIC_MIGRATION_v1_20260720: xAI/Grok -> Anthropic Claude Opus 4.8 (PO-authorized).
+// QTP_ANTHROPIC_MIGRATION_v1.1_20260720 (temperature REMOVED: claude-opus-4-8 400s on explicit temperature; bisected exec 421425): xAI/Grok -> Anthropic Claude Opus 4.8 (PO-authorized).
 // Contract preserved: output shape choices[0].message.content + AIJSON tail + _grok_ai_* telemetry
 // field NAMES kept (downstream parsers/audit reference them); _ai_provider/_ai_model added.
 const QTP_ANTHROPIC_KEY = String((typeof $vars !== 'undefined' && ($vars.ANTHROPIC_API_KEY || $vars.anthropic_api_key)) || ((($getWorkflowStaticData('global') || {})._credentials || {}).anthropic_api_key) || '').trim();
@@ -73,7 +73,6 @@ try {
   const requestBody = {
     model: QTP_ANTHROPIC_MODEL,
     max_tokens: 600,
-    temperature: 0.1,
     system: systemPrompt,
     messages: [
       {

@@ -31,7 +31,7 @@
 
 
 // QTP-xAI-EXEC: native xAI/Grok credential fallback and cost-optimized model.
-// QTP_ANTHROPIC_MIGRATION_v1_20260720: xAI/Grok -> Anthropic Claude Opus 4.8 (PO-authorized).
+// QTP_ANTHROPIC_MIGRATION_v1.1_20260720 (temperature REMOVED: claude-opus-4-8 400s on explicit temperature; bisected exec 421425): xAI/Grok -> Anthropic Claude Opus 4.8 (PO-authorized).
 const QTP_ANTHROPIC_KEY = String((typeof $vars !== 'undefined' && ($vars.ANTHROPIC_API_KEY || $vars.anthropic_api_key)) || ((($getWorkflowStaticData('global') || {})._credentials || {}).anthropic_api_key) || '').trim();
 const QTP_ANTHROPIC_MODEL = String((typeof $vars !== 'undefined' && ($vars.ANTHROPIC_MODEL || $vars.anthropic_model)) || 'claude-opus-4-8').trim();
 function qtpAnthropicKeyLooksReal(k) { return typeof k === 'string' && k.startsWith('sk-ant-') && k.length >= 40 && !/PLACEHOLDER|CHANGEME|YOUR[_-]?KEY|EXAMPLE|XXXX/i.test(k); }
@@ -348,7 +348,6 @@ function makeHealthId() {
 const vcBody = {
   model: QTP_ANTHROPIC_MODEL,
   max_tokens: 520,
-  temperature: 0.2,
   system: "You are an elite, ruthless VC partner and quant fund evaluator. Output ONLY valid JSON. No markdown, no code blocks, no explanation outside the JSON object.",
   messages: [
     { role: "user", content: vcPrompt }
