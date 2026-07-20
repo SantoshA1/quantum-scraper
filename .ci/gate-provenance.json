@@ -1,0 +1,45 @@
+{
+  "_comment": "A3 gate provenance — the drift tripwire between extracted lib/gates modules and the live n8n baseline they were pulled from. Each module pins the sha256_live of its SOURCE node at baseline versionId c91917bb. .ci/check-gate-provenance.js recomputes those source hashes and FAILS if any drifted, signalling the extracted module must be re-reviewed against the changed source. Live-node stamp (making the SM call these modules) is A3.4 tooling, PO-gated. sha256_live = first 16 hex of sha256(unredacted node file).",
+  "baseline": {
+    "workflow_id": "vaqfCaELhOEWnkdo",
+    "versionId": "c91917bb-f8e4-4bf5-b160-c8c120529fb2",
+    "dir": "n8n-workflows/_baseline_c91917bb/"
+  },
+  "modules": {
+    "lib/gates/vc_score.js": {
+      "source_node": "VC Score Parser",
+      "source_file": "vc-score-parser.js",
+      "sha256_live_at_extraction": "8077206f2f5c837b",
+      "test": "tests/test-vc-score-gate.js",
+      "note": "VC Score Parser calibrated-v2 (1.18/0.55, threshold>=7)."
+    },
+    "lib/gates/mtf.js": {
+      "source_node": "QTP Bias Filter",
+      "source_file": "qtp-bias-filter.js",
+      "sha256_live_at_extraction": "a00f4ab98c96e8e2",
+      "test": "tests/test-mtf-gate.js",
+      "note": "MTF confluence + F1-B shadow (G22: engine verdict alone, floor <40)."
+    },
+    "lib/gates/backtest.js": {
+      "source_node": "QTP Bias Filter",
+      "source_file": "qtp-bias-filter.js",
+      "sha256_live_at_extraction": "a00f4ab98c96e8e2",
+      "test": "tests/test-backtest-gate.js",
+      "note": "BACKTEST_ENFORCEMENT + F2 PF shadow; tier select; FAIL-CLOSED UNKNOWN."
+    },
+    "lib/gates/composite_opposition.js": {
+      "source_node": "QTP Bias Filter",
+      "source_file": "qtp-bias-filter.js",
+      "sha256_live_at_extraction": "a00f4ab98c96e8e2",
+      "test": "tests/test-composite-opposition-gate.js",
+      "note": "Entry-quality second-opinion veto (>=2 of 7 opposing sources)."
+    },
+    "lib/gates/ai_conflict.js": {
+      "source_node": "QTP Bias Filter",
+      "source_file": "qtp-bias-filter.js",
+      "sha256_live_at_extraction": "a00f4ab98c96e8e2",
+      "test": "tests/test-ai-conflict-gate.js",
+      "note": "Entry-quality AI-conflict guard (hard never waived; paper soft-allow)."
+    }
+  }
+}

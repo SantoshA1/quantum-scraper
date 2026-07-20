@@ -8,7 +8,8 @@
     "test": "node tests/run-all.js",
     "check:secrets": "node .ci/check-secrets.js",
     "check:syntax": "node .ci/check-syntax.js",
-    "ci": "npm run check:secrets && npm run check:syntax && npm test"
+    "check:gates": "node .ci/check-gate-provenance.js",
+    "ci": "npm run check:secrets && npm run check:syntax && npm run check:gates && npm test"
   },
   "dependencies": {
     "express": "^4.21.2",

@@ -1,0 +1,1 @@
+SELECT constant_name, live_value FROM quantum.gate_config WHERE gate_id IN ('EXPANSION', 'MTF')

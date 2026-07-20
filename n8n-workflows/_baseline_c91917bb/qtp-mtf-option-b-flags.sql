@@ -1,0 +1,1 @@
+SELECT flag_name, flag_value, enabled FROM quantum.experiment_flags WHERE flag_name IN ('mtf_profile_aware_composite_v1','mtf_ai_advisory_paper_v1');

@@ -1,0 +1,776 @@
+{
+  "workflow_id": "vaqfCaELhOEWnkdo",
+  "name": "TradingView AI Super Score \u2192 Perplexity \u2192 Telegram",
+  "versionId": "c91917bb-f8e4-4bf5-b160-c8c120529fb2",
+  "exportedAt": "2026-07-17T20:01:26.728Z",
+  "reconciled_at": "2026-07-17T20:02:16.518068Z",
+  "node_count_total": 142,
+  "code_nodes": 90,
+  "sql_nodes": 4,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate",
+    "availableInMCP": true,
+    "timeSavedMode": "fixed",
+    "callerPolicy": "workflowsFromSameOwner",
+    "saveManualExecutions": true,
+    "executionTimeout": 240,
+    "timezone": "America/New_York"
+  },
+  "secrets_redacted": 2,
+  "note": "Baseline snapshot of live n8n jsCode/SQL at versionId c91917bb (A2 extraction reference; Conclave amendment #3). sha256_live = hash of the UNREDACTED live code (for CI drift diff). Topology/connections NOT captured here (needs n8n API export). Secrets redacted before commit.",
+  "inventory": [
+    {
+      "name": "Alpaca Paper Trade",
+      "file": "alpaca-paper-trade.js",
+      "kind": "code_nodes",
+      "chars": 28091,
+      "sha256_live": "bccfd8be8283d917",
+      "redacted": false
+    },
+    {
+      "name": "Alpaca Position Closer",
+      "file": "alpaca-position-closer.js",
+      "kind": "code_nodes",
+      "chars": 7798,
+      "sha256_live": "a654fc10851ea565",
+      "redacted": false
+    },
+    {
+      "name": "Audit Fills Tap (Supabase)",
+      "file": "audit-fills-tap-supabase.js",
+      "kind": "code_nodes",
+      "chars": 492,
+      "sha256_live": "5e60ec2c65d14d3f",
+      "redacted": false
+    },
+    {
+      "name": "Audit Write Throttle",
+      "file": "audit-write-throttle.js",
+      "kind": "code_nodes",
+      "chars": 1834,
+      "sha256_live": "6de717381760332b",
+      "redacted": false
+    },
+    {
+      "name": "Backtest Engine",
+      "file": "backtest-engine.js",
+      "kind": "code_nodes",
+      "chars": 8612,
+      "sha256_live": "feda04947d3e0b1a",
+      "redacted": false
+    },
+    {
+      "name": "Build Expansion Evidence SQL",
+      "file": "build-expansion-evidence-sql.js",
+      "kind": "code_nodes",
+      "chars": 1854,
+      "sha256_live": "3eae2f1ad00eec0c",
+      "redacted": false
+    },
+    {
+      "name": "Build Supabase Audit Payload",
+      "file": "build-supabase-audit-payload.js",
+      "kind": "code_nodes",
+      "chars": 5011,
+      "sha256_live": "a49123564db523a3",
+      "redacted": false
+    },
+    {
+      "name": "Call VC Agent",
+      "file": "call-vc-agent.js",
+      "kind": "code_nodes",
+      "chars": 127,
+      "sha256_live": "d8920d6cdcbe8172",
+      "redacted": false
+    },
+    {
+      "name": "Channel Gate",
+      "file": "channel-gate.js",
+      "kind": "code_nodes",
+      "chars": 1870,
+      "sha256_live": "8ba6516511cadce4",
+      "redacted": false
+    },
+    {
+      "name": "Close Fill Channel Gate",
+      "file": "close-fill-channel-gate.js",
+      "kind": "code_nodes",
+      "chars": 843,
+      "sha256_live": "8b5a896a9c51a1bb",
+      "redacted": false
+    },
+    {
+      "name": "Code in JavaScript",
+      "file": "code-in-javascript.js",
+      "kind": "code_nodes",
+      "chars": 278,
+      "sha256_live": "73f4188daf79bf45",
+      "redacted": true
+    },
+    {
+      "name": "Code in JavaScript1",
+      "file": "code-in-javascript1.js",
+      "kind": "code_nodes",
+      "chars": 233,
+      "sha256_live": "005e22816a1844b3",
+      "redacted": false
+    },
+    {
+      "name": "Cross-Asset Engine",
+      "file": "cross-asset-engine.js",
+      "kind": "code_nodes",
+      "chars": 22303,
+      "sha256_live": "9a1c4572551fac04",
+      "redacted": false
+    },
+    {
+      "name": "Dark Pool Engine",
+      "file": "dark-pool-engine.js",
+      "kind": "code_nodes",
+      "chars": 22352,
+      "sha256_live": "1e4ce934ef2c7f6f",
+      "redacted": false
+    },
+    {
+      "name": "Format Close Fill Telegram Message",
+      "file": "format-close-fill-telegram-message.js",
+      "kind": "code_nodes",
+      "chars": 2750,
+      "sha256_live": "5d6450392b2308fc",
+      "redacted": false
+    },
+    {
+      "name": "Format Fast Alert",
+      "file": "format-fast-alert.js",
+      "kind": "code_nodes",
+      "chars": 9443,
+      "sha256_live": "9742b30159d525f4",
+      "redacted": false
+    },
+    {
+      "name": "Format Supabase Alpaca Risk Gate Context",
+      "file": "format-supabase-alpaca-risk-gate-context.js",
+      "kind": "code_nodes",
+      "chars": 324,
+      "sha256_live": "cb5bff6897fa4079",
+      "redacted": false
+    },
+    {
+      "name": "Format Supabase Backtest Audit Insert",
+      "file": "format-supabase-backtest-audit-insert.js",
+      "kind": "code_nodes",
+      "chars": 366,
+      "sha256_live": "87f4eb23b0c1675f",
+      "redacted": false
+    },
+    {
+      "name": "Format Supabase Candidate Trace Result",
+      "file": "format-supabase-candidate-trace-result.js",
+      "kind": "code_nodes",
+      "chars": 391,
+      "sha256_live": "0300f40e5a334377",
+      "redacted": false
+    },
+    {
+      "name": "Format Supabase Early Exec Flow Audit Result",
+      "file": "format-supabase-early-exec-flow-audit-result.js",
+      "kind": "code_nodes",
+      "chars": 435,
+      "sha256_live": "bc655d2800440ba8",
+      "redacted": false
+    },
+    {
+      "name": "Format Supabase Pause Guard Context",
+      "file": "format-supabase-pause-guard-context.js",
+      "kind": "code_nodes",
+      "chars": 322,
+      "sha256_live": "fa41e56981ce42c3",
+      "redacted": false
+    },
+    {
+      "name": "Format Supabase Strat Cache Lookup",
+      "file": "format-supabase-strat-cache-lookup.js",
+      "kind": "code_nodes",
+      "chars": 3758,
+      "sha256_live": "685b55ca3702d411",
+      "redacted": false
+    },
+    {
+      "name": "Format Supabase Telegram Recovery Context",
+      "file": "format-supabase-telegram-recovery-context.js",
+      "kind": "code_nodes",
+      "chars": 384,
+      "sha256_live": "14c1a6a032fa2127",
+      "redacted": false
+    },
+    {
+      "name": "Format Supabase VC API Health Result",
+      "file": "format-supabase-vc-api-health-result.js",
+      "kind": "code_nodes",
+      "chars": 285,
+      "sha256_live": "a88dcb3114aeba7d",
+      "redacted": false
+    },
+    {
+      "name": "Format Supabase WRO Shadow Result",
+      "file": "format-supabase-wro-shadow-result.js",
+      "kind": "code_nodes",
+      "chars": 700,
+      "sha256_live": "da0048a3018b8fe5",
+      "redacted": false
+    },
+    {
+      "name": "Format Telegram Message",
+      "file": "format-telegram-message.js",
+      "kind": "code_nodes",
+      "chars": 18436,
+      "sha256_live": "e54b66ab5d878047",
+      "redacted": false
+    },
+    {
+      "name": "GTC Position Re-Check",
+      "file": "gtc-position-re-check.js",
+      "kind": "code_nodes",
+      "chars": 5781,
+      "sha256_live": "7d382b27498baaf0",
+      "redacted": false
+    },
+    {
+      "name": "Gap News Detector",
+      "file": "gap-news-detector.js",
+      "kind": "code_nodes",
+      "chars": 5814,
+      "sha256_live": "bb6c286947456360",
+      "redacted": false
+    },
+    {
+      "name": "Grok AI Analysis",
+      "file": "grok-ai-analysis.js",
+      "kind": "code_nodes",
+      "chars": 6486,
+      "sha256_live": "a8f38017a2c84ab0",
+      "redacted": false
+    },
+    {
+      "name": "Grok Signal Analyzer",
+      "file": "grok-signal-analyzer.js",
+      "kind": "code_nodes",
+      "chars": 8303,
+      "sha256_live": "e59610a09a664f5a",
+      "redacted": false
+    },
+    {
+      "name": "Indicator Enrichment",
+      "file": "indicator-enrichment.js",
+      "kind": "code_nodes",
+      "chars": 13639,
+      "sha256_live": "d1c8a7735976cdcf",
+      "redacted": false
+    },
+    {
+      "name": "Merge MTF AI Verdict",
+      "file": "merge-mtf-ai-verdict.js",
+      "kind": "code_nodes",
+      "chars": 3561,
+      "sha256_live": "5d633d6d3caef80d",
+      "redacted": false
+    },
+    {
+      "name": "Merge Option B Flags",
+      "file": "merge-option-b-flags.js",
+      "kind": "code_nodes",
+      "chars": 8053,
+      "sha256_live": "c48221bb51995d87",
+      "redacted": false
+    },
+    {
+      "name": "Normalize AI Feedback for Supabase",
+      "file": "normalize-ai-feedback-for-supabase.js",
+      "kind": "code_nodes",
+      "chars": 3693,
+      "sha256_live": "9261dd7d73de3a6f",
+      "redacted": false
+    },
+    {
+      "name": "Normalize Alpaca Events for Supabase",
+      "file": "normalize-alpaca-events-for-supabase.js",
+      "kind": "code_nodes",
+      "chars": 9249,
+      "sha256_live": "de942c584c090274",
+      "redacted": false
+    },
+    {
+      "name": "Options Flow Engine",
+      "file": "options-flow-engine.js",
+      "kind": "code_nodes",
+      "chars": 15031,
+      "sha256_live": "fcf7886a85f20594",
+      "redacted": false
+    },
+    {
+      "name": "PF_MARGIN Bypass Gate",
+      "file": "pf-margin-bypass-gate.js",
+      "kind": "code_nodes",
+      "chars": 8796,
+      "sha256_live": "8d6dce37b385ab9e",
+      "redacted": false
+    },
+    {
+      "name": "PF_MARGIN Executor",
+      "file": "pf-margin-executor.js",
+      "kind": "code_nodes",
+      "chars": 11443,
+      "sha256_live": "9bedb72420c6b7f2",
+      "redacted": false
+    },
+    {
+      "name": "PF_MARGIN Flag Reader",
+      "file": "pf-margin-flag-reader.sql",
+      "kind": "sql_nodes",
+      "chars": 221,
+      "sha256_live": "f9cb382e123edad5",
+      "redacted": false
+    },
+    {
+      "name": "PF_MARGIN Telegram Notifier",
+      "file": "pf-margin-telegram-notifier.js",
+      "kind": "code_nodes",
+      "chars": 5036,
+      "sha256_live": "d3ea71f4f4d17d15",
+      "redacted": false
+    },
+    {
+      "name": "PF_MARGIN Trade SQL Builder",
+      "file": "pf-margin-trade-sql-builder.js",
+      "kind": "code_nodes",
+      "chars": 4747,
+      "sha256_live": "944d3f59f979cf99",
+      "redacted": false
+    },
+    {
+      "name": "Persist Grok Verdict",
+      "file": "persist-grok-verdict.sql",
+      "kind": "sql_nodes",
+      "chars": 892,
+      "sha256_live": "0eb289abe28ee330",
+      "redacted": false
+    },
+    {
+      "name": "Prepare Supabase Alpaca Risk Gate Query",
+      "file": "prepare-supabase-alpaca-risk-gate-query.js",
+      "kind": "code_nodes",
+      "chars": 1620,
+      "sha256_live": "aa4ee66f857ad593",
+      "redacted": false
+    },
+    {
+      "name": "Prepare Supabase Early Exec Flow Audit Insert",
+      "file": "prepare-supabase-early-exec-flow-audit-insert.js",
+      "kind": "code_nodes",
+      "chars": 460,
+      "sha256_live": "e3e6fc315662ec52",
+      "redacted": false
+    },
+    {
+      "name": "Prepare Supabase Pause Guard Query",
+      "file": "prepare-supabase-pause-guard-query.js",
+      "kind": "code_nodes",
+      "chars": 816,
+      "sha256_live": "0dc3c8d7009c93c8",
+      "redacted": false
+    },
+    {
+      "name": "Prepare Supabase SKIP Exec Flow Audit Insert",
+      "file": "prepare-supabase-skip-exec-flow-audit-insert.js",
+      "kind": "code_nodes",
+      "chars": 485,
+      "sha256_live": "2e60518be8d4fa9e",
+      "redacted": false
+    },
+    {
+      "name": "Prepare Supabase Strat Cache Lookup",
+      "file": "prepare-supabase-strat-cache-lookup.js",
+      "kind": "code_nodes",
+      "chars": 1336,
+      "sha256_live": "f656e474fdb4ce02",
+      "redacted": false
+    },
+    {
+      "name": "Prepare Supabase Telegram Recovery Query",
+      "file": "prepare-supabase-telegram-recovery-query.js",
+      "kind": "code_nodes",
+      "chars": 1081,
+      "sha256_live": "1ea1fe48b796efd0",
+      "redacted": false
+    },
+    {
+      "name": "Prepare Supabase WRO Shadow Insert",
+      "file": "prepare-supabase-wro-shadow-insert.js",
+      "kind": "code_nodes",
+      "chars": 656,
+      "sha256_live": "4f5c0762ae4080ce",
+      "redacted": false
+    },
+    {
+      "name": "QET Gate-K Prep",
+      "file": "qet-gate-k-prep.js",
+      "kind": "code_nodes",
+      "chars": 1262,
+      "sha256_live": "1c3e3bfd300f263d",
+      "redacted": false
+    },
+    {
+      "name": "QET Gate-K Reject SQL",
+      "file": "qet-gate-k-reject-sql.js",
+      "kind": "code_nodes",
+      "chars": 1303,
+      "sha256_live": "380ffca731e80879",
+      "redacted": false
+    },
+    {
+      "name": "QET Gate-K Restore Context",
+      "file": "qet-gate-k-restore-context.js",
+      "kind": "code_nodes",
+      "chars": 933,
+      "sha256_live": "ac7d3b32d78537b7",
+      "redacted": false
+    },
+    {
+      "name": "QET Kelly SQL Build",
+      "file": "qet-kelly-sql-build.js",
+      "kind": "code_nodes",
+      "chars": 3316,
+      "sha256_live": "773b65bf0dd6cef5",
+      "redacted": false
+    },
+    {
+      "name": "QET Ledger H3 SQL",
+      "file": "qet-ledger-h3-sql.js",
+      "kind": "code_nodes",
+      "chars": 2756,
+      "sha256_live": "9506fdb98a28bee0",
+      "redacted": false
+    },
+    {
+      "name": "QET Trace Stamp: Bias Drop",
+      "file": "qet-trace-stamp-bias-drop.js",
+      "kind": "code_nodes",
+      "chars": 934,
+      "sha256_live": "01a5ee01e5feb79f",
+      "redacted": false
+    },
+    {
+      "name": "QET Trace Stamp: Executor",
+      "file": "qet-trace-stamp-executor.js",
+      "kind": "code_nodes",
+      "chars": 1387,
+      "sha256_live": "fa0eaf58473f8e65",
+      "redacted": false
+    },
+    {
+      "name": "QET Trace Stamp: Pause Block",
+      "file": "qet-trace-stamp-pause-block.js",
+      "kind": "code_nodes",
+      "chars": 907,
+      "sha256_live": "d3fa052a200a109b",
+      "redacted": false
+    },
+    {
+      "name": "QET Trace Stamp: VC Reject",
+      "file": "qet-trace-stamp-vc-reject.js",
+      "kind": "code_nodes",
+      "chars": 976,
+      "sha256_live": "ad12b25ed6124921",
+      "redacted": false
+    },
+    {
+      "name": "QET Trace Writer: SSM Skip",
+      "file": "qet-trace-writer-ssm-skip.js",
+      "kind": "code_nodes",
+      "chars": 1656,
+      "sha256_live": "5035ccf98a8aafc6",
+      "redacted": false
+    },
+    {
+      "name": "QTP Alpaca Paper-Only Guard",
+      "file": "qtp-alpaca-paper-only-guard.js",
+      "kind": "code_nodes",
+      "chars": 1330,
+      "sha256_live": "9bd1db4aec5966a2",
+      "redacted": false
+    },
+    {
+      "name": "QTP Bias Filter",
+      "file": "qtp-bias-filter.js",
+      "kind": "code_nodes",
+      "chars": 40092,
+      "sha256_live": "a00f4ab98c96e8e2",
+      "redacted": false
+    },
+    {
+      "name": "QTP Bias Filter Drop SQL Builder",
+      "file": "qtp-bias-filter-drop-sql-builder.js",
+      "kind": "code_nodes",
+      "chars": 4037,
+      "sha256_live": "9d70271f10ea145c",
+      "redacted": false
+    },
+    {
+      "name": "QTP Broad Scanner Attribution Injector v1",
+      "file": "qtp-broad-scanner-attribution-injector-v1.js",
+      "kind": "code_nodes",
+      "chars": 4249,
+      "sha256_live": "04fff7a21708283c",
+      "redacted": false
+    },
+    {
+      "name": "QTP Early Exec Flow Audit Builder",
+      "file": "qtp-early-exec-flow-audit-builder.js",
+      "kind": "code_nodes",
+      "chars": 23773,
+      "sha256_live": "042160185b091744",
+      "redacted": false
+    },
+    {
+      "name": "QTP Extended Hours Mode Gate v1",
+      "file": "qtp-extended-hours-mode-gate-v1.js",
+      "kind": "code_nodes",
+      "chars": 1623,
+      "sha256_live": "f73dff44d1487705",
+      "redacted": false
+    },
+    {
+      "name": "QTP Extended Hours Risk Profile v2",
+      "file": "qtp-extended-hours-risk-profile-v2.js",
+      "kind": "code_nodes",
+      "chars": 1732,
+      "sha256_live": "bf44164c966220b6",
+      "redacted": false
+    },
+    {
+      "name": "QTP Idempotency Gate",
+      "file": "qtp-idempotency-gate.js",
+      "kind": "code_nodes",
+      "chars": 1304,
+      "sha256_live": "e053a1707c1031a2",
+      "redacted": false
+    },
+    {
+      "name": "QTP Ingress Guard Logger",
+      "file": "qtp-ingress-guard-logger.js",
+      "kind": "code_nodes",
+      "chars": 1531,
+      "sha256_live": "1c76c3a18ac653ec",
+      "redacted": false
+    },
+    {
+      "name": "QTP Late Audit Patcher (Risk Gate Verdict)",
+      "file": "qtp-late-audit-patcher-risk-gate-verdict.js",
+      "kind": "code_nodes",
+      "chars": 11587,
+      "sha256_live": "a2af5be225f8d6c4",
+      "redacted": false
+    },
+    {
+      "name": "QTP Late Exec Flow Audit Builder",
+      "file": "qtp-late-exec-flow-audit-builder.js",
+      "kind": "code_nodes",
+      "chars": 20271,
+      "sha256_live": "fc027a51f6cd4f90",
+      "redacted": false
+    },
+    {
+      "name": "QTP MTF AI Judge (Perplexity/Grok)",
+      "file": "qtp-mtf-ai-judge-perplexity-grok.js",
+      "kind": "code_nodes",
+      "chars": 6518,
+      "sha256_live": "5e3e91881f5afeab",
+      "redacted": false
+    },
+    {
+      "name": "QTP MTF Option B Flags",
+      "file": "qtp-mtf-option-b-flags.sql",
+      "kind": "sql_nodes",
+      "chars": 149,
+      "sha256_live": "0743cc2a94d4e038",
+      "redacted": false
+    },
+    {
+      "name": "QTP MTF Shadow Engine v1.1",
+      "file": "qtp-mtf-shadow-engine-v1-1.js",
+      "kind": "code_nodes",
+      "chars": 4893,
+      "sha256_live": "9eff7fd3c1bbd7b1",
+      "redacted": false
+    },
+    {
+      "name": "QTP Multi-Timeframe Confluence Engine",
+      "file": "qtp-multi-timeframe-confluence-engine.js",
+      "kind": "code_nodes",
+      "chars": 12020,
+      "sha256_live": "b1d74181e0eaa1d6",
+      "redacted": false
+    },
+    {
+      "name": "QTP Regime Conflict Filter",
+      "file": "qtp-regime-conflict-filter.js",
+      "kind": "code_nodes",
+      "chars": 5418,
+      "sha256_live": "e94a30d0239245c1",
+      "redacted": false
+    },
+    {
+      "name": "QTP SKIP-Branch Exec Flow Audit Builder",
+      "file": "qtp-skip-branch-exec-flow-audit-builder.js",
+      "kind": "code_nodes",
+      "chars": 7976,
+      "sha256_live": "e638d40c8085dd6a",
+      "redacted": false
+    },
+    {
+      "name": "QTP Session Regime Classifier v1",
+      "file": "qtp-session-regime-classifier-v1.js",
+      "kind": "code_nodes",
+      "chars": 1986,
+      "sha256_live": "1f16bc846556ea8d",
+      "redacted": false
+    },
+    {
+      "name": "QTP Signal Contract Validator",
+      "file": "qtp-signal-contract-validator.js",
+      "kind": "code_nodes",
+      "chars": 2629,
+      "sha256_live": "f1949f03fa26ee4c",
+      "redacted": false
+    },
+    {
+      "name": "QTP Ticker Blocklist Filter v1",
+      "file": "qtp-ticker-blocklist-filter-v1.js",
+      "kind": "code_nodes",
+      "chars": 1667,
+      "sha256_live": "cb0b6cb018f792c8",
+      "redacted": false
+    },
+    {
+      "name": "QTP Ultra Minimal Shadow Debug Logger",
+      "file": "qtp-ultra-minimal-shadow-debug-logger.js",
+      "kind": "code_nodes",
+      "chars": 6105,
+      "sha256_live": "d85db64f5601d32e",
+      "redacted": false
+    },
+    {
+      "name": "QTP-10FC Candidate Trace Logger",
+      "file": "qtp-10fc-candidate-trace-logger.js",
+      "kind": "code_nodes",
+      "chars": 4052,
+      "sha256_live": "c748e5d5d5b1ad16",
+      "redacted": false
+    },
+    {
+      "name": "QTP-10FC New Entry Pause Guard",
+      "file": "qtp-10fc-new-entry-pause-guard.js",
+      "kind": "code_nodes",
+      "chars": 3826,
+      "sha256_live": "79a0a171d49be05e",
+      "redacted": false
+    },
+    {
+      "name": "Shadow Logger",
+      "file": "shadow-logger.js",
+      "kind": "code_nodes",
+      "chars": 5062,
+      "sha256_live": "6c0bdef2a397b814",
+      "redacted": false
+    },
+    {
+      "name": "Signal State Machine",
+      "file": "signal-state-machine.js",
+      "kind": "code_nodes",
+      "chars": 101776,
+      "sha256_live": "db1ed3c20593f28f",
+      "redacted": false
+    },
+    {
+      "name": "Sync Expansion Gate Config",
+      "file": "sync-expansion-gate-config.sql",
+      "kind": "sql_nodes",
+      "chars": 95,
+      "sha256_live": "973c93b21a9cf250",
+      "redacted": false
+    },
+    {
+      "name": "VC API Health Alert Gate",
+      "file": "vc-api-health-alert-gate.js",
+      "kind": "code_nodes",
+      "chars": 737,
+      "sha256_live": "190c6598da79331f",
+      "redacted": false
+    },
+    {
+      "name": "VC API Health Logger",
+      "file": "vc-api-health-logger.js",
+      "kind": "code_nodes",
+      "chars": 1502,
+      "sha256_live": "83479ceceadb756c",
+      "redacted": false
+    },
+    {
+      "name": "VC Agent Gatekeeper",
+      "file": "vc-agent-gatekeeper.js",
+      "kind": "code_nodes",
+      "chars": 22324,
+      "sha256_live": "9c9e7b17a59cfe1d",
+      "redacted": false
+    },
+    {
+      "name": "VC Gate Audit Emitter",
+      "file": "vc-gate-audit-emitter.js",
+      "kind": "code_nodes",
+      "chars": 2591,
+      "sha256_live": "21d72db2233110bf",
+      "redacted": false
+    },
+    {
+      "name": "VC Rejection Logger",
+      "file": "vc-rejection-logger.js",
+      "kind": "code_nodes",
+      "chars": 10700,
+      "sha256_live": "fd5a50395df5c2ea",
+      "redacted": false
+    },
+    {
+      "name": "VC Score Parser",
+      "file": "vc-score-parser.js",
+      "kind": "code_nodes",
+      "chars": 31835,
+      "sha256_live": "8077206f2f5c837b",
+      "redacted": false
+    },
+    {
+      "name": "VC Shadow Gate (Phase B)",
+      "file": "vc-shadow-gate-phase-b.js",
+      "kind": "code_nodes",
+      "chars": 1011,
+      "sha256_live": "d064c7b2a33644f7",
+      "redacted": false
+    },
+    {
+      "name": "Webhook Auth Gate",
+      "file": "webhook-auth-gate.js",
+      "kind": "code_nodes",
+      "chars": 6510,
+      "sha256_live": "708b53bef04e6a88",
+      "redacted": true
+    },
+    {
+      "name": "Write Gate Config To StaticData",
+      "file": "write-gate-config-to-staticdata.js",
+      "kind": "code_nodes",
+      "chars": 863,
+      "sha256_live": "d2eaa647c9b8b423",
+      "redacted": false
+    }
+  ]
+}

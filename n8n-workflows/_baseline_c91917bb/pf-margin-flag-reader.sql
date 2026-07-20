@@ -1,0 +1,1 @@
+SELECT flag_name, flag_value, enabled, daily_trade_count, daily_pnl_dollars, consecutive_losses, halted_until, halt_reason, last_reset_date FROM quantum.experiment_flags WHERE flag_name = 'pf_margin_paper_bypass' LIMIT 1;

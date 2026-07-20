@@ -1,0 +1,13 @@
+{
+  "workflows": {
+    "vaqfCaELhOEWnkdo": {
+      "file": "n8n-workflows/_baseline_c91917bb/",
+      "name": "TradingView AI Super Score \u2192 Perplexity \u2192 Telegram",
+      "versionId": "fe73a421-bb7b-4726-96d7-f87ae4a75e91",
+      "exportedAt": "2026-07-17T20:01:26.728Z",
+      "kind": "code_baseline_only",
+      "prev_versionId": "c91917bb-f8e4-4bf5-b160-c8c120529fb2",
+      "note": "RCF_AUDIT_EMIT_v3 (2026-07-20): +3 nodes (RCF Drop Router/SQL Builder/Insert), RCF v3 emits flagged drops. Delta code in n8n-workflows/_delta_fe73a421/. Full baseline snapshot remains _baseline_c91917bb (provenance gate hashes that dir; gate-source nodes unchanged except qtp-regime-conflict-filter.js which is NOT a lib/gates source)."
+    }
+  }
+}
