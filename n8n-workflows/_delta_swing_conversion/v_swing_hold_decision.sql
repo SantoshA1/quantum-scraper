@@ -1,0 +1,6 @@
+-- QTP_SWING_HOLD_DECISION_v1_20260720 — read-only console/observability layer.
+-- Per open position returns HOLD/FLATTEN under strict swing criteria: FULLY_PROTECTED,
+-- full-qty covered, flat/green P&L, no manual-review flag, calm volatility regime.
+-- NOT wired into the exit path (the watcher's own per-position logic enforces exits);
+-- this is the dashboard decision view. Full DDL was applied live via Supabase MCP.
+-- See project_swing_book_conversion_20260720 memory for the CREATE VIEW body.
