@@ -1,0 +1,7 @@
+Node code snapshots:
+- claude-ai-analysis-v2.3.js  = _delta_wmt_audit_fixes/claude-ai-analysis-v2.2.js
+  + QTP_MKT_CONTEXT_v1 block (qtpSicToSector + _mkt fetch), tape line in prompt,
+  tape sentence in system prompt, ..._mkt in return. Live 1aaee601 (gov #137).
+- regime-service-v2-labeler.js = live node "Fetch Market Data + Regime Labeler"
+  of YIfED3NC8YyC7Ubv version 23bafc9b (gov #136).
+Authoritative source = live n8n versions above; README.md documents the diff.
