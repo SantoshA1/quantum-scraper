@@ -15,7 +15,7 @@
  * Run: node tests/test-tsm-trail-guard.js   (or: npm test)
  */
 const assert = require('assert');
-const { trailDecision, catchUpBlockedByExistingClose, isStaleLedgerRow, missingLedgerRows } =
+const { trailDecision, catchUpBlockedByExistingClose, isStaleLedgerRow, missingLedgerRows, barExtremeEvalPrice } =
   require('../lib/tsm/trail');
 
 let passed = 0, failed = 0;
@@ -87,6 +87,66 @@ check('H5-02', 'open row 3 days old with NO broker position -> stale (real orpha
 });
 check('H5-03', 'fresh open row (<2 days) -> never stale regardless of broker', () => {
   assert.strictEqual(isStaleLedgerRow({ status: 'open', entryFillTimeMs: NOW - 3600000 }, false, NOW), false);
+});
+
+// ---- WY 07-30/31 scenario: T1 fired, T2 never met -> designed breakeven giveback ----
+// (order_events ground truth: stop 25.05 -> 24.42 (width-sanity) -> 24.26 @10:45 ET = round2(entry+BUF),
+//  held T1 overnight, gapped up, covered 24.29. +$383 open profit round-tripped to -$39 BY DESIGN.)
+check('WY-01', 'short T1 fires: stop -> round2(entry+BUF) = 24.26 (matches live order)', () => {
+  const d = trailDecision({ side: 'short', entry: 24.2052, current: 23.75, atr: 0.30, tier: 0 });
+  assert.ok(d, 'T1 must fire');
+  assert.strictEqual(d.newTier, 1);
+  assert.strictEqual(d.newStop, 24.26);
+});
+check('WY-02', 'the giveback window: tier 1, price above T2 trigger -> NO further trail (documents design)', () => {
+  // T2 trigger = entry - 3*atr = 23.3052; price 23.34 never reached it at a 15-min sample
+  const d = trailDecision({ side: 'short', entry: 24.2052, current: 23.34, atr: 0.30, tier: 1 });
+  assert.strictEqual(d, null, 'between T1 and T2 nothing locks -> winner can round-trip to breakeven');
+});
+check('WY-03', 'if T2 HAD been met, profit locks: stop -> entry - 1.5*atr', () => {
+  const d = trailDecision({ side: 'short', entry: 24.2052, current: 23.30, atr: 0.30, tier: 1 });
+  assert.ok(d, 'T2 must fire at/below trigger');
+  assert.strictEqual(d.newTier, 2);
+  assert.strictEqual(d.newStop, 23.76);
+});
+
+// ---- Conclave B: bar-extreme trigger evaluation (flag-gated; guards pinned) ----
+check('BX-01', 'flag OFF -> eval price === point sample (byte-identical behavior)', () => {
+  const v = barExtremeEvalPrice({ isLong: false, current: 23.75, atr: 0.30, flagOn: false,
+    bars: [{ h: 24.0, l: 23.20 }] });
+  assert.strictEqual(v, 23.75);
+});
+check('BX-02', 'WY-style: session low touched T2 between samples -> extreme (minus eps) fires T2', () => {
+  // short entry 24.2052 atr 0.30 -> T2 trigger 23.3052. Point sample 23.40 would NOT fire.
+  const ev = barExtremeEvalPrice({ isLong: false, current: 23.40, atr: 0.30, flagOn: true,
+    bars: [{ h: 23.9, l: 23.20 }] }); // low 23.20 beyond trigger by 0.105 > eps 0.03
+  const d = trailDecision({ side: 'short', entry: 24.2052, current: ev, atr: 0.30, tier: 1 });
+  assert.ok(d, 'T2 must fire off the bar extreme');
+  assert.strictEqual(d.newTier, 2);
+});
+check('BX-03', 'noise epsilon: a wick only just past the trigger does NOT fire', () => {
+  // low 23.29 is 0.015 past trigger 23.3052 < eps 0.03 -> adj 23.32 stays above trigger
+  const ev = barExtremeEvalPrice({ isLong: false, current: 23.40, atr: 0.30, flagOn: true,
+    bars: [{ h: 23.9, l: 23.29 }] });
+  const d = trailDecision({ side: 'short', entry: 24.2052, current: ev, atr: 0.30, tier: 1 });
+  assert.strictEqual(d, null, 'single-print wick inside epsilon must be absorbed');
+});
+check('BX-04', 'never less favorable than the point sample', () => {
+  const v = barExtremeEvalPrice({ isLong: false, current: 23.10, atr: 0.30, flagOn: true,
+    bars: [{ h: 23.9, l: 23.50 }] }); // extreme worse than current
+  assert.strictEqual(v, 23.10);
+});
+check('BX-05', 'idempotent: reprocessing the same bars at an advanced tier fires nothing (monotonic)', () => {
+  const ev = barExtremeEvalPrice({ isLong: false, current: 23.40, atr: 0.30, flagOn: true,
+    bars: [{ h: 23.9, l: 23.20 }] });
+  const d = trailDecision({ side: 'short', entry: 24.2052, current: ev, atr: 0.30, tier: 2 });
+  assert.strictEqual(d, null);
+});
+check('BX-06', 'long mirror: session high (minus eps) fires the tier', () => {
+  const ev = barExtremeEvalPrice({ isLong: true, current: 101.0, atr: 1.0, flagOn: true,
+    bars: [{ h: 103.2, l: 100.0 }] }); // entry 100, T2 trigger 103; high 103.2 - eps 0.1 = 103.1 >= 103
+  const d = trailDecision({ side: 'long', entry: 100, current: ev, atr: 1.0, tier: 1 });
+  assert.ok(d); assert.strictEqual(d.newTier, 2); assert.strictEqual(d.newStop, 101.5);
 });
 
 // ---- Ledger completeness: winners must not be invisible ----
