@@ -1,0 +1,1592 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Quantum Engineering Trading - Architecture v6.0</title>
+<style>
+
+  @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap');
+
+  :root {
+    --bg: #0a0e17;
+    --surface: #111827;
+    --surface-2: #1a2236;
+    --surface-3: #1e293b;
+    --border: #1e3a5f;
+    --border-subtle: rgba(59,130,246,0.15);
+    --text: #e2e8f0;
+    --text-dim: #94a3b8;
+    --text-muted: #64748b;
+    --accent: #3b82f6;
+    --accent-glow: rgba(59,130,246,0.25);
+    --green: #10b981;
+    --green-dim: rgba(16,185,129,0.15);
+    --amber: #f59e0b;
+    --amber-dim: rgba(245,158,11,0.15);
+    --red: #ef4444;
+    --red-dim: rgba(239,68,68,0.15);
+    --purple: #8b5cf6;
+    --purple-dim: rgba(139,92,246,0.15);
+    --cyan: #06b6d4;
+    --cyan-dim: rgba(6,182,212,0.15);
+    --pink: #ec4899;
+    --pink-dim: rgba(236,72,153,0.15);
+    --orange: #f97316;
+    --orange-dim: rgba(249,115,22,0.15);
+    --lime: #84cc16;
+    --lime-dim: rgba(132,204,22,0.15);
+  }
+
+  * { margin:0; padding:0; box-sizing:border-box; }
+  body {
+    font-family: 'Inter', -apple-system, sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    line-height: 1.6;
+    min-height: 100vh;
+  }
+  .container { max-width: 1440px; margin: 0 auto; padding: 40px 24px 80px; }
+
+  /* Header */
+  .header { text-align: center; margin-bottom: 48px; }
+  .header-badge {
+    display: inline-block;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11px; font-weight: 500;
+    letter-spacing: 0.08em; text-transform: uppercase;
+    color: var(--accent); background: var(--accent-glow);
+    border: 1px solid rgba(59,130,246,0.3);
+    padding: 6px 16px; border-radius: 100px; margin-bottom: 20px;
+  }
+  .header h1 {
+    font-size: clamp(28px, 4vw, 42px); font-weight: 800;
+    letter-spacing: -0.03em; line-height: 1.15; margin-bottom: 12px;
+    background: linear-gradient(135deg, #e2e8f0 0%, #94a3b8 100%);
+    -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+  }
+  .header p { font-size: 15px; color: var(--text-dim); max-width: 780px; margin: 0 auto; }
+  .version-tag {
+    display: inline-block; font-family: 'JetBrains Mono', monospace;
+    font-size: 10px; color: var(--green); background: var(--green-dim);
+    border: 1px solid rgba(16,185,129,0.3); padding: 3px 10px;
+    border-radius: 100px; margin-left: 8px; vertical-align: middle;
+  }
+
+  /* Stats */
+  .stats-bar {
+    display: grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
+    gap: 10px; margin-bottom: 40px;
+  }
+  .stat-card {
+    background: var(--surface); border: 1px solid var(--border-subtle);
+    border-radius: 12px; padding: 14px 16px; text-align: center;
+  }
+  .stat-value {
+    font-size: 22px; font-weight: 700;
+    font-family: 'JetBrains Mono', monospace; color: var(--accent);
+  }
+  .stat-label {
+    font-size: 11px; color: var(--text-muted);
+    text-transform: uppercase; letter-spacing: 0.06em; margin-top: 3px;
+  }
+
+  /* Section headers */
+  .section-header { display: flex; align-items: center; gap: 12px; margin: 44px 0 16px; }
+  .section-num {
+    font-family: 'JetBrains Mono', monospace; font-size: 13px; font-weight: 500;
+    color: var(--accent); background: var(--accent-glow);
+    border: 1px solid rgba(59,130,246,0.3);
+    width: 32px; height: 32px; border-radius: 8px;
+    display: flex; align-items: center; justify-content: center; flex-shrink: 0;
+  }
+  .section-title { font-size: 20px; font-weight: 700; letter-spacing: -0.02em; }
+  .section-desc { font-size: 13px; color: var(--text-dim); margin-bottom: 16px; max-width: 860px; }
+
+  /* Nodes */
+  .node {
+    background: var(--surface); border: 1px solid var(--border-subtle);
+    border-radius: 14px; padding: 18px; position: relative;
+    transition: all 0.25s ease; cursor: default;
+  }
+  .node:hover {
+    border-color: var(--accent);
+    box-shadow: 0 0 24px var(--accent-glow);
+    transform: translateY(-2px);
+  }
+  .node-header { display: flex; align-items: center; gap: 10px; margin-bottom: 8px; }
+  .node-icon {
+    width: 34px; height: 34px; border-radius: 9px;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 13px; font-weight: 700; flex-shrink: 0;
+    font-family: 'JetBrains Mono', monospace;
+  }
+  .node-name { font-size: 14px; font-weight: 700; letter-spacing: -0.01em; }
+  .node-type {
+    font-family: 'JetBrains Mono', monospace; font-size: 10px;
+    color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.05em;
+  }
+  .node-desc { font-size: 12.5px; color: var(--text-dim); line-height: 1.55; margin-bottom: 8px; }
+  .node-detail {
+    font-family: 'JetBrains Mono', monospace; font-size: 11px;
+    color: var(--text-muted); background: rgba(0,0,0,0.3);
+    border-radius: 8px; padding: 10px 12px; line-height: 1.7;
+  }
+  .node-detail span { color: var(--green); }
+  .node-detail .val { color: var(--cyan); }
+  .node-detail .warn { color: var(--amber); }
+  .node-detail .err { color: var(--red); }
+
+  /* Color variants */
+  .node--blue { border-left: 3px solid var(--accent); }
+  .node--blue .node-icon { background: var(--accent-glow); color: var(--accent); }
+  .node--green { border-left: 3px solid var(--green); }
+  .node--green .node-icon { background: var(--green-dim); color: var(--green); }
+  .node--amber { border-left: 3px solid var(--amber); }
+  .node--amber .node-icon { background: var(--amber-dim); color: var(--amber); }
+  .node--red { border-left: 3px solid var(--red); }
+  .node--red .node-icon { background: var(--red-dim); color: var(--red); }
+  .node--purple { border-left: 3px solid var(--purple); }
+  .node--purple .node-icon { background: var(--purple-dim); color: var(--purple); }
+  .node--cyan { border-left: 3px solid var(--cyan); }
+  .node--cyan .node-icon { background: var(--cyan-dim); color: var(--cyan); }
+  .node--pink { border-left: 3px solid var(--pink); }
+  .node--pink .node-icon { background: var(--pink-dim); color: var(--pink); }
+  .node--orange { border-left: 3px solid var(--orange); }
+  .node--orange .node-icon { background: var(--orange-dim); color: var(--orange); }
+  .node--lime { border-left: 3px solid var(--lime); }
+  .node--lime .node-icon { background: var(--lime-dim); color: var(--lime); }
+
+  /* Arrow */
+  .arrow-down { display: flex; justify-content: center; padding: 6px 0; }
+  .arrow-down svg { width: 24px; height: 28px; }
+  .arrow-down path {
+    stroke: var(--accent); stroke-width: 2; fill: none;
+    stroke-dasharray: 6 4; animation: flowDown 1.5s linear infinite;
+  }
+  @keyframes flowDown { to { stroke-dashoffset: -20; } }
+
+  /* Grids */
+  .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+  .grid-3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; }
+  .grid-4 { display: grid; grid-template-columns: repeat(4, 1fr); gap: 14px; }
+  .grid-5 { display: grid; grid-template-columns: repeat(5, 1fr); gap: 14px; }
+
+  /* Route badges */
+  .route-badge {
+    display: inline-flex; align-items: center; gap: 5px;
+    font-family: 'JetBrains Mono', monospace; font-size: 11px; font-weight: 500;
+    padding: 4px 10px; border-radius: 6px; margin: 3px 3px 3px 0;
+  }
+  .route-full { background: var(--green-dim); color: var(--green); border: 1px solid rgba(16,185,129,0.3); }
+  .route-fast { background: var(--amber-dim); color: var(--amber); border: 1px solid rgba(245,158,11,0.3); }
+  .route-skip { background: rgba(100,116,139,0.15); color: var(--text-muted); border: 1px solid rgba(100,116,139,0.3); }
+  .route-promoted { background: var(--purple-dim); color: var(--purple); border: 1px solid rgba(139,92,246,0.3); }
+
+  /* Branch labels */
+  .branch-label {
+    font-family: 'JetBrains Mono', monospace; font-size: 11px; font-weight: 600;
+    text-transform: uppercase; letter-spacing: 0.08em;
+    padding: 5px 12px; border-radius: 8px; margin-bottom: 10px;
+    text-align: center; display: inline-block;
+  }
+  .branch-label--full { background: var(--green-dim); color: var(--green); border: 1px solid rgba(16,185,129,0.3); }
+  .branch-label--fast { background: var(--amber-dim); color: var(--amber); border: 1px solid rgba(245,158,11,0.3); }
+  .branch-label--skip { background: rgba(100,116,139,0.15); color: var(--text-muted); border: 1px solid rgba(100,116,139,0.3); }
+
+  /* Route split */
+  .route-split {
+    display: grid; grid-template-columns: 2fr 1fr 1fr; gap: 14px; position: relative;
+  }
+  .route-split::before {
+    content: ''; position: absolute; top: -10px; left: 10%; right: 10%;
+    height: 2px;
+    background: linear-gradient(90deg, var(--green), var(--amber), var(--text-muted));
+    border-radius: 2px;
+  }
+
+  /* Parallel wrap */
+  .parallel-wrap {
+    border: 2px dashed rgba(6,182,212,0.3); border-radius: 16px;
+    padding: 20px; position: relative; background: rgba(6,182,212,0.03);
+  }
+  .parallel-tag {
+    position: absolute; top: -11px; left: 20px;
+    font-family: 'JetBrains Mono', monospace; font-size: 10px; font-weight: 600;
+    text-transform: uppercase; letter-spacing: 0.1em;
+    color: var(--cyan); background: var(--bg); padding: 2px 10px;
+  }
+
+  /* NEW: System wrapper */
+  .system-wrap {
+    border: 2px solid; border-radius: 18px;
+    padding: 24px; position: relative; margin-bottom: 12px;
+  }
+  .system-wrap--trade {
+    border-color: rgba(59,130,246,0.25);
+    background: rgba(59,130,246,0.02);
+  }
+  .system-wrap--discovery {
+    border-color: rgba(249,115,22,0.25);
+    background: rgba(249,115,22,0.02);
+  }
+  .system-tag {
+    position: absolute; top: -12px; left: 24px;
+    font-family: 'JetBrains Mono', monospace; font-size: 11px; font-weight: 700;
+    text-transform: uppercase; letter-spacing: 0.1em;
+    background: var(--bg); padding: 2px 14px; border-radius: 6px;
+  }
+  .system-tag--trade { color: var(--accent); border: 1px solid rgba(59,130,246,0.4); }
+  .system-tag--discovery { color: var(--orange); border: 1px solid rgba(249,115,22,0.4); }
+
+  /* Defense layers */
+  .defense-stack { display: flex; flex-direction: column; gap: 5px; margin-top: 10px; }
+  .defense-layer {
+    display: flex; align-items: center; gap: 8px; font-size: 12px;
+    padding: 5px 10px; border-radius: 6px;
+    background: rgba(0,0,0,0.2); border: 1px solid var(--border-subtle);
+  }
+  .defense-layer .num {
+    font-family: 'JetBrains Mono', monospace; font-size: 10px; font-weight: 700;
+    width: 20px; height: 20px; border-radius: 5px;
+    display: flex; align-items: center; justify-content: center; flex-shrink: 0;
+  }
+
+  /* Connection lines between systems */
+  .connector {
+    display: flex; align-items: center; justify-content: center;
+    gap: 8px; padding: 10px 0; color: var(--text-muted); font-size: 12px;
+    font-family: 'JetBrains Mono', monospace;
+  }
+  .connector-line {
+    flex: 1; height: 2px; border-radius: 1px;
+    background: repeating-linear-gradient(90deg, var(--text-muted) 0, var(--text-muted) 6px, transparent 6px, transparent 12px);
+  }
+
+  /* Legend */
+  .legend {
+    display: flex; flex-wrap: wrap; gap: 14px; margin-top: 10px;
+    padding: 14px 18px; background: var(--surface);
+    border-radius: 12px; border: 1px solid var(--border-subtle);
+  }
+  .legend-item {
+    display: flex; align-items: center; gap: 6px; font-size: 11px; color: var(--text-dim);
+  }
+  .legend-dot { width: 10px; height: 10px; border-radius: 3px; }
+
+  /* Footer */
+  .footer {
+    margin-top: 56px; text-align: center; color: var(--text-muted); font-size: 13px;
+  }
+
+  /* New badge */
+  .new-badge {
+    display: inline-block; font-family: 'JetBrains Mono', monospace;
+    font-size: 9px; font-weight: 700; text-transform: uppercase;
+    letter-spacing: 0.06em; color: var(--orange); background: var(--orange-dim);
+    border: 1px solid rgba(249,115,22,0.4); padding: 2px 7px;
+    border-radius: 4px; margin-left: 8px; vertical-align: middle;
+  }
+
+  /* Updated badge (last 2-3 weeks) */
+  .updated-badge {
+    display: inline-block; font-family: 'JetBrains Mono', monospace;
+    font-size: 9px; font-weight: 700; text-transform: uppercase;
+    letter-spacing: 0.06em; color: var(--green); background: var(--green-dim);
+    border: 1px solid rgba(16,185,129,0.5); padding: 2px 7px;
+    border-radius: 4px; margin-left: 8px; vertical-align: middle;
+  }
+
+  /* Deprecated badge */
+  .deprecated-badge {
+    display: inline-block; font-family: 'JetBrains Mono', monospace;
+    font-size: 9px; font-weight: 700; text-transform: uppercase;
+    letter-spacing: 0.06em; color: var(--text-muted); background: rgba(100,116,139,0.15);
+    border: 1px solid rgba(100,116,139,0.4); padding: 2px 7px;
+    border-radius: 4px; margin-left: 8px; vertical-align: middle;
+  }
+
+  /* Highlight ring for UPDATED nodes (green glow + pulse) */
+  .node.node--updated {
+    box-shadow: 0 0 0 2px rgba(16,185,129,0.55), 0 0 24px rgba(16,185,129,0.25);
+    animation: updatedPulse 2.6s ease-in-out infinite;
+  }
+  @keyframes updatedPulse {
+    0%, 100% { box-shadow: 0 0 0 2px rgba(16,185,129,0.55), 0 0 18px rgba(16,185,129,0.20); }
+    50%      { box-shadow: 0 0 0 3px rgba(16,185,129,0.85), 0 0 32px rgba(16,185,129,0.45); }
+  }
+
+  /* Highlight ring for MISSING items (red dashed circle) */
+  .node.node--missing {
+    border: 2px dashed var(--red) !important;
+    box-shadow: 0 0 22px rgba(239,68,68,0.30);
+    background: rgba(239,68,68,0.04);
+  }
+  .missing-badge {
+    display: inline-block; font-family: 'JetBrains Mono', monospace;
+    font-size: 9px; font-weight: 700; text-transform: uppercase;
+    letter-spacing: 0.06em; color: var(--red); background: var(--red-dim);
+    border: 1px solid rgba(239,68,68,0.5); padding: 2px 7px;
+    border-radius: 4px; margin-left: 8px; vertical-align: middle;
+  }
+
+  /* Changelog banner */
+  .changelog {
+    background: linear-gradient(135deg, rgba(16,185,129,0.08), rgba(59,130,246,0.06));
+    border: 1px solid rgba(16,185,129,0.35); border-radius: 14px;
+    padding: 18px 22px; margin: 24px 0 8px;
+  }
+  .changelog h3 {
+    font-size: 14px; font-weight: 700; color: var(--green);
+    text-transform: uppercase; letter-spacing: 0.08em; margin-bottom: 12px;
+    font-family: 'JetBrains Mono', monospace;
+  }
+  .changelog ul { list-style: none; padding: 0; }
+  .changelog li {
+    font-size: 13px; color: var(--text-dim); padding: 6px 0;
+    border-bottom: 1px solid rgba(16,185,129,0.10);
+    display: flex; gap: 10px; align-items: flex-start;
+  }
+  .changelog li:last-child { border-bottom: 0; }
+  .changelog li strong { color: var(--text); font-weight: 600; }
+  .changelog .date {
+    font-family: 'JetBrains Mono', monospace; font-size: 11px;
+    color: var(--green); background: var(--green-dim);
+    padding: 2px 8px; border-radius: 4px; flex-shrink: 0;
+    border: 1px solid rgba(16,185,129,0.3); min-width: 70px; text-align: center;
+  }
+
+  /* Missing-items section */
+  .missing-wrap {
+    border: 2px dashed var(--red); border-radius: 16px;
+    padding: 22px; background: rgba(239,68,68,0.04);
+    position: relative; margin-top: 12px;
+  }
+  .missing-tag {
+    position: absolute; top: -12px; left: 22px;
+    font-family: 'JetBrains Mono', monospace; font-size: 11px; font-weight: 700;
+    text-transform: uppercase; letter-spacing: 0.1em;
+    background: var(--bg); padding: 2px 14px; border-radius: 6px;
+    color: var(--red); border: 1px solid rgba(239,68,68,0.5);
+  }
+
+  @media (max-width: 1000px) {
+    .grid-2, .grid-3, .grid-4, .grid-5, .route-split { grid-template-columns: 1fr; }
+  }
+  @media (max-width: 600px) {
+    .container { padding: 24px 16px 60px; }
+    .stats-bar { grid-template-columns: 1fr 1fr; }
+  }
+
+
+  /* ============ v6.0 ADDITIONS ============ */
+
+  /* Outcome banner */
+  .outcome {
+    background: linear-gradient(135deg, rgba(139,92,246,0.10), rgba(6,182,212,0.06));
+    border: 1px solid rgba(139,92,246,0.35); border-left: 4px solid var(--purple);
+    border-radius: 14px; padding: 20px 24px; margin: 8px 0 28px;
+    font-size: 14px; color: var(--text-dim); line-height: 1.7;
+  }
+  .outcome strong { color: var(--text); font-weight: 700; }
+  .outcome em { color: var(--purple); font-style: normal; font-weight: 600; }
+
+  /* Plane wrappers */
+  .plane-wrap {
+    border: 2px solid; border-radius: 18px;
+    padding: 26px 24px 24px; position: relative; margin-bottom: 14px;
+  }
+  .plane-tag {
+    position: absolute; top: -12px; left: 24px;
+    font-family: 'JetBrains Mono', monospace; font-size: 11px; font-weight: 700;
+    text-transform: uppercase; letter-spacing: 0.1em;
+    background: var(--bg); padding: 2px 14px; border-radius: 6px;
+  }
+  .plane--alpha  { border-color: rgba(59,130,246,0.30);  background: rgba(59,130,246,0.02); }
+  .plane--alpha  > .plane-tag { color: var(--accent); border: 1px solid rgba(59,130,246,0.45); }
+  .plane--research { border-color: rgba(139,92,246,0.30); background: rgba(139,92,246,0.02); }
+  .plane--research > .plane-tag { color: var(--purple); border: 1px solid rgba(139,92,246,0.45); }
+  .plane--safety { border-color: rgba(239,68,68,0.30);  background: rgba(239,68,68,0.02); }
+  .plane--safety > .plane-tag { color: var(--red); border: 1px solid rgba(239,68,68,0.45); }
+  .plane--proof  { border-color: rgba(16,185,129,0.30); background: rgba(16,185,129,0.02); }
+  .plane--proof  > .plane-tag { color: var(--green); border: 1px solid rgba(16,185,129,0.45); }
+
+  /* Plane map (top-of-doc overview) */
+  .plane-map { display: grid; grid-template-columns: repeat(4, 1fr); gap: 14px; margin: 8px 0 12px; }
+  .pm-card {
+    border-radius: 14px; padding: 16px 16px 14px; background: var(--surface);
+    border: 1px solid var(--border-subtle); border-top: 3px solid var(--accent);
+  }
+  .pm-card h4 {
+    font-family: 'JetBrains Mono', monospace; font-size: 12px; font-weight: 700;
+    letter-spacing: 0.08em; text-transform: uppercase; margin-bottom: 4px;
+  }
+  .pm-card .pm-sub { font-size: 11px; color: var(--text-muted); margin-bottom: 10px; }
+  .pm-card ul { list-style: none; padding: 0; }
+  .pm-card li {
+    font-size: 11.5px; color: var(--text-dim); padding: 3px 0 3px 12px; position: relative; line-height: 1.5;
+  }
+  .pm-card li::before { content: '▸'; position: absolute; left: 0; opacity: 0.55; }
+  .pm--alpha    { border-top-color: var(--accent); }  .pm--alpha h4    { color: var(--accent); }
+  .pm--research { border-top-color: var(--purple); }  .pm--research h4 { color: var(--purple); }
+  .pm--safety   { border-top-color: var(--red); }     .pm--safety h4   { color: var(--red); }
+  .pm--proof    { border-top-color: var(--green); }   .pm--proof h4    { color: var(--green); }
+
+  /* Retired / mothballed cards */
+  .node--retired {
+    opacity: 0.42; filter: grayscale(0.75);
+    border-style: dashed !important; border-color: rgba(100,116,139,0.5) !important;
+    background: rgba(100,116,139,0.05);
+  }
+  .node--retired:hover {
+    opacity: 0.9; filter: grayscale(0.15);
+    border-color: var(--text-muted) !important; box-shadow: none; transform: none;
+  }
+  .node--retired .node-icon { background: rgba(100,116,139,0.18) !important; color: var(--text-muted) !important; }
+  .retired-badge {
+    display: inline-block; font-family: 'JetBrains Mono', monospace;
+    font-size: 9px; font-weight: 700; text-transform: uppercase;
+    letter-spacing: 0.06em; color: var(--text-muted); background: rgba(100,116,139,0.18);
+    border: 1px dashed rgba(100,116,139,0.6); padding: 2px 7px;
+    border-radius: 4px; margin-left: 8px; vertical-align: middle;
+  }
+  .revive {
+    font-family: 'JetBrains Mono', monospace; font-size: 10.5px; color: var(--amber);
+    background: rgba(245,158,11,0.08); border: 1px solid rgba(245,158,11,0.25);
+    border-radius: 6px; padding: 6px 9px; margin-top: 8px; line-height: 1.6;
+  }
+  .retired-wrap {
+    border: 2px dashed rgba(100,116,139,0.5); border-radius: 16px;
+    padding: 24px; background: rgba(100,116,139,0.03); position: relative; margin-top: 12px;
+  }
+  .retired-tag {
+    position: absolute; top: -12px; left: 22px;
+    font-family: 'JetBrains Mono', monospace; font-size: 11px; font-weight: 700;
+    text-transform: uppercase; letter-spacing: 0.1em;
+    background: var(--bg); padding: 2px 14px; border-radius: 6px;
+    color: var(--text-muted); border: 1px dashed rgba(100,116,139,0.6);
+  }
+
+  /* Filter / Guard chips (gate registry doctrine) */
+  .fg {
+    display: inline-block; font-family: 'JetBrains Mono', monospace; font-size: 9px;
+    font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase;
+    padding: 2px 7px; border-radius: 4px; margin-left: 6px; vertical-align: middle;
+  }
+  .fg--filter { color: var(--amber); background: var(--amber-dim); border: 1px solid rgba(245,158,11,0.45); }
+  .fg--guard  { color: var(--cyan);  background: var(--cyan-dim);  border: 1px solid rgba(6,182,212,0.45); }
+  .fg--trial  { color: var(--pink);  background: var(--pink-dim);  border: 1px solid rgba(236,72,153,0.45); }
+  .fg--unclass{ color: var(--text-muted); background: rgba(100,116,139,0.15); border: 1px dashed rgba(100,116,139,0.5); }
+
+  /* Data tables (gap register, proof line, versions) */
+  .dtable { width: 100%; border-collapse: collapse; margin-top: 12px; font-size: 12.5px; }
+  .dtable th {
+    text-align: left; font-family: 'JetBrains Mono', monospace; font-size: 10.5px;
+    text-transform: uppercase; letter-spacing: 0.07em; color: var(--text-muted);
+    padding: 8px 10px; border-bottom: 1px solid var(--border);
+  }
+  .dtable td {
+    padding: 9px 10px; color: var(--text-dim); border-bottom: 1px solid rgba(30,58,95,0.35);
+    vertical-align: top; line-height: 1.55;
+  }
+  .dtable tr:hover td { background: rgba(59,130,246,0.04); }
+  .dtable td strong { color: var(--text); font-weight: 600; }
+  .dtable code, .node-desc code, .outcome code, .pm-card code, .changelog code {
+    font-family: 'JetBrains Mono', monospace; font-size: 0.92em;
+    background: rgba(0,0,0,0.35); border-radius: 4px; padding: 1px 5px; color: var(--cyan);
+  }
+  .g  { color: var(--green); }
+  .a  { color: var(--amber); }
+  .r  { color: var(--red); }
+  .p  { color: var(--purple); }
+  .mut{ color: var(--text-muted); }
+
+  /* Evidence callout inside node cards */
+  .evidence {
+    font-size: 11.5px; color: var(--text-muted); line-height: 1.6;
+    border-left: 2px solid rgba(16,185,129,0.5); padding: 4px 0 4px 10px; margin-top: 8px;
+  }
+  .evidence b { color: var(--green); font-weight: 600; }
+  .caution {
+    font-size: 11.5px; color: var(--text-muted); line-height: 1.6;
+    border-left: 2px solid rgba(245,158,11,0.6); padding: 4px 0 4px 10px; margin-top: 8px;
+  }
+  .caution b { color: var(--amber); font-weight: 600; }
+
+  /* Flow strip */
+  .flow {
+    display: flex; flex-wrap: wrap; align-items: center; gap: 8px;
+    font-family: 'JetBrains Mono', monospace; font-size: 11.5px;
+    background: rgba(0,0,0,0.28); border: 1px solid var(--border-subtle);
+    border-radius: 10px; padding: 12px 14px; margin: 10px 0 14px; color: var(--text-dim);
+  }
+  .flow .step { color: var(--text); background: rgba(59,130,246,0.10); border: 1px solid rgba(59,130,246,0.28); border-radius: 6px; padding: 3px 9px; }
+  .flow .sep { color: var(--accent); }
+
+  /* Warn row in changelog */
+  .changelog li.warn-row { border-left: 3px solid var(--amber); padding-left: 10px; background: rgba(245,158,11,0.05); }
+  .changelog li.kill-row { border-left: 3px solid var(--red); padding-left: 10px; background: rgba(239,68,68,0.05); }
+  .changelog--prior { background: linear-gradient(135deg, rgba(100,116,139,0.06), rgba(59,130,246,0.03)); border-color: rgba(100,116,139,0.3); }
+  .changelog--prior h3 { color: var(--text-muted); }
+  .changelog--prior .date { color: var(--text-muted); background: rgba(100,116,139,0.15); border-color: rgba(100,116,139,0.3); }
+
+  /* Source footnote */
+  .sources {
+    font-family: 'JetBrains Mono', monospace; font-size: 11px; color: var(--text-muted);
+    background: var(--surface); border: 1px solid var(--border-subtle);
+    border-radius: 12px; padding: 16px 18px; margin-top: 20px; line-height: 1.75;
+  }
+  .sources b { color: var(--text-dim); }
+
+  @media (max-width: 1000px) {
+    .plane-map { grid-template-columns: 1fr 1fr; }
+    .dtable { font-size: 11.5px; }
+  }
+  @media (max-width: 600px) {
+    .plane-map { grid-template-columns: 1fr; }
+    .dtable thead { display: none; }
+    .dtable td { display: block; border-bottom: 0; padding: 4px 10px; }
+    .dtable tr { display: block; border-bottom: 1px solid rgba(30,58,95,0.5); padding: 8px 0; }
+  }
+
+</style>
+</head>
+<body>
+<div class="container">
+
+  <!-- ======================= HEADER ======================= -->
+  <div class="header">
+    <div class="header-badge">System Architecture v6.0 · Updated August 4, 2026</div>
+    <h1>Quantum Engineering Trading<span class="version-tag">v6.0</span></h1>
+    <p>
+      Four-plane trading platform: an <strong>Alpha plane</strong> that turns scanner signals into sized,
+      protected orders; a <strong>Research plane</strong> that manufactures evidence off the hot path; a
+      <strong>Safety plane</strong> that can kill anything at any time; and a <strong>Proof plane</strong> —
+      the actual moat — that measures whether any of it works. v6.0 is the first revision written against the
+      Conclave-ratified v5.9 shape. Since v5.8 the platform swapped the decision LLM stack (Grok → Claude Opus 4.8
+      across all four <em>Signal-State-Machine</em> call sites), shipped <strong>Gate-K</strong> — a real risk manager sized off measured edge —
+      built a second Supabase schema as the measurement spine, fixed a nine-node observability blackout that had
+      been silent since creation, put gate logic under a 17-suite / 181-check regression harness, and
+      <strong>deleted surface area</strong>: Discovery, Grok-4 vision scoring, Perplexity, Databricks and the
+      screenshot chart-vision path are all retired.
+    </p>
+  </div>
+
+  <!-- ======================= STATS ======================= -->
+  <div class="stats-bar">
+    <div class="stat-card"><div class="stat-value">4</div><div class="stat-label">Architecture Planes</div></div>
+    <div class="stat-card"><div class="stat-value">90</div><div class="stat-label">SM Code Nodes</div></div>
+    <div class="stat-card"><div class="stat-value">13</div><div class="stat-label">Spec-Mirror Modules</div></div>
+    <div class="stat-card"><div class="stat-value">17/17</div><div class="stat-label">Maya Suites Green</div></div>
+    <div class="stat-card"><div class="stat-value">181</div><div class="stat-label">Regression Checks</div></div>
+    <div class="stat-card"><div class="stat-value">2</div><div class="stat-label">Live Schemas</div></div>
+    <div class="stat-card"><div class="stat-value">3</div><div class="stat-label">Production Models</div></div>
+    <div class="stat-card"><div class="stat-value">K1–K4</div><div class="stat-label">Gate-K Checks</div></div>
+    <div class="stat-card"><div class="stat-value">5</div><div class="stat-label">Retired Subsystems</div></div>
+    <div class="stat-card"><div class="stat-value">21</div><div class="stat-label">Open Gaps</div></div>
+  </div>
+
+  <div class="legend">
+    <div class="legend-item"><span class="legend-dot" style="background:var(--accent)"></span> Alpha Plane (hot path)</div>
+    <div class="legend-item"><span class="legend-dot" style="background:var(--purple)"></span> Research Plane (slow path)</div>
+    <div class="legend-item"><span class="legend-dot" style="background:var(--red)"></span> Safety Plane (kill anything)</div>
+    <div class="legend-item"><span class="legend-dot" style="background:var(--green)"></span> Proof Plane (the moat)</div>
+    <div class="legend-item"><span class="legend-dot" style="background:var(--amber)"></span> FILTER — must prove expectancy</div>
+    <div class="legend-item"><span class="legend-dot" style="background:var(--cyan)"></span> GUARD — tail protection, no alpha claim</div>
+    <div class="legend-item"><span class="legend-dot" style="background:var(--pink)"></span> ON TRIAL — harness verdict pending</div>
+    <div class="legend-item"><span class="legend-dot" style="background:#64748b"></span> RETIRED / MOTHBALLED</div>
+    <div class="legend-item"><span class="legend-dot" style="background:var(--red);border:2px dashed #fff"></span> MISSING / GAP</div>
+  </div>
+
+  <!-- ======================= OUTCOME ======================= -->
+  <div class="outcome">
+    <strong>THE OUTCOME, FIRST.</strong> v5.8 counted 40+ nodes, 14 defense layers and 3 AI models as achievements.
+    Phase 0 then proved the deployed confluence score was <em>anti-predictive</em> and the bracket geometry was a
+    coin flip — the platform's losses came from <em>unmeasured machinery believed to be working</em>, never from
+    missing machinery. v6.0 is what that verdict looks like once executed: node count is <em>down</em>, measured
+    surface is <em>up</em>. Every gate now carries a Filter/Guard classification and an expiry; every live decision
+    module has a pure spec-mirror in <code>lib/</code> pinned by a Maya regression suite; every order is sized by a
+    Postgres function reading <em>measured</em> R out of <code>public.trade_ledger</code>, not by a backtest.
+    The honest headline for August: <strong>the machinery is now instrumented and the sizing is now disciplined —
+    but live edge is still in probation</strong> (n&lt;40 closed trades/strategy, t-stat has not cleared 2), so
+    nothing here yet claims a proven edge. That is the point. The moat is the evidence loop, not the node count.
+  </div>
+
+  <!-- ======================= PLANE MAP ======================= -->
+  <div class="section-header">
+    <div class="section-num">◈</div>
+    <div class="section-title">The Four Planes — at a glance</div>
+  </div>
+  <div class="section-desc">
+    Ratified by the Quantlys Conclave on 2026-07-07 and built out over the following four weeks. Each plane has a
+    different tolerance for latency and a different burden of proof.
+  </div>
+
+  <div class="plane-map">
+    <div class="pm-card pm--alpha">
+      <h4>Alpha</h4>
+      <div class="pm-sub">Hot path · the only place latency matters</div>
+      <ul>
+        <li>Scanner + TradingView webhooks</li>
+        <li>Enrichment v4.6.0 · tape context v2.3 · chart read v2.4</li>
+        <li>Signal State Machine + gate registry</li>
+        <li>Gate-K sizing → Alpaca bracket</li>
+        <li>TSM v2.2 protection ladder</li>
+      </ul>
+    </div>
+    <div class="pm-card pm--research">
+      <h4>Research</h4>
+      <div class="pm-sub">Slow path · minutes are fine, evidence is mandatory</div>
+      <ul>
+        <li>Pre-market Thesis crew (Bull/Bear/Judge)</li>
+        <li>Regime Service v2 (sector breadth)</li>
+        <li>Reject-backtest + stop-simulation harnesses</li>
+        <li>Model bake-off → Opus 4.8 migration</li>
+        <li class="mut">Discovery Engine — mothballed</li>
+      </ul>
+    </div>
+    <div class="pm-card pm--safety">
+      <h4>Safety</h4>
+      <div class="pm-sub">Kill anything, anytime · all live today</div>
+      <ul>
+        <li>Sentiment kill (≤ −0.75)</li>
+        <li>Risk gate fail-closed on unprotected book</li>
+        <li>Protection ladder → naked flatten</li>
+        <li>Token-gated proxies (paper-only by construction)</li>
+        <li>Dead-man switches · session/holiday guards</li>
+      </ul>
+    </div>
+    <div class="pm-card pm--proof">
+      <h4>Proof</h4>
+      <div class="pm-sub">The actual moat</div>
+      <ul>
+        <li><code>public.trade_ledger</code> — cost-survived R</li>
+        <li>Candidate path trace + audit_status finalizer</li>
+        <li>LLM self-metering → <code>llm_usage_log</code></li>
+        <li>Live operations console (8s feed)</li>
+        <li>Maya harness 17/17 · CI commit gate</li>
+      </ul>
+    </div>
+  </div>
+
+  <!-- ======================= CHANGELOG v6.0 ======================= -->
+  <div class="changelog">
+    <h3>● What Changed — July 5 → August 3, 2026 (v6.0)</h3>
+    <ul>
+
+      <li><span class="date">Jul 07</span><span><strong>Conclave ratifies the four-plane architecture (v5.9) with binding amendments.</strong>
+        D1 air-gap Discovery rather than delete it; D2 <strong>Filter/Guard doctrine</strong> — a layer is a GUARD only if it
+        fires on &lt;5% of episodes, prevents tail-shaped events and makes no alpha claim, otherwise it is a FILTER and must prove
+        blocked-cohort expectancy ≤0 (day-level t≥2) within 60 days or retire; D3 add a single authoritative Regime Service;
+        D4 <em>reverses</em> the staging deferral (G14-lite ships); D5 replaces the headcount milestone with a statistical gate.
+        Mechanism: migration <code>qtp_gate_registry_and_evidence_runs_20260707</code> → <code>quantum.gate_registry</code>.
+        <strong>Unclassified gates may not block live trades.</strong></span></li>
+
+      <li><span class="date">Jul 07–08</span><span><strong>TSM protection ladder v4.3.2, order-lifecycle ingestor, cost-model self-validation v0.</strong>
+        Cost truth measured for the first time: <strong>−13.2 bp/side, ~−20 bp round-trip</strong>. New invariant shipped —
+        <em>no position may outlive its exit machinery</em> (orphan carryover flatten).</span></li>
+
+      <li><span class="date">Jul 09–10</span><span><strong>The QET measurement spine lands — a second live schema.</strong>
+        Six migrations create <code>public.*</code>: <code>trade_ledger</code> (intent vs execution per trade, slippage/P&amp;L/R
+        derived by DB trigger), <code>edge_metrics_by_strategy</code> (win rate, E[R], PF, t-stat, annualized Sharpe, full-Kelly f*),
+        plus <code>portfolios / signals / positions / audit_log / pnl_snapshots</code>. RLS on, service-role writes only.
+        Three n8n workflows ship with it: <code>qet-kelly-risk-gate-h2</code>, <code>qet-h4-exit-sync</code> (5-min exit poll),
+        <code>qet-h5-reconciliation-weekly-report</code> (nightly broker-fill reconciliation + Sunday edge scoreboard).</span></li>
+
+      <li><span class="date">Jul 10</span><span><strong>Gate-K — fractional-Kelly risk manager goes live (paper).</strong>
+        <code>public.compute_kelly_gate()</code> is called immediately before order submission on <em>both</em> the QET path and the
+        legacy pipeline (shim, governance row 79). Probation 0.50% risk below 40 closed trades/90d per strategy; quarter-Kelly capped
+        by the 1% Gate-1 ceiling; drawdown de-lever ×1.0 / ×0.6 / ×0.35; <strong>hard halt at 12% DD</strong>; fails closed.
+        It can only ever <em>tighten</em> legacy sizing, never loosen it.</span></li>
+
+      <li><span class="date">Jul 10</span><span class=""><strong>Alpaca key-rotation incident → structural fix.</strong>
+        Stale embedded keys 401'd TSM / ingestor / AFTO; TSM was blind ~5h and an unprotected ASML short was auto-recovered on the
+        first authenticated run. Response removed the incident <em>class</em>: two new token-gated proxies
+        (<code>qtp-alpaca-paper-broker-proxy</code>, <code>qtp-telegram-proxy</code>) hold the named credentials, with method/path
+        allowlists and the <strong>PAPER host hardcoded — the proxy cannot reach the live API by construction</strong>.
+        TSM v1.5 → v2.1 migrated to run entirely through them (trading logic byte-identical). A GTC-poll cron timezone bug
+        (UTC crons on an ET instance firing 4h late) was fixed in the same batch.</span></li>
+
+      <li><span class="date">Jul 10</span><span><strong>Proxy token rotated out of code entirely (10c).</strong>
+        GitHub secret-scanning flagged the 48-hex internal token committed by design in batch 10b. Now an n8n instance Variable
+        <code>QTP_PROXY_TOKEN</code>, with <strong>fail-closed</strong> semantics — unset variable means both proxies reject every
+        request. The old token was replayed against the proxy and <em>rejected</em> (execution 374988); the value in git history is dead.</span></li>
+
+      <li><span class="date">Jul 11</span><span class="kill-row"><strong>⚠ Dormant-expression blackout — root-caused. The main pipeline was blind by typo.</strong>
+        Nine Postgres "write" nodes carried n8n expressions missing the leading <code>=</code>, so since creation they sent the literal
+        string <code>{{ $json.xxx }}</code> to Postgres, errored, and continued silently under <code>onError=continueRegularOutput</code>.
+        <strong>The main pipeline wrote ZERO <code>candidate_path_trace_10fc</code> rows, ever</strong> — 18,784 existing rows all traced
+        to the Signal-Agent writer, with <code>blocked_stage</code> populated 0/18,784. This is the likely mechanism behind the
+        05-29 "RISK_UNKNOWN" misdiagnosis: risk state wasn't unknown because risk failed, it was unknown because the writer was a
+        literal string. All nine fixed, plus four self-guarded side-branch stampers (VC_GATE / PAUSE_GUARD / BIAS_FILTER /
+        ALPACA_EXECUTOR), a Gate-K reject stamper, and a draft-regression guard. Governance row 82, workflow version <code>77d0ada6</code>.</span></li>
+
+      <li><span class="date">Jul 11</span><span><strong>Schema canon refreshed — the drift was inverted.</strong>
+        Canon didn't lag by omission; a whole new <code>public</code> spine was built 07-09/10 and now coexists with <code>quantum</code>.
+        The prior review's claim that "<code>public</code> is empty" was stale — 10 RLS policies verified live. Roles are now distinct:
+        <code>quantum.*</code> = forensic + execution store; <code>public.*</code> = the measurement spine.</span></li>
+
+      <li><span class="date">Jul 12</span><span><strong>/console becomes the live operations cockpit — Telegram is no longer the primary surface.</strong>
+        Migration <code>qtp_console_live_signalflow</code> adds <code>console.v_session_day</code>, <code>console.v_funnel_session</code>,
+        <code>console.v_cards_live</code>. Feed workflow <code>89MYBPYNrFTyWxx4</code> polls every <strong>8s</strong> with equity, day P&amp;L,
+        a real six-stage funnel and 40 streamed committee verdict cards. Operating principle set: <em>only /console is live; every other
+        surface is reload-only.</em> Honesty rule baked in — the back half of the funnel shows "→ sizing / not reached" rather than
+        inventing verdicts.</span></li>
+
+      <li><span class="date">Jul 16–17</span><span><strong>CI commit gate + repo-canonical n8n publish tooling.</strong>
+        <code>npm run ci</code> = secret ratchet → syntax check → gate provenance → full test suite, and every
+        <code>commit-*.command</code> runs it before <code>git commit</code>. Publishing to live n8n is
+        <code>workflow_dispatch</code>-only behind a <code>production</code> GitHub Environment with required reviewers, and a
+        <strong>staleness guard refuses to publish when live moved since the last export</strong>.</span></li>
+
+      <li><span class="date">Jul 17–20</span><span><strong>Gate logic extracted from n8n into testable modules (A2/A3).</strong>
+        Five gates — <code>vc_score</code>, <code>mtf</code>, <code>backtest</code>, <code>composite_opposition</code>,
+        <code>ai_conflict</code> — lifted verbatim out of live SM baseline <code>c91917bb</code> into pure, dependency-free
+        <code>lib/gates/*.js</code>. A 95-file baseline snapshot (90 code nodes + 4 SQL nodes + a manifest, secrets redacted,
+        per-node <code>sha256_live</code>) pins the source. The <strong>provenance drift gate</strong> fails closed if a source node's hash
+        moves, if a module has no provenance entry, or if a named unit test is missing. A vendored-inline bundler assembles all gates
+        into one namespaced IIFE for n8n Code nodes — <em>tooling only; wiring the live SM to call it is still PO-gated.</em></span></li>
+
+      <li><span class="date">Jul 20</span><span><strong>Whole LLM stack migrated: Grok → Claude Opus 4.8.</strong>
+        All four call sites moved to <code>api.anthropic.com/v1/messages</code> on model <code>claude-opus-4-8</code> —
+        analyst (Claude AI Analysis v2.0), signal analyzer v5.0, VC gatekeeper, and chart vision v4.5.0. Response contract,
+        AIJSON tail and every <code>_grok_*</code> telemetry field name preserved so downstream parsers were untouched.
+        <em>Scope note: the migration covered the SM only — the sentiment-kill scorer and the pre-market thesis crew still run on Grok-3.</em>
+        Amended same day to v1.1 after <code>claude-opus-4-8</code> returned 400 on an explicit temperature (bisected exec 421425) —
+        temperature removed. A duplicate enrichment leg was fixed in the same window.</span></li>
+
+      <li><span class="date">Jul 20</span><span><strong>audit_status finalizer + scalp→swing book conversion.</strong>
+        Bias-filter drops and SKIP-branch rows terminated before the finalizer and stayed <code>PENDING</code> forever, so the console
+        and funnel under-counted rejects; both builders now stamp <code>REJECTED</code> and <strong>1295 + 1556 historical rows were
+        backfilled</strong>. Separately, PO converted the book to swing: <code>QTP_SWING_MODE</code> disables the two scalp time-stops
+        while keeping every protective exit, and EOD/carryover flatten is off by variable. Verified live 07-20 — zero
+        <code>SCALP_EOD_CLOSE</code>, 6 positions carried overnight, all FULLY_PROTECTED.</span></li>
+
+      <li><span class="date">Jul 22</span><span><strong>Regime Service v2 + market-context analyst v2.3/v2.4.</strong>
+        v1 had been emitting <em>0.00% / CHOP / LOW on every row since 07-08</em> — its daily-bars call had no <code>start</code>
+        parameter, so Alpaca returned only today's partial bar and previous == last. v2 reads <code>prevDailyBar</code> from the
+        snapshot endpoint and adds 11-SPDR sector breadth. Analyst v2.3 maps each ticker's SIC code to its sector ETF and emits
+        <code>_mkt_alignment</code> (WITH_TAPE / AGAINST_TAPE / NEUTRAL_TAPE). v2.4 replaces the screenshot chart-vision path with
+        <code>qtpChartRead()</code> — a <strong>pixel-free</strong> read over 120 Polygon daily bars. All advisory, all fail-open;
+        <em>nothing gates on regime yet</em> — it earns block authority only through the Filter harness.</span></li>
+
+      <li><span class="date">Jul 22</span><span><strong>LLM self-metering.</strong> Every Opus call site now logs
+        <code>call_site, model, ticker, input_tokens, output_tokens, cost_usd</code> to <code>llm_usage_log</code> (fail-open,
+        4s timeout, INSERT-only under RLS), and the console renders live spend vs a $11.29 baseline. This is G13 finally closing
+        from the inside instead of via a dashboard bolted on the outside.</span></li>
+
+      <li><span class="date">Jul 24 → Aug 03</span><span><strong>The Maya regression harness — 17 suites, 181 checks, all green.</strong>
+        Live n8n Code nodes are monolithic and cannot import, so each load-bearing decision now has a hand-written <em>pure spec-mirror</em>
+        in <code>lib/</code> pinned by a suite: trail engine + ledger integrity (07-24), RCF MODERATE_DP exemption (07-27), plain-stop /
+        naked-flatten / exit-writer / risk-gate / bar-extreme trail / RCF stop-sim (07-31), real-ATR spec + taken-trade stop-sim (08-03).
+        Suite verified green on 2026-08-04: <strong>17/17 suites, 181 checks, 0 failures</strong>.</span></li>
+
+      <li><span class="date">Jul 30–31</span><span class="warn-row"><strong>⚠ Two execution defects found and mirrored.</strong>
+        A bracket protective stop was submitted as a <em>stop-limit</em>; on 07-30 BA's limit at 219.80 was never taken, the position
+        went naked, and was re-stopped 3% away at 221.47. Fix: protective stops are now <strong>plain stops</strong> (guaranteed fill),
+        with an optional naked-flatten when price runs more than 0.5% past the intended stop. The Conclave separately ruled that
+        <strong>drift-only (close-to-close) evidence is inadmissible</strong> for veto policy, because the live book exits ~73% of losses
+        through a ~1%-wide protective stop — which is why the stop-simulation harnesses exist at all.</span></li>
+
+      <li><span class="date">Aug 03</span><span class="warn-row"><strong>⚠ The 2% ATR proxy — live TSM has never used a real ATR.</strong>
+        The daily-bars call has no <code>start</code> and shares one <code>limit</code> across symbols, so roughly one bar comes back,
+        <code>calcATR</code> returns null, and the engine silently falls back to <code>entry × 0.02</code>. Measured consequence:
+        <strong>AES (real ATR 0.36%) and XPEV (real ATR 4.29%) were both trailed as if they moved 2.00%.</strong> The real-ATR spec
+        (freeze at entry, clamp to 0.4–6% of entry, floor <code>t1Move = max(1.5×ATR, 0.7% of entry)</code>, and <em>skip rather than
+        fall back</em> when invalid) is specced and test-pinned — <strong>flag still default OFF pending PO arm.</strong></span></li>
+
+      <li><span class="date">Jul 24</span><span class="kill-row"><strong>⚠ Worst day on record: −$1,382, and the trail engine never moved a stop.</strong>
+        Net edge read −$1,701 until LDOS (+$855) and AFL (+$12) were backfilled from broker truth, landing at −$833 — the ledger-completeness
+        invariant now flags broker-closed winners missing from the ledger (checks LEDGER-01/02). Every fix from this incident is
+        pinned by a test, which is the only reason it can't silently return.</span></li>
+
+    </ul>
+  </div>
+
+  <div class="changelog changelog--prior">
+    <h3>● What Changed — May 29 → July 5, 2026 (v5.8, prior)</h3>
+    <ul>
+      <li><span class="date">Jul 02</span><span><strong>Phase 0 Reject-Backtest — the MTF confluence score is anti-predictive.</strong>
+        189 episodes with market data, from 193 independent episodes (May 20 → Jul 2). Blocked signals earn
+        <strong>+15.4 bp/1h gross (t=+2.31)</strong>; passed signals earn <strong>−13.1 bp</strong>;
+        corr(<em>blended</em> score, r60) = <strong>−0.147</strong> (MTF-only among blocked: −0.137). Counter-trend scalps earn +35.6 bp/1h while fully
+        aligned setups earn −3.5 bp. Verdict: moving thresholds slides along an inverted axis. This finding is the origin of everything
+        in v5.9 and v6.0.</span></li>
+      <li><span class="date">Jul 02</span><span>Chart Vision <code>store:false</code>, Grok AIJSON v1.0 advisory, QTP-10FC heartbeat writer v4.2.2,
+        QTP-AFTO 15-min monitor rebuilt onto Supabase, RLS enabled on all 62 <code>quantum.*</code> tables, NYSE-2026 holiday guard.</span></li>
+      <li><span class="date">Jul 06</span><span>Chart-vision v4.4.0 goes chat-completions-primary — the Jul-6 verification showed
+        <code>store:false</code> did <em>not</em> cure the Responses API; every call had been served by the fallback. RCF drop-log +
+        <code>shadow_both_required_pass</code> go live.</span></li>
+    </ul>
+  </div>
+
+  <!-- ============================================================
+       PLANE A — ALPHA
+       ============================================================ -->
+  <div class="section-header">
+    <div class="section-num">A</div>
+    <div class="section-title">Alpha Plane — the hot path</div>
+    <span class="new-badge">RESHAPED v6.0</span>
+  </div>
+  <div class="section-desc">
+    The only place latency matters. A signal enters, is enriched with market context, is judged by a registry of
+    classified gates, is <em>sized</em> by Gate-K off measured edge, and leaves as a protected bracket order.
+    Everything that used to sit here for decoration has been moved to Research or deleted.
+  </div>
+
+  <div class="plane-wrap plane--alpha">
+    <div class="plane-tag">Alpha Plane · main SM <code>vaqfCaELhOEWnkdo</code> · 90 code nodes</div>
+
+    <div class="flow">
+      <span class="step">Scanner / TradingView</span><span class="sep">→</span>
+      <span class="step">Enrichment + Tape Context</span><span class="sep">→</span>
+      <span class="step">Signal State Machine</span><span class="sep">→</span>
+      <span class="step">Gate Registry</span><span class="sep">→</span>
+      <span class="step">Gate-K sizing</span><span class="sep">→</span>
+      <span class="step">Alpaca bracket</span><span class="sep">→</span>
+      <span class="step">TSM protection ladder</span><span class="sep">→</span>
+      <span class="step">trade_ledger</span>
+    </div>
+
+    <!-- ---------- A1 ---------- -->
+    <div class="section-header">
+      <div class="section-num">A1</div>
+      <div class="section-title">Signal Sources</div>
+    </div>
+    <div class="section-desc">
+      Two independent engines cross-validate each other. The S&amp;P 500 whitelist (audit fix C-2) bounds the
+      admissible universe for the scanner path; TradingView carries the Pine strategies.
+    </div>
+    <div class="grid-3">
+      <div class="node node--blue">
+        <div class="node-header"><div class="node-icon">TV</div><div><div class="node-name">TradingView Alerts</div><div class="node-type">Primary Signal Engine</div></div></div>
+        <div class="node-desc">Custom Pine strategies fire webhook alerts carrying a ~60-field JSON payload: scores, indicators, regime data, momentum engine output and backtest stats. Scalp and Swing profiles.</div>
+        <div class="node-detail">
+          <span>Payload:</span> ~60 fields (scores, RSI, ADX, MACD, VIX, SMA, volume, MTF, momentum)<br>
+          <span>Auth:</span> <span class="err">still unauthenticated — see G11</span>
+        </div>
+      </div>
+      <div class="node node--pink">
+        <div class="node-header"><div class="node-icon">BS</div><div><div class="node-name">Broad Scanner / RT Signal Agent</div><div class="node-type">Independent n8n Workflow</div></div></div>
+        <div class="node-desc">Polls Alpaca live snapshots on a schedule, evaluating momentum conditions and market-structure breaks (volume imbalance + price breakdown). Qualified signals feed the main webhook. Watched by a dedicated dead-man's-switch monitor.</div>
+        <div class="node-detail">
+          <span>Signals:</span> MOMENTUM SHORT / LONG, MARKET STRUCTURE BREAK<br>
+          <span>Guard:</span> dead-man's-switch workflow, timezone pinned America/New_York
+        </div>
+      </div>
+      <div class="node node--green">
+        <div class="node-header"><div class="node-icon">500</div><div><div class="node-name">S&amp;P 500 Ticker Whitelist</div><div class="node-type"><code>sp500.js</code> — Audit Fix C-2</div></div></div>
+        <div class="node-desc">Canonical constituent set plus approved ETFs, extensible via <code>SP500_EXTRA_TICKERS</code> / <code>SP500_TICKERS_FILE</code>. Bounds the scanner universe so ticker validation is a whitelist, not a regex.</div>
+        <div class="caution"><b>Note:</b> the book has expanded well beyond v5.8's nine names — recent incidents span AES, XPEV, BA, WMT, CBRE, JKHY, MAR, RMD, LDOS, AFL, ASML, WDAY. Exact live alert count is set in TradingView, not in the repo.</div>
+      </div>
+    </div>
+
+    <div class="arrow-down"><svg viewBox="0 0 24 28"><path d="M12 0 L12 24 M6 18 L12 26 L18 18"></path></svg></div>
+
+    <!-- ---------- A2 ---------- -->
+    <div class="section-header">
+      <div class="section-num">A2</div>
+      <div class="section-title">Ingestion &amp; Enrichment</div>
+      <span class="updated-badge">v4.6.0 · Jul 22</span>
+    </div>
+    <div class="grid-4">
+      <div class="node node--blue">
+        <div class="node-header"><div class="node-icon">WH</div><div><div class="node-name">Webhook Trigger</div><div class="node-type">Entry Point</div></div></div>
+        <div class="node-desc">Receives HTTP POST from TradingView or the scanner. Auto-detects payload nesting. Ingress guard writes a trace row (one of the nine nodes fixed on 07-11).</div>
+      </div>
+      <div class="node node--green node--updated">
+        <div class="node-header"><div class="node-icon">IE</div><div><div class="node-name">Indicator Enrichment v4.6.0<span class="updated-badge">SMA FIX</span></div><div class="node-type">Enrichment · Polygon</div></div></div>
+        <div class="node-desc">Computes derived indicators and hands <code>_polygon_key</code> downstream. <strong>v4.6.0 fixed a defect present since inception:</strong> <code>d.price_vs_sma50</code> was never populated, so the SM's 9/10 quality-gate SMA criterion failed on <em>every signal ever processed</em>.</div>
+        <div class="evidence"><b>Class of bug:</b> same family as the dormant-<code>=</code> blackout — a criterion that silently never passed, read for months as a working gate.</div>
+      </div>
+      <div class="node node--cyan node--updated">
+        <div class="node-header"><div class="node-icon">TC</div><div><div class="node-name">Market / Tape Context v2.3<span class="new-badge">NEW</span></div><div class="node-type">Analyst enrichment · gov #137</div></div></div>
+        <div class="node-desc">Maps the ticker's SIC code to its SPDR sector ETF via Polygon overview, then takes one Alpaca snapshot (SPY/QQQ/DIA/IWM + sector ETF) to classify whether the setup runs with or against the tape.</div>
+        <div class="node-detail">
+          <span>Emits:</span> <span class="val">_mkt_spy_pct _mkt_qqq_pct _mkt_sector_etf _mkt_sector_pct _mkt_sic_code</span><br>
+          <span>Verdict:</span> <span class="val">_mkt_alignment</span> = WITH_TAPE / AGAINST_TAPE / NEUTRAL_TAPE<br>
+          <span>Status:</span> <span class="warn">advisory, fail-open — gates nothing yet</span>
+        </div>
+        <div class="evidence"><b>Measurement plan:</b> join <code>_mkt_alignment</code> to outcomes in <code>trade_ledger</code>; compare expectancy WITH_TAPE vs AGAINST_TAPE after 30–50 closed trades <em>before</em> proposing any hard gate.</div>
+      </div>
+      <div class="node node--purple node--updated">
+        <div class="node-header"><div class="node-icon">CR</div><div><div class="node-name">Chart Read v2.4<span class="new-badge">PIXEL-FREE</span></div><div class="node-type">gov #138 · replaces screenshots</div></div></div>
+        <div class="node-desc"><code>qtpChartRead()</code> pulls 120 Polygon daily bars, computes structure numerically, and asks Opus for strict JSON. Keeps the existing <code>chart_vision_*</code> contract and adds <code>chart_key_support</code>, <code>chart_key_resistance</code>, <code>chart_swing_room</code>.</div>
+        <div class="evidence"><b>Why it exists:</b> the screenshot path (TradingView widget → thum.io → vision model) broke silently for weeks with zero P&amp;L impact — proof nothing consumed it. Reading numbers beats photographing a chart of the numbers.</div>
+      </div>
+    </div>
+    <div class="grid-2" style="margin-top:14px">
+      <div class="node node--green">
+        <div class="node-header"><div class="node-icon">SC</div><div><div class="node-name">Strat Cache Lookup</div><div class="node-type">Supabase RPC</div></div></div>
+        <div class="node-desc">Injects real backtest stats (<code>strat_total_trades</code>, <code>strat_profit_factor</code>, <code>strat_win_rate</code>) so the VC parser sees measured numbers instead of zeros. Refreshed 6 AM ET daily by the Strat Stats Cache Builder.</div>
+      </div>
+      <div class="node node--green">
+        <div class="node-header"><div class="node-icon">DQ</div><div><div class="node-name">Data Quality Engine</div><div class="node-type">Validation</div></div></div>
+        <div class="node-desc">Stamps market status (OPEN / PRE / AFTER / OVERNIGHT / WEEKEND), a 0–100 freshness score and staleness flags, so stale data can't reach a decision.</div>
+        <div class="node-detail"><span>Score:</span> 100 base, <span class="err">−30 invalid price</span>, <span class="warn">−15 stale</span>, <span class="warn">−10 missing VIX/SPY</span></div>
+      </div>
+    </div>
+
+    <div class="arrow-down"><svg viewBox="0 0 24 28"><path d="M12 0 L12 24 M6 18 L12 26 L18 18"></path></svg></div>
+
+    <!-- ---------- A3 ---------- -->
+    <div class="section-header">
+      <div class="section-num">A3</div>
+      <div class="section-title">Signal State Machine</div>
+      <span class="updated-badge">Opus 4.8 · Jul 20</span>
+    </div>
+    <div class="node node--red node--updated">
+      <div class="node-header"><div class="node-icon">SM</div><div><div class="node-name">Signal State Machine — <code>vaqfCaELhOEWnkdo</code></div><div class="node-type">Core Decision Engine + Kill Switches</div></div></div>
+      <div class="node-desc">
+        Classifies every signal into one of four routes and tracks per-ticker state with dedup keys. Score-gated heartbeat
+        promotion escalates hot signals without waiting for a state change. Accepts external kill signals from the Sentiment
+        pipeline and per-ticker MANUAL / GAP / LOSS / SENTIMENT triggers.
+        <strong>v6.0 changes:</strong> all LLM legs now call Claude Opus 4.8; terminal-stage stamping writes
+        <code>blocked_stage</code> at every exit; a Gate-K shim sizes every order before submission; and the five
+        entry-quality gates now have byte-verified spec-mirrors under test.
+      </div>
+      <div class="route-badge route-full">FULL — signal change passes kill switches</div>
+      <div class="route-badge route-promoted">PROMOTED — heartbeat score above threshold</div>
+      <div class="route-badge route-fast">FAST_ONLY — STAND ASIDE transition</div>
+      <div class="route-badge route-skip">SKIP — heartbeat below threshold</div>
+      <div class="node-detail" style="margin-top:10px">
+        <span>Version lineage (Jul 17 → Aug 3):</span><br>
+        <span class="val">c91917bb</span> (extraction baseline) → <span class="val">a2a419ae</span> (RCF audit-emit v3) →
+        <span class="val">fe73a421</span> (builder v1.1 NULL fix) → <span class="val">c26c87aa</span> (Anthropic migration) →
+        <span class="val">38696273</span> (dup-leg fix) → <span class="val">62910ab8</span> (audit_status finalize) →
+        <span class="val">1aaee601</span> (analyst v2.3) → <span class="val">a61428db</span> (analyst v2.4) →
+        <span class="val">51c179ad</span> (RCF exemption) → <span class="val">1a5c5ee9</span> (plain-stop)<br>
+        <span>Governance:</span> every change carries a row in <code>quantum.ssm_workflow_updates</code>
+      </div>
+      <div class="caution"><b>Rollback discipline:</b> one live promotion at a time, single-version republish, two clean weeks apart. n8n is authoritative for runtime; the repo is the reviewed snapshot — <strong>publishing from a stale repo would roll production backwards</strong>, so reconcile before publish, always.</div>
+    </div>
+
+    <!-- ---------- A4 ---------- -->
+    <div class="section-header">
+      <div class="section-num">A4</div>
+      <div class="section-title">Gate Registry — every layer classified or it cannot block</div>
+      <span class="new-badge">FILTER/GUARD DOCTRINE</span>
+    </div>
+    <div class="section-desc">
+      v5.8 advertised "14 defense layers" as a feature. The Conclave's D2 amendment made layer count a <em>cost</em> metric:
+      a <span class="fg fg--guard">GUARD</span> fires on &lt;5% of episodes, prevents tail-shaped events and makes no alpha claim —
+      it survives on a scenario doc plus a quarterly fire-drill (a guard that never demonstrably fired is a dead guard).
+      A <span class="fg fg--filter">FILTER</span> claims alpha and must prove blocked-cohort expectancy ≤0, cost-adjusted, at
+      day-level t≥2, within 60 days — or retire. Mixed gates split. Unclassified gates may not block live trades.
+      Expected steady state: <strong>6–8 layers that earn their kills</strong>, not 14.
+    </div>
+
+    <div class="grid-3">
+      <div class="node node--purple">
+        <div class="node-header"><div class="node-icon">VC</div><div><div class="node-name">VC Score Parser v2<span class="fg fg--filter">FILTER</span></div><div class="node-type">Extracted → <code>lib/gates/vc_score.js</code></div></div></div>
+        <div class="node-desc">Extracts the final composite (not the first numeric token) and applies the proven shadow calibration <code>slope 1.18 / intercept 0.55</code>. Threshold locked at ≥7. Sanity-checked: out-of-range scores dead-letter.</div>
+        <div class="node-detail"><span>Suite:</span> <code>test-vc-score-gate.js</code> — <span class="val">11/11</span> · IDs VC-01…VC-11</div>
+      </div>
+      <div class="node node--pink">
+        <div class="node-header"><div class="node-icon">MTF</div><div><div class="node-name">MTF Confluence<span class="fg fg--trial">ON TRIAL</span></div><div class="node-type">Extracted → <code>lib/gates/mtf.js</code></div></div></div>
+        <div class="node-desc">The gate Phase 0 proved anti-predictive. Now depends <em>only</em> on the engine decision — the redundant <code>mtfScore≥65 &amp;&amp; aiMtfScore≥65</code> double-check was removed and that removal is locked by a test so it cannot silently return. F1-B shadow runs alongside.</div>
+        <div class="node-detail"><span>Suite:</span> <code>test-mtf-gate.js</code> — <span class="val">9/9</span> · MTF-02 pins the double-check removal</div>
+        <div class="caution"><b>Live status:</b> the score is still not trusted for sizing. Console must render MTF as <em>under recalibration</em>, never as a trusted admit.</div>
+      </div>
+      <div class="node node--amber">
+        <div class="node-header"><div class="node-icon">BT</div><div><div class="node-name">Backtest Enforcement<span class="fg fg--filter">FILTER</span></div><div class="node-type">Extracted → <code>lib/gates/backtest.js</code></div></div></div>
+        <div class="node-desc">Tier select across strict / relaxed / high-vol regimes with an F2 profit-factor shadow. <strong>Fails CLOSED on <code>UNKNOWN</code></strong> — missing evidence is treated as disqualifying, not as permission.</div>
+        <div class="node-detail"><span>Suite:</span> <code>test-backtest-gate.js</code> — <span class="val">8/8</span> · BT-01…BT-08</div>
+      </div>
+      <div class="node node--amber">
+        <div class="node-header"><div class="node-icon">CO</div><div><div class="node-name">Composite Opposition<span class="fg fg--filter">FILTER</span></div><div class="node-type">Extracted → <code>lib/gates/composite_opposition.js</code></div></div></div>
+        <div class="node-desc">Entry-quality second opinion: vetoes when ≥2 of 7 independent sources oppose the trade direction.</div>
+        <div class="node-detail"><span>Suite:</span> <code>test-composite-opposition-gate.js</code> — <span class="val">8/8</span> · CO-01…CO-08</div>
+      </div>
+      <div class="node node--amber">
+        <div class="node-header"><div class="node-icon">AC</div><div><div class="node-name">AI Conflict<span class="fg fg--filter">FILTER</span></div><div class="node-type">Entry-quality composite, part 2/2 — chartered <code>EQ</code></div></div></div>
+        <div class="node-desc">Hard conflicts are never waived. Soft conflicts are waived only under full paper soft-allow with bias ≥60 — the waiver conditions are explicit and tested rather than emergent. Despite the "guard" in its module name, the July gate registry charters it as a FILTER: an entry-quality veto makes an alpha claim, so it must prove blocked-cohort expectancy like any other filter.</div>
+        <div class="node-detail"><span>Suite:</span> <code>test-ai-conflict-gate.js</code> — <span class="val">13/13</span> · AC-01…AC-13</div>
+      </div>
+      <div class="node node--pink node--updated">
+        <div class="node-header"><div class="node-icon">RCF</div><div><div class="node-name">Regime-Conflict Filter<span class="fg fg--trial">ON TRIAL</span></div><div class="node-type">MODERATE_DP exemption · Jul 27</div></div></div>
+        <div class="node-desc">The regime veto that killed the 6×-alpha BUY side. A carve-out now exempts the winning cohort (BUY + CONTRARIAN_SHORT options regime + <code>dp=MODERATE_DISTRIBUTION</code>) behind a reversible flag — <strong>shipped ON</strong>, revertible in one edit via <code>QTP_RCF_MODERATE_DP_EXEMPT=off</code>; the VC gatekeeper prompt and the parser's kill detection were amended in the same atomic change.</div>
+        <div class="evidence"><b>Evidence:</b> <code>rcf_shadow</code> n=15 → <strong>+1.34% mean, 67% win</strong> on the exempted cohort. Genuine hard conflicts are <em>still</em> killed (check VCKILL-02).</div>
+        <div class="node-detail"><span>Suite:</span> <code>test-rcf-moderate-dp-exempt.js</code> — <span class="val">12/12</span></div>
+      </div>
+    </div>
+
+    <div class="defense-stack" style="margin-top:16px">
+      <div class="defense-layer"><span class="num" style="background:var(--cyan-dim);color:var(--cyan)">G</span>
+        <span><strong>Surviving guards</strong> — VIX extreme, daily drawdown halt, sentiment kill, market-hours / weekend / NYSE-holiday gates, ATR-extreme block, fill-dedup, re-entry cooldown. Tail-shaped, low fire-rate, no alpha claim.</span></div>
+      <div class="defense-layer"><span class="num" style="background:var(--amber-dim);color:var(--amber)">F</span>
+        <span><strong>Filters on the clock</strong> — VC score, backtest enforcement, composite opposition, AI conflict (EQ), bias filter. Each must produce a blocked-cohort expectancy read-out or retire. The July registry charters <strong>24 gates: 12 filters, 8 guards</strong>, the remainder split or pending.</span></div>
+      <div class="defense-layer"><span class="num" style="background:var(--pink-dim);color:var(--pink)">T</span>
+        <span><strong>On trial</strong> — MTF (v8 A/B/C shadows), RCF (exemption cohort), tape alignment (tag-only). None may claim Guard status to escape the Filter track.</span></div>
+      <div class="defense-layer"><span class="num" style="background:rgba(100,116,139,0.2);color:var(--text-muted)">?</span>
+        <span><strong>Unclassified = cannot block.</strong> The registry table <code>quantum.gate_registry</code> is the enforcement mechanism, not a spreadsheet.</span></div>
+    </div>
+
+    <div class="arrow-down"><svg viewBox="0 0 24 28"><path d="M12 0 L12 24 M6 18 L12 26 L18 18"></path></svg></div>
+
+    <!-- ---------- A5 ---------- -->
+    <div class="section-header">
+      <div class="section-num">A5</div>
+      <div class="section-title">Gate-K — the risk manager</div>
+      <span class="new-badge">NEW v6.0 · LIVE (PAPER)</span>
+    </div>
+    <div class="section-desc">
+      The single most important structural change since v5.8: <strong>sizing and admission are now separated from
+      decision-making.</strong> One Postgres function, <code>public.compute_kelly_gate</code> (18-arg, v2.1), is called
+      immediately before order submission on both the QET path and the legacy pipeline. It returns a jsonb verdict the
+      workflow acts on verbatim, and it can only ever <em>tighten</em> legacy sizing. Rationale from the 07-06→10 week:
+      <strong>~70% of realized losses were protection and regime defects, not bad picks.</strong>
+    </div>
+    <div class="grid-4">
+      <div class="node node--red">
+        <div class="node-header"><div class="node-icon">K1</div><div><div class="node-name">Regime Filter<span class="fg fg--filter">FILTER</span></div><div class="node-type">Admission</div></div></div>
+        <div class="node-desc">Reads <code>quantum.regime_state</code>; rejects counter-regime entries (bearish in an UP trend, bullish in DOWN). Degrades gracefully — skips and flags — if regime is stale &gt;90 min.</div>
+        <div class="evidence"><b>Evidence:</b> counter-regime shorts cost <strong>−$485 realized</strong> in the week of 07-06 against an up-tape.</div>
+      </div>
+      <div class="node node--red">
+        <div class="node-header"><div class="node-icon">K2</div><div><div class="node-name">Born-Protected Stop Sanity<span class="fg fg--filter">FILTER</span></div><div class="node-type">Admission</div></div></div>
+        <div class="node-desc">Rejects stops on the wrong side of entry and widths above 5%. Enforces <em>at admission</em> what TSM previously repaired after the fact.</div>
+        <div class="evidence"><b>Evidence:</b> WDAY ran <strong>−4.4% unstopped</strong>; ASML entered naked.</div>
+      </div>
+      <div class="node node--red">
+        <div class="node-header"><div class="node-icon">K3</div><div><div class="node-name">Stop-Out Cooldown<span class="fg fg--filter">FILTER</span></div><div class="node-type">Admission</div></div></div>
+        <div class="node-desc">Same symbol and direction stopped out within 24h → reject. Armed for the legacy flow by the H3-legacy ledger tap (governance row 80).</div>
+        <div class="evidence"><b>Evidence:</b> WDAY, ASML and CBRE were each re-traded within a day of stopping out.</div>
+      </div>
+      <div class="node node--cyan">
+        <div class="node-header"><div class="node-icon">K4</div><div><div class="node-name">Fractional-Kelly Sizing<span class="fg fg--guard">GUARD</span></div><div class="node-type">Sizing</div></div></div>
+        <div class="node-desc">Risk-normalized quantity from <em>measured</em> edge. Probation 0.50% until n≥40 closed trades per strategy; quarter-Kelly capped at the 1% Gate-1 ceiling; drawdown de-lever ×1.0 / ×0.6 / ×0.35; <strong>hard halt at 12% DD</strong>. Notional capped by <code>portfolios.concentration_limit_pct</code>.</div>
+        <div class="evidence"><b>Evidence:</b> flat ~$3,800 notional meant WDAY risked <strong>4.4%</strong> while CBRE risked <strong>0.01%</strong> — per-trade risk was effectively uncontrolled.</div>
+      </div>
+    </div>
+    <div class="node node--amber" style="margin-top:14px">
+      <div class="node-header"><div class="node-icon">!</div><div><div class="node-name">Gate-K — honest caveats</div><div class="node-type">What this does NOT yet claim</div></div></div>
+      <div class="node-desc">
+        Live edge is <strong>n&lt;40 per strategy</strong>, so sizing is in probation and is <em>not yet Kelly-driven</em>.
+        The "measured edge" claim is <strong>cost-observed, not yet cost-survived</strong> — the t-stat has not cleared 2.
+        Volatile-ticker trailing-stop exits are not yet polled by H4, so those ledger rows stay open. Legacy signals the
+        shim cannot parse fail OPEN by design (unsized, legacy sizing retained). Verification to date: Maya fixture battery
+        7/7 plus an exact concentration-cap proof and an end-to-end webhook proof through H2.
+      </div>
+    </div>
+
+    <div class="arrow-down"><svg viewBox="0 0 24 28"><path d="M12 0 L12 24 M6 18 L12 26 L18 18"></path></svg></div>
+
+    <!-- ---------- A6 ---------- -->
+    <div class="section-header">
+      <div class="section-num">A6</div>
+      <div class="section-title">Execution &amp; Protection Ladder</div>
+      <span class="updated-badge">PLAIN STOP · Jul 30</span>
+    </div>
+    <div class="grid-4">
+      <div class="node node--green node--updated">
+        <div class="node-header"><div class="node-icon">AP</div><div><div class="node-name">Alpaca Paper Trade<span class="updated-badge">PLAIN STOP</span></div><div class="node-type">Execution · <code>1a5c5ee9</code></div></div></div>
+        <div class="node-desc">GTC bracket orders on the paper account, sized by Gate-K. The protective leg is now a <strong>plain stop with no limit price</strong> — guaranteed fill. An optional naked-flatten market-exits when price runs more than 0.5% past the intended stop.</div>
+        <div class="evidence"><b>Why:</b> on 07-30 BA's stop-<em>limit</em> at 219.80 was never taken; the position went naked and was re-stopped 3% away at 221.47.</div>
+        <div class="node-detail"><span>Suite:</span> <code>test-bracket-plain-stop.js</code> — <span class="val">13/13</span> · STOP / RECOV / BA / NAKED</div>
+      </div>
+      <div class="node node--amber node--updated">
+        <div class="node-header"><div class="node-icon">TSM</div><div><div class="node-name">Trailing Stop Manager v2.2</div><div class="node-type">Tier engine · <code>vFnPjyx8srnzcYgV</code></div></div></div>
+        <div class="node-desc">Tier ladder T1 → breakeven, T2 → +1.5 ATR, T3 → +3 ATR. All Alpaca and Telegram transport runs through the token-gated proxies. Fixes pinned by test: a protective stop is not a duplicate close; a dead ATR produces <em>no</em> stop rather than a garbage one.</div>
+        <div class="node-detail"><span>Suite:</span> <code>test-tsm-trail-guard.js</code> — <span class="val">21/21</span> · TSM / H5 / WY / BX / LEDGER</div>
+      </div>
+      <div class="node node--red node--missing">
+        <div class="node-header"><div class="node-icon">ATR</div><div><div class="node-name">Real ATR<span class="missing-badge">SPEC'D, FLAG OFF</span></div><div class="node-type"><code>QTP_TSM_REAL_ATR_v1_20260803</code></div></div></div>
+        <div class="node-desc">Live TSM has never used a real ATR: the daily-bars call has no <code>start</code> and shares one <code>limit</code> across symbols, so <code>calcATR</code> returns null and the engine falls back to <code>entry × 0.02</code>. The fix freezes ATR at entry, clamps valid range to 0.4–6% of entry, floors <code>t1Move = max(1.5×ATR, 0.7% of entry)</code>, and <strong>skips rather than proxies</strong> when invalid.</div>
+        <div class="evidence"><b>Measured:</b> AES real ATR <strong>0.36%</strong> and XPEV real ATR <strong>4.29%</strong> were both trailed as 2.00%.</div>
+        <div class="node-detail"><span>Suite:</span> <code>test-tsm-atr.js</code> — <span class="val">13/13</span> · <span class="warn">flag default OFF pending PO arm</span></div>
+      </div>
+      <div class="node node--purple node--updated">
+        <div class="node-header"><div class="node-icon">SW</div><div><div class="node-name">Swing Mode<span class="new-badge">PO DECISION</span></div><div class="node-type">Scalp Exit Watcher · gov #132</div></div></div>
+        <div class="node-desc">The book converted from scalp to swing. <code>QTP_SWING_MODE</code> disables the two scalp time-stops (60-min losing, 90-min flat/red) while keeping <em>every</em> protective exit. EOD and carryover flatten are off by n8n variable — orphan and naked-position flatten remain on.</div>
+        <div class="evidence"><b>Verified live 07-20 15:59 ET:</b> zero <code>SCALP_EOD_CLOSE</code>, 6 positions carried overnight, all FULLY_PROTECTED, ~+$1,176 unrealized.</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ============================================================
+       PLANE B — RESEARCH
+       ============================================================ -->
+  <div class="section-header">
+    <div class="section-num">B</div>
+    <div class="section-title">Research Plane — the slow path</div>
+    <span class="new-badge">NEW v6.0</span>
+  </div>
+  <div class="section-desc">
+    Minutes are fine here; evidence is mandatory. Nothing in this plane may change a live gate directly — it produces
+    verdicts that the governance plane promotes. This is where v5.8's "Layer 5" grew into an actual research function.
+  </div>
+
+  <div class="plane-wrap plane--research">
+    <div class="plane-tag">Research Plane · evidence manufacturing</div>
+
+    <div class="grid-4">
+      <div class="node node--purple">
+        <div class="node-header"><div class="node-icon">DRT</div><div><div class="node-name">Daily Research Thesis Crew</div><div class="node-type">08:30 ET · Bull / Bear / Judge</div></div></div>
+        <div class="node-desc">Pre-market adversarial crew writing one row to <code>quantum.daily_research_thesis</code>, holiday-guarded, TTL 16:30. The hot path consumes it as a <em>single pre-computed row read</em> — direct Postgres, p95 ≤500 ms, fail-open on TTL — so the debate never sits in the latency path. Runs on <code>grok-3-mini</code> analysts with a <code>grok-3</code> judge — <em>not</em> migrated to Opus.</div>
+        <div class="evidence"><b>Track record at ratification:</b> two-for-two on regime calls — called RISK_ON on Jul 6 while the book shorted a rally and lost; called CHOP on Jul 7.</div>
+      </div>
+      <div class="node node--cyan node--updated">
+        <div class="node-header"><div class="node-icon">RS</div><div><div class="node-name">Regime Service v2<span class="updated-badge">FIXED Jul 22</span></div><div class="node-type"><code>YIfED3NC8YyC7Ubv</code> · gov #136</div></div></div>
+        <div class="node-desc">One authoritative regime label, so Alpha, Safety and the thesis crew stop computing regime three different ways. 30-min cadence during market hours; fails hard on missing Alpaca credentials rather than emitting a fake label.</div>
+        <div class="node-detail">
+          <span>Writes:</span> <code>quantum.regime_state</code> — trend, volatility, block key, SPY/QQQ day returns, 5-min realized vol<br>
+          <span>Universe:</span> SPY QQQ DIA IWM + 11 SPDR sectors (breadth: sectors up / down)<br>
+          <span>Vol bands (bp):</span> <span class="val">&lt;8 LOW · ≤16 NORMAL · ≤30 ELEVATED · else EXTREME</span><br>
+          <span>Method:</span> <code>QTP_REGIME_V2_SECTORS_20260722</code>
+        </div>
+        <div class="evidence"><b>The bug it fixed:</b> v1's daily-bars call had no <code>start</code>, so Alpaca returned only today's partial bar, previous == last, and <strong>every row since 07-08 read 0.00% / CHOP / LOW.</strong> A regime service that always said CHOP is worse than none — it looked healthy.</div>
+      </div>
+      <div class="node node--pink">
+        <div class="node-header"><div class="node-icon">SS</div><div><div class="node-name">Stop-Simulation Harnesses<span class="new-badge">NEW</span></div><div class="node-type">RCF backfill + taken-trade bands</div></div></div>
+        <div class="node-desc">Replay engines that ask what a blocked or taken trade <em>would actually have done</em> given a real protective stop — including gap-through handling, where a day opening below the stop realizes at the open, not at the stop.</div>
+        <div class="evidence"><b>Conclave ruling (07-31):</b> drift-only close-to-close evidence is <strong>INADMISSIBLE</strong> for veto policy, because the live book exits ~73% of losses through a ~1%-wide protective stop. Counterfactuals must model the stop.</div>
+        <div class="node-detail"><span>Suites:</span> <code>test-rcf-stop-sim.js</code> <span class="val">7/7</span> · <code>test-taken-stop-sim.js</code> <span class="val">6/6</span></div>
+      </div>
+      <div class="node node--purple node--updated">
+        <div class="node-header"><div class="node-icon">BO</div><div><div class="node-name">Model Bake-Off → Opus 4.8<span class="updated-badge">DECIDED Jul 20</span></div><div class="node-type">Seats by calibration, not by vibes</div></div></div>
+        <div class="node-desc">The 30-day sampled bake-off (Brier-scored, kill criterion at HOLD&gt;60% with n≥30) resolved the <em>decision</em> seat. All four SM call sites moved to <code>claude-opus-4-8</code> with the response contract, AIJSON tail and <code>_grok_*</code> telemetry field names preserved so no downstream parser changed. The two non-SM seats — sentiment scoring and the thesis crew — kept Grok-3 and have not been re-contested.</div>
+        <div class="caution"><b>Migration scar worth remembering:</b> <code>claude-opus-4-8</code> returns 400 on an explicit temperature. Bisected to exec 421425; temperature removed in v1.1 the same day.</div>
+      </div>
+    </div>
+
+    <div class="connector"><span class="connector-line"></span> Verdicts leave this plane only through the governance gate — never straight into a live threshold <span class="connector-line"></span></div>
+
+    <!-- Mothballed Discovery -->
+    <div class="retired-wrap" style="margin-top:6px">
+      <div class="retired-tag">◇ Air-gapped by Conclave D1 — not deleted</div>
+      <div class="grid-3">
+        <div class="node node--retired">
+          <div class="node-header"><div class="node-icon">PW</div><div><div class="node-name">Playwright Script Scraper<span class="retired-badge">MOTHBALLED</span></div><div class="node-type">Railway · nightly TradingView scrape</div></div></div>
+          <div class="node-desc">Headless Chromium logging into TradingView to extract Pine source and chart screenshots, ~40–60 scripts/run.</div>
+          <div class="revive"><strong>Resurrection bar:</strong> a candidate must be a deterministic, backtestable rule that beats the trade-all baseline on the frozen-episode harness, out-of-sample.</div>
+        </div>
+        <div class="node node--retired">
+          <div class="node-header"><div class="node-icon">PX</div><div><div class="node-name">Perplexity Code Analysis<span class="retired-badge">MOTHBALLED</span></div><div class="node-type">"Senior quant trader" LLM scoring</div></div></div>
+          <div class="node-desc">Estimated Net %, win rate, profit factor, Sharpe and max DD from reading Pine source, and scored 1–10.</div>
+          <div class="revive"><strong>Why it stopped:</strong> Phase 0 had just proved a <em>quantitative</em> deployed score was anti-predictive. An LLM estimating backtest statistics from source code is strictly weaker evidence than the score that already failed.</div>
+        </div>
+        <div class="node node--retired">
+          <div class="node-header"><div class="node-icon">G4</div><div><div class="node-name">Grok-4 Vision Ranking<span class="retired-badge">BARRED</span></div><div class="node-type">Chart-screenshot scoring · ~$0.05/shot</div></div></div>
+          <div class="node-desc">Scored strategies by looking at pictures of their charts, wrote to Google Sheets, and Telegrammed the top five.</div>
+          <div class="revive"><strong>Permanent bar:</strong> LLM screenshot scores may never be a ranking signal. They may only <em>nominate</em> rules for the harness to judge. Candidates park in <code>quantum.strategy_candidates</code> as <code>hypothesis_only</code>.</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ============================================================
+       PLANE C — SAFETY
+       ============================================================ -->
+  <div class="section-header">
+    <div class="section-num">C</div>
+    <div class="section-title">Safety Plane — kill anything, anytime</div>
+  </div>
+  <div class="section-desc">
+    Guards, not filters. None of these claim alpha; each exists to prevent a tail-shaped event. All live today, and each
+    one either fired demonstrably or is scheduled for a fire-drill under the Guard rules.
+  </div>
+
+  <div class="plane-wrap plane--safety">
+    <div class="plane-tag">Safety Plane · all live</div>
+    <div class="grid-4">
+      <div class="node node--red">
+        <div class="node-header"><div class="node-icon">KT</div><div><div class="node-name">Sentiment Kill</div><div class="node-type">Polygon news → Grok-3 scorer</div></div></div>
+        <div class="node-desc">Polls Polygon <code>/v2/reference/news</code> every 10 minutes over the watchlist with a 4-hour lookback and a daily dedup reset. Articles scoring <strong>≤ −0.75</strong> fire a kill signal straight to the SM and an immediate Telegram alert.</div>
+        <div class="node-detail"><span>Kill path:</span> <span class="err">independent of the main pipeline</span> — it can close a position the Alpha plane just opened<br>
+          <span>Model:</span> <span class="warn">still <code>grok-3</code> — the July migration covered the SM only</span></div>
+      </div>
+      <div class="node node--red node--updated">
+        <div class="node-header"><div class="node-icon">RG</div><div><div class="node-name">Risk Gate<span class="updated-badge">VIEW CREATED Jul 29</span></div><div class="node-type"><code>quantum.v_risk_gate_status</code></div></div></div>
+        <div class="node-desc">Summarizes the latest position-risk snapshot into <code>open_positions</code>, <code>fully_protected_positions</code>, <code>unprotected_positions</code>, <code>new_entry_blockers</code>, and a verdict: <code>ALLOW_WITH_NORMAL_GATES</code> or <code>BLOCK_NEW_ENTRIES</code>. Fail-closed on CRITICAL unprotected positions — <strong>proven: it froze the book on Jul 7.</strong></div>
+        <div class="evidence"><b>Unblocked:</b> AFTO can finally pause on unprotected positions instead of writing <code>UNKNOWN</code> — the view that G21 was waiting on now exists. Arming the pause flag is a PO decision.</div>
+        <div class="node-detail"><span>Suite:</span> <code>test-exit-writer-and-risk-gate.js</code> — <span class="val">14/14</span> · RECON / ORPHAN / GATE / AFTO</div>
+      </div>
+      <div class="node node--red node--updated">
+        <div class="node-header"><div class="node-icon">PL</div><div><div class="node-name">Protection Ladder</div><div class="node-type">TSM v2.2 · four rungs</div></div></div>
+        <div class="node-desc">Stop-width sanity (held legs wider than 1.2% are cancel/replaced) → naked-position recovery (<code>UNPROTECTED_AUDIT_ONLY</code> → GTC stop) → EOD 403 retry with leg-cancel → orphan carryover flatten.</div>
+        <div class="evidence"><b>Invariant:</b> <strong>no position may outlive its exit machinery.</strong></div>
+      </div>
+      <div class="node node--amber node--updated">
+        <div class="node-header"><div class="node-icon">PX</div><div><div class="node-name">Token-Gated Proxies<span class="new-badge">NEW Jul 10</span></div><div class="node-type">Broker + Telegram</div></div></div>
+        <div class="node-desc">Two proxy workflows hold the named credentials so Code-node workflows never carry keys. Method and path allowlists, data host read-only, and the <strong>PAPER host hardcoded — the proxy cannot reach the live Alpaca API by construction.</strong></div>
+        <div class="node-detail"><span>Auth:</span> n8n Variable <code>QTP_PROXY_TOKEN</code><br><span>Unset variable:</span> <span class="err">FAIL-CLOSED — every request rejected</span></div>
+      </div>
+    </div>
+    <div class="grid-4" style="margin-top:14px">
+      <div class="node node--amber">
+        <div class="node-header"><div class="node-icon">DM</div><div><div class="node-name">Dead-Man's Switches</div><div class="node-type">Scanner + Signal-Agent monitors</div></div></div>
+        <div class="node-desc">Two independent monitors alert when an upstream pipeline stops producing. Timezone pinned to <code>America/New_York</code> after the UTC-cron incident.</div>
+      </div>
+      <div class="node node--amber">
+        <div class="node-header"><div class="node-icon">SG</div><div><div class="node-name">Session &amp; Calendar Guards</div><div class="node-type">Weekend · NYSE-2026 holidays</div></div></div>
+        <div class="node-desc">Saturday/Sunday runs health checks only — no signal processing, no order routing. The NYSE-2026 holiday guard suppresses the zero-signal pause leg on closed days (verified engaged Jul 3).</div>
+      </div>
+      <div class="node node--amber">
+        <div class="node-header"><div class="node-icon">AF</div><div><div class="node-name">AFTO Coherence Monitor v4.4.0</div><div class="node-type">15-min telemetry</div></div></div>
+        <div class="node-desc">Fetch metrics → read Alpaca (now via a named credential, so <code>tradingBlocked</code> is no longer UNKNOWN) → write Supabase telemetry → pause advisory → Telegram. Writes <code>infra_telemetry_15m</code>, <code>telegram_grok_heartbeat</code>, <code>entry_pause_control</code>.</div>
+      </div>
+      <div class="node node--cyan">
+        <div class="node-header"><div class="node-icon">FL</div><div><div class="node-name">Flag-Gated Rollout</div><div class="node-type">Doctrine, not a node</div></div></div>
+        <div class="node-desc">Every new behavior ships behind a variable with a one-edit revert. <strong>Default OFF pending evidence:</strong> naked flatten, bar-extreme trail, real ATR, AFTO pause-on-unprotected. <strong>Shipped ON with a kill switch:</strong> RCF MODERATE_DP exemption, swing mode, chart-vision mode. A change that cannot be turned off in one edit does not ship.</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ============================================================
+       PLANE D — PROOF
+       ============================================================ -->
+  <div class="section-header">
+    <div class="section-num">D</div>
+    <div class="section-title">Proof Plane — the actual moat</div>
+    <span class="new-badge">THE POINT OF v6.0</span>
+  </div>
+  <div class="section-desc">
+    Citadel's edge is not 40 nodes; it is that nothing at Citadel runs unmeasured for three weeks. Everything below exists
+    to make "we believe this works" into a query someone can run.
+  </div>
+
+  <div class="plane-wrap plane--proof">
+    <div class="plane-tag">Proof Plane · measurement, governance, regression</div>
+
+    <div class="section-header"><div class="section-num">D1</div><div class="section-title">Measurement spine — <code>public.*</code></div><span class="new-badge">NEW SCHEMA</span></div>
+    <div class="grid-3">
+      <div class="node node--green node--updated">
+        <div class="node-header"><div class="node-icon">TL</div><div><div class="node-name">trade_ledger</div><div class="node-type">Intent vs execution, per trade</div></div></div>
+        <div class="node-desc">The row that makes edge measurable: intended entry and stop against what the broker actually did. Slippage, P&amp;L and R are derived by a <strong>database trigger</strong>, not by a workflow — so the arithmetic cannot drift between callers.</div>
+        <div class="evidence"><b>Proven to the decimal:</b> 10.0 bp entry slip → R 0.375; H4's UPDATE proven against prod in a rolled-back transaction (exit slip 6.12 bp, net −540, R −1.08).</div>
+      </div>
+      <div class="node node--green">
+        <div class="node-header"><div class="node-icon">EM</div><div><div class="node-name">edge_metrics_by_strategy</div><div class="node-type">View · the scoreboard</div></div></div>
+        <div class="node-desc">Win rate, E[R], profit factor, t-stat, annualized Sharpe and full-Kelly f* per strategy. This view is what Gate-K sizes from — <strong>the gate refuses to size off backtests, only off live ledger rows.</strong></div>
+      </div>
+      <div class="node node--green">
+        <div class="node-header"><div class="node-icon">CT</div><div><div class="node-name">Cost Truth</div><div class="node-type">COST_MODEL v0 · Jul 07</div></div></div>
+        <div class="node-desc">Execution cost measured rather than assumed: <strong>−13.2 bp/side, ~−20 bp round-trip.</strong> Every R in the ledger is computed net of measured slippage and fees, which is why a gross +35 bp cell can be net-flat.</div>
+        <div class="caution"><b>Conclave Q6 standing order:</b> before "cost truth online" may be declared done, modeled costs must be back-tested against real fills with the residual distribution published. <em>The cost model measures itself before it gates anything.</em></div>
+      </div>
+    </div>
+
+    <div class="section-header"><div class="section-num">D2</div><div class="section-title">Telemetry &amp; attribution</div></div>
+    <div class="grid-4">
+      <div class="node node--cyan node--updated">
+        <div class="node-header"><div class="node-icon">CP</div><div><div class="node-name">candidate_path_trace_10fc<span class="updated-badge">UNBLINDED Jul 11</span></div><div class="node-type">Per-candidate journey</div></div></div>
+        <div class="node-desc">Now actually written by the main pipeline, with <code>blocked_stage</code> and <code>blocked_reason</code> stamped at every terminal gate by five self-guarded side-branch stampers: VC_GATE, PAUSE_GUARD, BIAS_FILTER, ALPACA_EXECUTOR, GATE_K.</div>
+        <div class="evidence"><b>Before the fix:</b> <code>blocked_stage</code> populated <strong>0 of 18,784 rows</strong>, and the main pipeline had written none of them.</div>
+      </div>
+      <div class="node node--cyan node--updated">
+        <div class="node-header"><div class="node-icon">AS</div><div><div class="node-name">audit_status Finalizer<span class="new-badge">NEW Jul 20</span></div><div class="node-type"><code>quantum.exec_flow_audit</code> · gov #130/131</div></div></div>
+        <div class="node-desc">Bias-filter drops and SKIP-branch rows terminate before the late audit builder and used to stay <code>PENDING</code> forever, so the console under-counted rejects. Both builders now stamp <code>REJECTED</code>, a scheduled finalizer sweeps orphan PENDING rows every 15 minutes, and <strong>1295 + 1556 historical rows were backfilled</strong>.</div>
+        <div class="caution"><b>Documented residue:</b> ~42 SM-passed signals/day still die PENDING with no attribution and never reach the risk gate — a separate silent-path class, still open (G24).</div>
+      </div>
+      <div class="node node--purple node--updated">
+        <div class="node-header"><div class="node-icon">$</div><div><div class="node-name">llm_usage_log<span class="new-badge">NEW Jul 22</span></div><div class="node-type">Self-metering · gov #140</div></div></div>
+        <div class="node-desc">Each Opus call logs <code>call_site, model, ticker, input_tokens, output_tokens, cost_usd</code>, fail-open with a 4s timeout, INSERT-only under RLS. The console renders live spend and balance against a $11.29 baseline. This closes G13 from the inside rather than by bolting a dashboard on the outside.</div>
+      </div>
+      <div class="node node--cyan">
+        <div class="node-header"><div class="node-icon">OL</div><div><div class="node-name">Order-Lifecycle Ingestor v1.1</div><div class="node-type">G22 · not fills-only</div></div></div>
+        <div class="node-desc">Ingests new / replaced / canceled events, not just fills, so stop and bracket legs stop being invisible. Both July stop incidents were diagnosable only via execution forensics — this is the fix for that class. Alpaca fetch runs on a named credential with a market-window gate.</div>
+      </div>
+    </div>
+
+    <div class="section-header"><div class="section-num">D3</div><div class="section-title">Operations Console — the live cockpit</div><span class="new-badge">Jul 12</span></div>
+    <div class="grid-3">
+      <div class="node node--lime node--updated">
+        <div class="node-header"><div class="node-icon">CN</div><div><div class="node-name">/console</div><div class="node-type">8s poll · replaces Telegram as primary</div></div></div>
+        <div class="node-desc">Regime chips, equity, day P&amp;L, open count, protection state, net unrealized, a live pipeline strip (Signals → Bias/SSM → VC Gate → Gate-K → Execution → Ledger) with real per-stage counts, and streamed committee verdict cards with a scrollable 40-signal session history.</div>
+        <div class="node-detail"><span>Operating principle:</span> <span class="val">only /console is live</span> — every other surface is reload-only</div>
+      </div>
+      <div class="node node--green">
+        <div class="node-header"><div class="node-icon">CV</div><div><div class="node-name">console.v_* views</div><div class="node-type">Migration <code>qtp_console_live_signalflow</code></div></div></div>
+        <div class="node-desc"><code>v_session_day</code> (latest day with scanned candidates, so the cockpit is never blank), <code>v_funnel_session</code> (one row per pipeline stage with real counts), <code>v_cards_live</code> (recent candidate journeys, 5-day window). The facade normalizes across <em>both</em> schemas.</div>
+      </div>
+      <div class="node node--amber">
+        <div class="node-header"><div class="node-icon">HN</div><div><div class="node-name">Honesty Rules</div><div class="node-type">Carried forward by design</div></div></div>
+        <div class="node-desc">The front funnel is per-signal instrumented, so those cards are real. The back half is only sparsely per-signal today, so cards show <strong>"→ sizing / not reached"</strong> rather than inventing a verdict. Fail-soft: the console never renders stale numbers — it shows last-known plus reconnect state.</div>
+      </div>
+    </div>
+
+    <div class="section-header"><div class="section-num">D4</div><div class="section-title">Governance &amp; regression — how a change earns the right to ship</div></div>
+    <div class="grid-4">
+      <div class="node node--green node--updated">
+        <div class="node-header"><div class="node-icon">MY</div><div><div class="node-name">Maya Regression Harness<span class="updated-badge">17/17 · 181 checks</span></div><div class="node-type"><code>tests/run-all.js</code> · <code>npm test</code></div></div></div>
+        <div class="node-desc">Live n8n Code nodes are monolithic and cannot import, so each load-bearing decision has a hand-written <em>pure spec-mirror</em> in <code>lib/</code> — 13 modules across gates, TSM, RCF, reconciliation, risk and execution — each pinned by a suite whose check names read like a user complaint, not an implementation detail.</div>
+        <div class="evidence"><b>Verified 2026-08-04:</b> <code>17/17 suites passed</code>, 181 checks, 0 failures.</div>
+      </div>
+      <div class="node node--blue node--updated">
+        <div class="node-header"><div class="node-icon">PV</div><div><div class="node-name">Provenance Drift Gate<span class="new-badge">NEW</span></div><div class="node-type"><code>npm run check:gates</code></div></div></div>
+        <div class="node-desc">Each extracted module pins the sha256 of the live node it was extracted from, against a 95-file baseline snapshot at <code>c91917bb</code> (90 code nodes + 4 SQL nodes + the manifest). <strong>Fails closed</strong> if the source hash moves, if the pin disagrees with the manifest, if a module has no provenance entry, or if a named unit test is missing.</div>
+        <div class="node-detail"><span>Suite:</span> <code>test-gate-provenance.js</code> <span class="val">6/6</span> · <code>test-gate-bundle.js</code> <span class="val">11/11</span></div>
+      </div>
+      <div class="node node--blue">
+        <div class="node-header"><div class="node-icon">CI</div><div><div class="node-name">Commit Gate</div><div class="node-type"><code>npm run ci</code></div></div></div>
+        <div class="node-desc">Secret-leak baseline ratchet → syntax check → workflow JSON parse validation → gate provenance → full test suite. Every <code>commit-*.command</code> runs it <em>before</em> <code>git commit</code>, so a red suite cannot become a commit.</div>
+      </div>
+      <div class="node node--purple">
+        <div class="node-header"><div class="node-icon">CV</div><div><div class="node-name">Conclave + Governance Rows</div><div class="node-type"><code>quantum.ssm_workflow_updates</code></div></div></div>
+        <div class="node-desc">Every structural change (score, gate, exit model) needs a Conclave verdict plus PO authorization, and lands as a numbered governance row — rows 72–82 covered the QET spine, 121 the baseline snapshot, 127–140 the July migrations. Promotion is calibration-gated: <strong>one live promotion at a time, two clean weeks apart.</strong></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ============================================================
+       E — ENGINEERING DISCIPLINE
+       ============================================================ -->
+  <div class="section-header">
+    <div class="section-num">E</div>
+    <div class="section-title">Engineering Discipline — repo, baseline, delta</div>
+    <span class="new-badge">NEW v6.0</span>
+  </div>
+  <div class="section-desc">
+    v5.8 described CI/CD as "auto-deploy Railway on push". v6.0's discipline is stricter and points the other way:
+    the repo is the reviewed truth for <em>definitions</em>, n8n Cloud is the runtime, and the direction of truth is
+    established by <code>export</code> — never by assumption.
+  </div>
+  <div class="grid-4">
+    <div class="node node--blue">
+      <div class="node-header"><div class="node-icon">SY</div><div><div class="node-name">n8n Sync Tooling</div><div class="node-type"><code>.ci/n8n-sync.js</code></div></div></div>
+      <div class="node-desc"><code>export</code> pulls live into the repo, <code>diff</code> shows what would change, <code>publish</code> is <strong>dry-run by default</strong> and needs an explicit allow flag. No mass-publish — one <code>--id</code> at a time. The canonical JSON stores only name/nodes/connections/settings, never secrets.</div>
+      <div class="node-detail"><span>Publish:</span> <code>workflow_dispatch</code> only, behind a <code>production</code> environment with required reviewers</div>
+    </div>
+    <div class="node node--red node--updated">
+      <div class="node-header"><div class="node-icon">SG</div><div><div class="node-name">Staleness Guard<span class="new-badge">THE ONE RULE</span></div><div class="node-type">Never publish before reconciling</div></div></div>
+      <div class="node-desc">Publish refuses when live's <code>versionId</code> differs from the repo's last export. Auto-publishing to a live trading pipeline on every merge is unsafe by construction; publishing stays a deliberate, reviewed, governance-logged act.</div>
+      <div class="caution"><b>Standing condition:</b> the repo is <em>known stale</em> against live. Publishing from it today would roll production backwards. Reconcile first. Always. (G25)</div>
+    </div>
+    <div class="node node--green">
+      <div class="node-header"><div class="node-icon">BL</div><div><div class="node-name">Baseline Snapshot</div><div class="node-type"><code>_baseline_c91917bb/</code> · 95 files</div></div></div>
+      <div class="node-desc">90 code nodes + 4 SQL nodes exported from the live SM at one pinned version, secrets redacted, each carrying <code>sha256_live</code> in a manifest. Deliberately never edited — it is the fixed point everything else is measured against.</div>
+      <div class="node-detail"><span>Doctrine:</span> <span class="val">do not extract against an unrecorded baseline</span></div>
+    </div>
+    <div class="node node--purple">
+      <div class="node-header"><div class="node-icon">Δ</div><div><div class="node-name">Delta Directories</div><div class="node-type"><code>_delta_*/</code> convention</div></div></div>
+      <div class="node-desc">Six folders hold every change since baseline: anthropic migration, audit finalizer, RCF audit-emit (<code>_delta_fe73a421</code>), market context, swing conversion, WMT audit fixes. Five carry a README naming the live workflow id, version and governance row; the WMT folder is documented only in its node headers — a small hygiene gap. <strong>n8n is authoritative; the repo is the reviewed snapshot and the spec.</strong></div>
+    </div>
+  </div>
+
+  <!-- ============================================================
+       F — TECHNOLOGY STACK
+       ============================================================ -->
+  <div class="section-header">
+    <div class="section-num">F</div>
+    <div class="section-title">Technology Stack</div>
+    <span class="updated-badge">RESHAPED</span>
+  </div>
+  <div class="section-desc">
+    Fewer vendors than v5.8, and every remaining one has a measured consumer.
+  </div>
+  <div class="grid-5">
+    <div class="node node--purple node--updated">
+      <div class="node-header"><div class="node-icon">CL</div><div><div class="node-name">Claude Opus 4.8<span class="updated-badge">DECISION SEAT</span></div><div class="node-type">Anthropic Messages API</div></div></div>
+      <div class="node-desc">All four <em>SM</em> call sites: analyst, signal analyzer, VC gatekeeper, chart read. Model id <code>claude-opus-4-8</code>, key seeded through n8n variables with a seed-then-verify check that rejects placeholder-shaped keys. Every call self-meters. Note: temperature must be omitted — the model 400s on an explicit value.</div>
+    </div>
+    <div class="node node--blue node--updated">
+      <div class="node-header"><div class="node-icon">n8</div><div><div class="node-name">n8n Cloud</div><div class="node-type">Orchestration runtime</div></div></div>
+      <div class="node-desc">Main SM plus the QET workflows, proxies, monitors, thesis crew, regime service and console feed. Credentials are named; secrets live in credentials and instance variables, never in code.</div>
+    </div>
+    <div class="node node--green node--updated">
+      <div class="node-header"><div class="node-icon">SB</div><div><div class="node-name">Supabase<span class="updated-badge">TWO SCHEMAS</span></div><div class="node-type">qtp_prod</div></div></div>
+      <div class="node-desc">Two data schemas plus a read-only facade. <code>quantum.*</code> — the legacy pipeline's forensic and execution store, RLS on all tables. <code>public.*</code> — the QET measurement spine (portfolios, signals, positions, audit_log, pnl_snapshots, trade_ledger, edge_metrics view, Gate-K functions), 10 RLS policies verified live. <code>console.*</code> — SECURITY DEFINER views normalizing across both for the cockpit.</div>
+    </div>
+    <div class="node node--amber">
+      <div class="node-header"><div class="node-icon">AL</div><div><div class="node-name">Alpaca</div><div class="node-type">Execution + market data</div></div></div>
+      <div class="node-desc">Paper trading with bracket orders, snapshots and daily bars. Reached through the named <code>Alpaca-PAPER</code> credential directly, or through the paper-only broker proxy from Code-node workflows.</div>
+    </div>
+    <div class="node node--cyan">
+      <div class="node-header"><div class="node-icon">PG</div><div><div class="node-name">Polygon.io</div><div class="node-type">Market data + news</div></div></div>
+      <div class="node-desc">News for the sentiment kill, daily bars for the pixel-free chart read, ticker overview for SIC→sector mapping, options and cross-asset context.</div>
+    </div>
+  </div>
+  <div class="grid-5" style="margin-top:14px">
+    <div class="node node--green">
+      <div class="node-header"><div class="node-icon">TV</div><div><div class="node-name">TradingView</div><div class="node-type">Charting + Pine alerts</div></div></div>
+      <div class="node-desc">Pine strategies fire the primary alert stream. Note the asymmetry: TradingView is trusted as a <em>signal source</em> but is no longer trusted as a <em>rendering surface</em> — the screenshot path is gone.</div>
+    </div>
+    <div class="node node--green">
+      <div class="node-header"><div class="node-icon">GH</div><div><div class="node-name">GitHub + Actions</div><div class="node-type">CI gate + secret scanning</div></div></div>
+      <div class="node-desc"><code>SantoshA1/quantum-scraper</code>. CI runs the secret ratchet, syntax check, provenance gate and full suite. Secret scanning caught the committed proxy token within a day and drove the rotation.</div>
+    </div>
+    <div class="node node--lime">
+      <div class="node-header"><div class="node-icon">FE</div><div><div class="node-name">qlib-frontend</div><div class="node-type">Next.js · console + public site</div></div></div>
+      <div class="node-desc">Hosts <code>/console</code> (live, 8s poll), <code>/pnl-dashboard</code> (reload-only) and the public <code>/how-it-works</code> page. Theme-aware, fail-soft, never renders stale numbers.</div>
+    </div>
+    <div class="node node--green">
+      <div class="node-header"><div class="node-icon">TM</div><div><div class="node-name">Telegram</div><div class="node-type">Alerting — demoted</div></div></div>
+      <div class="node-desc">Still the kill-alert and report channel, but no longer the operations surface: <code>/console</code> replaced it on Jul 12. Sends run through the token-gated proxy so the bot token is out of workflow code.</div>
+    </div>
+    <div class="node node--lime">
+      <div class="node-header"><div class="node-icon">RW</div><div><div class="node-name">Railway</div><div class="node-type">External service host</div></div></div>
+      <div class="node-desc">Hosts the Node service (<code>app.js</code>), whose routes are gated by <code>requireInternalToken</code> — <code>/health</code> deliberately left open for the liveness probe, which is pinned by a test.</div>
+    </div>
+  </div>
+
+  <!-- ============================================================
+       G — RETIRED SURFACE
+       ============================================================ -->
+  <div class="section-header">
+    <div class="section-num">G</div>
+    <div class="section-title">Retired Surface — what v6.0 deleted, and why</div>
+    <span class="retired-badge">5 RETIRED · 1 PARTIAL</span>
+  </div>
+  <div class="section-desc">
+    Kept visible on purpose. Every one of these was once a headline stat. The pattern is identical each time:
+    <strong>an unconsumed output that nobody noticed had stopped working.</strong> Deleting them cost zero alpha —
+    which is the proof they were never producing any.
+  </div>
+  <div class="retired-wrap">
+    <div class="retired-tag">◇ Deleted / mothballed surface</div>
+    <div class="grid-3">
+      <div class="node node--retired">
+        <div class="node-header"><div class="node-icon">DK</div><div><div class="node-name">Databricks<span class="retired-badge">DECOMMISSIONED</span></div><div class="node-type">was "primary audit sink"</div></div></div>
+        <div class="node-desc"><code>trading_prod.quantum.exec_flow_audit</code> was promoted to primary in v5.6 and decommissioned by v5.9. All observability sinks are Supabase now, including the latency SLI that v5.8 specced against Databricks.</div>
+      </div>
+      <div class="node node--retired">
+        <div class="node-header"><div class="node-icon">PX</div><div><div class="node-name">Perplexity<span class="retired-badge">RETIRED</span></div><div class="node-type">was "8-section institutional report"</div></div></div>
+        <div class="node-desc">Retired from the loop when design review moved to the Quantlys Conclave in July. Its analytical role is now split between the thesis crew (advocacy) and the harness (adjudication).</div>
+      </div>
+      <div class="node node--amber">
+        <div class="node-header"><div class="node-icon">GK</div><div><div class="node-name">Grok-3<span class="updated-badge">PARTIAL — STILL LIVE</span></div><div class="node-type">Migrated out of the SM only</div></div></div>
+        <div class="node-desc"><strong>Not retired.</strong> The four SM call sites moved to Opus on Jul 20 — the <code>_grok_*</code> telemetry field names were deliberately preserved so no downstream parser had to change, and the names outlived the vendor <em>in the SM</em>. But Grok-3 still scores the sentiment kill, and <code>grok-3-mini</code> analysts with a <code>grok-3</code> judge still run the pre-market thesis crew. Two live seats, uncontested since the bake-off.</div>
+        <div class="revive"><strong>Consequence:</strong> spend and latency for those two seats sit outside <code>llm_usage_log</code>, which only meters the Anthropic call sites. Folded into G28.</div>
+      </div>
+      <div class="node node--retired">
+        <div class="node-header"><div class="node-icon">GS</div><div><div class="node-name">Google Sheets as database<span class="retired-badge">RETIRED</span></div><div class="node-type">was "4 sheets — safety net"</div></div></div>
+        <div class="node-desc">Alert Log, Shadow Log, Script Discovery Log and Indicator Candidates. A dual-write "safety net" that contradicted the Supabase consolidation and outlived its purpose once the audit tables were real.</div>
+      </div>
+      <div class="node node--retired">
+        <div class="node-header"><div class="node-icon">CV</div><div><div class="node-name">Screenshot Chart-Vision<span class="retired-badge">REPLACED</span></div><div class="node-type">widget → thum.io → vision model</div></div></div>
+        <div class="node-desc">Broken for weeks with zero P&amp;L impact, then fixed twice (<code>store:false</code>, then chat-completions-primary) before anyone asked what consumed it. Replaced Jul 22 by <code>qtpChartRead()</code>, which reads the numbers instead of photographing them.</div>
+        <div class="revive"><strong>The lesson, kept:</strong> advisory enrichment with no measured consumer is decoration, not defense-in-depth.</div>
+      </div>
+      <div class="node node--retired">
+        <div class="node-header"><div class="node-icon">DE</div><div><div class="node-name">Discovery Engine<span class="retired-badge">AIR-GAPPED</span></div><div class="node-type">3 workflows + Railway scraper</div></div></div>
+        <div class="node-desc">Set inactive rather than deleted, per Conclave D1. Its whole ranking mechanism was LLM opinion with no backtest evidence and, by v5.8's own admission, no bridge to production.</div>
+        <div class="revive"><strong>Revive when:</strong> candidates are ranked by replay expectancy on the same episode harness Phase 0 used, with a manifest and the governance approval gate.</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ============================================================
+       H — GAP REGISTER
+       ============================================================ -->
+  <div class="section-header">
+    <div class="section-num">H</div>
+    <div class="section-title">Gap Register v6.0</div>
+    <span class="missing-badge">21 OPEN · 9 CLOSED</span>
+  </div>
+  <div class="section-desc">
+    Nine of v5.8's twenty-one gaps closed in four weeks; twelve carried forward. Nine new ones were circled (G23–G31) —
+    ten counting G22, which v5.9 circled and v6.0 closes. Notably, most of the new ones are gaps <em>the new instrumentation
+    exposed</em>. That is the loop working: better measurement produces more known unknowns, not fewer.
+  </div>
+
+  <div class="missing-wrap">
+    <div class="missing-tag">⚠ Open — ranked</div>
+    <table class="dtable">
+      <thead><tr><th style="width:52px">Gap</th><th style="width:26%">Item</th><th style="width:14%">Status</th><th>Call</th></tr></thead>
+      <tbody>
+        <tr><td><strong class="r">G16</strong></td><td><strong>MTF score anti-predictive</strong></td><td class="r">CRITICAL — #1</td><td>corr(<em>blended</em> score, r60) = −0.147; MTF-only among blocked = −0.137; blocked signals earn +15.4 bp, passed earn −13.1 bp. v8 A/B/C shadows on the shared harness. No live gate change until a candidate beats "trade everything, correctly sized" out-of-sample.</td></tr>
+        <tr><td><strong class="r">G19</strong></td><td><strong>Exit geometry destroys edge</strong></td><td class="r">CRITICAL — #1 paired</td><td>SL hit on 59% of Phase 0 episodes; raw +15 bp/1h collapses to +1 bp under the bracket. Real-ATR spec is written and test-pinned but the <strong>flag is still OFF</strong> — see G27. Fit on frozen episodes, then freeze before any shadow read.</td></tr>
+        <tr><td><strong class="a">G17</strong></td><td>Borrow-cost accounting</td><td class="a">PARTIAL — #2</td><td>Slippage is measured (−13.2 bp/side) and lands in <code>trade_ledger</code>. <strong>Borrow cost on shorts is still unmodeled</strong>, and shorts have been most of the book — a gross-positive cell can still be net-negative.</td></tr>
+        <tr><td><strong class="a">G18</strong></td><td>Statistical risk layer</td><td class="a">PARTIAL — #3</td><td>Concentration is capped per position by Gate-K K4. Still missing: daily net/gross exposure summary, side skew, sector clustering, a parametric VaR floor and a correlation-aware sizer.</td></tr>
+        <tr><td><strong class="r">G27</strong></td><td><strong>Live TSM runs on a 2% ATR proxy</strong></td><td class="r">NEW v6.0 — high</td><td>Every trailing decision live today uses <code>entry × 0.02</code> regardless of the instrument. AES (0.36%) and XPEV (4.29%) trail identically. Spec + 13 checks exist; arming the flag is a PO decision.</td></tr>
+        <tr><td><strong class="a">G24</strong></td><td>~42 signals/day die PENDING</td><td class="a">NEW v6.0</td><td>SM-passed signals that never reach the risk gate and carry no attribution. A separate silent-path class from the one fixed on 07-20. Next trace.</td></tr>
+        <tr><td><strong class="a">G23</strong></td><td>SKIP candidates untraced</td><td class="a">NEW v6.0</td><td>SSM SKIP candidates get no trace rows at all — the gap is in the Signal-Agent writer workflow, not the main SM. Last blocker for a fully truthful Tier-1 console funnel.</td></tr>
+        <tr><td><strong class="a">G25</strong></td><td>Repo ↔ live reconciliation debt</td><td class="a">NEW v6.0</td><td>The repo is canonical by policy but stale in fact; the staleness guard is what prevents this from becoming an outage. Reconcile with <code>export</code> before the next publish.</td></tr>
+        <tr><td><strong class="a">G26</strong></td><td>Extracted gates not wired live</td><td class="a">NEW v6.0</td><td>The five gate modules and the bundler exist and are tested, but the live SM does not yet call <code>QTPGates</code>. Until it does, the tests guard a <em>mirror</em>, not the running code — provenance hashes are the only link.</td></tr>
+        <tr><td><strong class="r">G11</strong></td><td>Webhook HMAC + replay window</td><td class="r">OPEN — schedule</td><td>TradingView and scanner posts still arrive unauthenticated at the n8n entry point. Anyone who learns the URL can inject a signal that walks the whole pipeline. HMAC plus a ±60s nonce window.</td></tr>
+        <tr><td><strong class="a">G12</strong></td><td>End-to-end latency SLI</td><td class="a">OPEN</td><td>No wall-clock measure from alert fire → broker acceptance. p50/p95/p99 per run; sink is Supabase, not the decommissioned Databricks.</td></tr>
+        <tr><td><strong class="a">G28</strong></td><td>Metering blind spots</td><td class="a">NEW v6.0</td><td>Only two of four metered call sites are snapshotted in the repo, <code>llm_usage_log</code> has no DDL under version control, the Supabase anon JWT is inline in both snapshots (justified in-comment, INSERT-only under RLS), and <strong>the two surviving Grok seats — sentiment scoring and the thesis crew — are not metered at all.</strong></td></tr>
+        <tr><td><strong class="a">G29</strong></td><td>H4 misses trailing-stop exits</td><td class="a">NEW v6.0</td><td>Volatile-ticker trailing-stop exits are not polled, so those ledger rows stay open — which directly biases the edge scoreboard Gate-K sizes from.</td></tr>
+        <tr><td><strong class="a">G30</strong></td><td>Committed webhook secret</td><td class="a">NEW v6.0</td><td>The secret baseline documents a live webhook secret in a committed export. Rotate and scrub — PO action, independent of the proxy-token rotation already completed.</td></tr>
+        <tr><td><strong class="a">G14</strong></td><td>Shadow / staging mirror</td><td class="a">RATIFIED, NOT SHIPPED</td><td>D4 reversed the deferral: a shadow clone of the SM on a separate webhook path, output-parity assertion against the deterministic contract, <code>environment='shadow'</code> writes, no live execution. No shipping evidence found in the repo.</td></tr>
+        <tr><td><strong class="a">G7</strong></td><td>Alpaca clock probe</td><td class="a">RE-SCOPED — wiring</td><td>Credentials are consolidated and AFTO no longer reports UNKNOWN. What remains is the 5-min clock probe that trips a kill switch after N consecutive auth failures.</td></tr>
+        <tr><td><strong class="a">G5</strong></td><td>Dead-letter / replay queue</td><td class="a">OPEN</td><td>Malformed payloads are flagged but not quarantined. Need a dead-letter table plus a retry workflow with backoff.</td></tr>
+        <tr><td><strong class="a">G6</strong></td><td>Separated win-rate definitions</td><td class="a">OPEN</td><td>Signal-level, execution-level and closed-trade win rates are still conflated into one number. Each needs its own KPI for honest attribution.</td></tr>
+        <tr><td><strong class="a">G8</strong></td><td>Short-side guardrails</td><td class="a">OPEN — rising</td><td>Shorts run through the same gates as longs despite unbounded loss and borrow cost. More urgent now the book carries overnight under swing mode.</td></tr>
+        <tr><td><strong class="a">G9</strong></td><td>Clean performance attribution</td><td class="a">OPEN</td><td>Backtest coverage per ticker remains far below the parser's trade threshold. Attribution is still partly computed against thin figures.</td></tr>
+        <tr><td><strong class="a">G31</strong></td><td>QET ops residue</td><td class="a">NEW v6.0</td><td>Gate-3 auto-commit node still needs its GitHub credential and repo URL; fee true-up from Alpaca activities; options multi-leg support; H4 live-mode extension.</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <div class="section-header" style="margin-top:28px">
+    <div class="section-num">✓</div>
+    <div class="section-title">Closed since v5.8</div>
+  </div>
+  <table class="dtable">
+    <thead><tr><th style="width:52px">Gap</th><th style="width:30%">Item</th><th>How it closed</th></tr></thead>
+    <tbody>
+      <tr><td><strong class="g">G3</strong></td><td>Broker order-resolution</td><td>TSM v4.3.x shipped the full cancel/replace path — stop-width sanity, naked-position recovery (verified live on F), EOD 403 retry, orphan carryover flatten.</td></tr>
+      <tr><td><strong class="g">G4</strong></td><td><code>position_risk_state</code> consumer</td><td>Resolved with G21 — the summary view exists, so the table finally has a reader.</td></tr>
+      <tr><td><strong class="g">G21</strong></td><td>Risk-gate views not migrated</td><td><code>quantum.v_risk_gate_status</code> created 2026-07-29 and mirrored in <code>lib/risk/gate_status.js</code>, pinned by 5 of the 14 checks in <code>test-exit-writer-and-risk-gate.js</code> (the other 9 cover the reconciliation heal). AFTO can now pause on a real number.</td></tr>
+      <tr><td><strong class="g">G22</strong></td><td>Order-lifecycle ingestion</td><td>Ingestor v1.1 ingests new/replaced/canceled events, not just fills, on a named credential with a market-window gate.</td></tr>
+      <tr><td><strong class="g">G13</strong></td><td>AI spend monitor</td><td>Self-metering at the call site → <code>llm_usage_log</code> + live console spend. Partial residue tracked as G28.</td></tr>
+      <tr><td><strong class="g">G20</strong></td><td>Chart-vision health events</td><td>Moot — the screenshot path it was meant to observe was retired and replaced by the pixel-free chart read.</td></tr>
+      <tr><td><strong class="g">G15</strong></td><td>Discovery → production bridge</td><td>Moot while Discovery is air-gapped. Returns as the replay-ranking harness bridge if Discovery is ever revived.</td></tr>
+      <tr><td><strong class="g">G1/G2</strong></td><td>Overlay table + manual approval</td><td>Merged into the governance plane. The approver is a Conclave verdict plus PO authorization recorded in <code>ssm_workflow_updates</code>, not a Telegram button.</td></tr>
+      <tr><td><strong class="g">G10</strong></td><td>PostgREST schema cache</td><td>Cleared during the RLS migration cutover; kept for audit history.</td></tr>
+    </tbody>
+  </table>
+
+  <!-- ============================================================
+       I — THE PROOF LINE
+       ============================================================ -->
+  <div class="section-header">
+    <div class="section-num">I</div>
+    <div class="section-title">The Proof Line — what "beating Citadel" means next</div>
+  </div>
+  <div class="section-desc">
+    The milestone is a statistical gate, not a headcount. This is the D5 amendment, restated with August's status.
+  </div>
+  <table class="dtable">
+    <thead><tr><th style="width:32%">Gate</th><th style="width:14%">Status</th><th>Definition of done</th></tr></thead>
+    <tbody>
+      <tr><td><strong>1 · Exit model fixed</strong></td><td class="a">SPEC'D, OFF</td><td>ATR bracket fit on frozen episodes; the shadow cohort stops coin-flipping (SL-hit well below 59%). Blocked on arming the real-ATR flag (G27).</td></tr>
+      <tr><td><strong>2 · Cost truth online</strong></td><td class="a">HALF</td><td>Every fill carries slippage — <span class="g">done</span>. Shorts carry borrow — <span class="r">not done</span>. Read-outs quoted NET. Conclave Q6 still requires modeled costs to be back-tested against real fills with the residual distribution published.</td></tr>
+      <tr><td><strong>3 · Sizing disciplined</strong></td><td class="g">SHIPPED</td><td>Gate-K live on both paths, fail-closed, tightening-only, with a 12% drawdown halt. <em>Probation sizing until n≥40 per strategy.</em></td></tr>
+      <tr><td><strong>4 · Attribution truthful</strong></td><td class="a">NEARLY</td><td>Terminal-stage stamping live and rejects finalized; two silent-path classes remain (G23, G24).</td></tr>
+      <tr><td><strong>5 · Score replaced</strong></td><td class="r">NOT STARTED</td><td>A v8 candidate must beat "trade everything, correctly sized" out-of-sample on the shared harness. Nothing may gate on regime, tape alignment or MTF until it clears this.</td></tr>
+      <tr><td><strong>6 · THE MILESTONE</strong></td><td class="r">GATED</td><td>≥150 episodes across ≥20 trading days and ≥3 regime labels (none &gt;50%, no day &gt;12%); day-block bootstrap (10k iters, ~5-day blocks) with 5th-percentile cost-adjusted return above modeled round-trip cost; day-level HAC t≥2; positive bootstrapped delta vs the correctly-sized trade-all baseline; ≥98% fills with slippage and ≥98% orders with lifecycle events, zero orphans; Brier improvement where scores gate; survives best-day and best-ticker removal. <strong>Only then</strong>: scale paper size → statistical risk floor → revisit Discovery and the debate layer.</td></tr>
+    </tbody>
+  </table>
+
+  <div class="sources">
+    <b>Sources &amp; verification.</b>
+    Attached <b>Architecture v5.8</b> (Jul 5) and repo <b>docs/quantum-architecture-v5.9.html</b> (Jul 7, Conclave-ratified);
+    <b>git log</b> of <code>SantoshA1/quantum-scraper</code> from 2026-07-03 through HEAD <code>82dbebf</code> (2026-08-03);
+    batch notes <code>BATCH-2026-07-10{,b,c}.md</code>; <code>docs/GATE-K-BRIEF-20260711.md</code>;
+    <code>docs/INCIDENT-DORMANT-EXPRESSION-20260711.md</code>; <code>docs/SUPABASE-SCHEMA-REFRESH-20260711.md</code>;
+    <code>docs/canon/CHANGELOG-console-live-cockpit-20260712.md</code>; <code>docs/CANONICAL-SOURCE.md</code>;
+    the <code>_delta_*</code> READMEs; <code>.ci/gate-provenance.json</code>; and <code>lib/**</code> spec-mirror headers.<br>
+    <b>Directly executed for this document:</b> <code>node tests/run-all.js</code> on 2026-08-04 →
+    <span class="g">17/17 suites passed, 181 checks, 0 failures</span>; file counts for <code>lib/</code> (13 modules),
+    <code>tests/</code> (17 suites) and <code>_baseline_c91917bb/</code> (95 files) read from the working tree.<br>
+    <b>Deliberately not asserted:</b> the live TradingView alert count and active ticker universe (configured in TradingView,
+    not in the repo); the exact current <code>quantum.*</code> table count (v5.8's 62 predates the July migrations and was not
+    re-counted against <code>information_schema</code>); and the meaning of the $11.29 console baseline, which appears in a
+    commit subject but in no file.<br>
+    <b>Numbers that live only in commit messages</b> (no file in the repo carries them): the 1556 half of the
+    "1295 + 1556" backfill, the −$1,701 → −$833 net-edge correction, the $11.29 baseline, and the version hash
+    <code>c26c87aa</code>. They are traceable to <code>git log</code> and nowhere else — worth pinning into a doc before the
+    reflog ages out.<br>
+    <b>Single-source claim:</b> "~73% of losses exit through a ~1%-wide protective stop" appears only as a prose comment
+    header in <code>lib/rcf/stop_sim.js</code>, with no underlying dataset committed — yet it is load-bearing for the
+    Conclave's evidence-admissibility ruling. It should be re-derived from <code>trade_ledger</code> and published.
+  </div>
+
+  <div class="footer">
+    <strong>Quantum Engineering Trading — Architecture v6.0</strong><br>
+    4 Planes | 90 SM Code Nodes | 13 Spec-Mirror Modules | 17/17 Maya Suites (181 checks) | Gate-K K1–K4 |
+    2 Data Schemas + console facade | 3 Production Models | 21 Open Gaps<br>
+    Last updated: August 4, 2026 · Supersedes v5.9 (Jul 7) and v5.8 (Jul 5)<br><br>
+    <span style="color:var(--text-dim)">Diff vs v5.8: four-plane architecture ratified and built; Gate-K risk manager live;
+    <code>public.*</code> measurement spine created; nine-node observability blackout root-caused and fixed; the SM's four LLM
+    call sites migrated to Claude Opus 4.8; gate logic extracted under a provenance-pinned 17-suite harness; console replaces
+    Telegram as the operations surface; five subsystems retired and Grok partially displaced.</span><br><br>
+    <em style="color:var(--text-muted)">Rule of the road: nothing ships unmeasured, nothing unmeasured survives.</em>
+  </div>
+</div>
+
+</body>
+</html>
