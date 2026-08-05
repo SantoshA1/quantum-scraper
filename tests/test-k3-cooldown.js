@@ -10,7 +10,9 @@
  * against the real rows, and prove the proposed fix keeps every protection I was promised."
  *
  * Deterministic + offline. Fixtures are the REAL public.trade_ledger rows from 08-03..08-05.
- * Live predicate mirrored from public.compute_kelly_gate v2.1 (GATE_K_v2.1_20260710).
+ * Variant 'live' mirrors v2.1 (GATE_K_v2.1_20260710) — the pre-fix regression reference.
+ * Variant 'proposed' mirrors v2.2 (GATE_K_v2.2_K3_LOSS_ONLY_20260805) — DEPLOYED 2026-08-05
+ * (migration qtp_gate_k_v2_2_k3_loss_only_20260805; flip proven live with tagged fixtures).
  */
 const assert = require('assert');
 const K = require('../lib/risk/cooldown');
