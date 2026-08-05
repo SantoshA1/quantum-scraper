@@ -17,7 +17,7 @@ const _acc = {};
 do {
   if (_pages >= 64) throw new Error('QTP_BARS_PAGE_LIMIT');
   const _path = `/v2/stocks/bars?symbols=${_syms.join(',')}&timeframe=1Day&start=${_startISO}`
-    + `&limit=${_limit}&adjustment=all&feed=sip&sort=asc`
+    + `&limit=${_limit}&adjustment=all&feed=iex&sort=asc`
     + (_tok ? `&page_token=${encodeURIComponent(_tok)}` : '');
   const _page = await alp.call(this, 'GET', _path, null, 'data');
   const _pb = (_page && _page.bars) || {};

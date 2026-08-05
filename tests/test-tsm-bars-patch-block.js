@@ -60,7 +60,7 @@ ${BLOCK.split('\n').map(l => '      ' + l).join('\n')}
     ['request carries an explicit start', /[?&]start=\d{4}-\d{2}-\d{2}/.test(first)],
     ['request carries adjustment=all', first.includes('adjustment=all')],
     ['limit scaled to universe (>20)', Number((first.match(/[?&]limit=(\d+)/) || [])[1]) > 20],
-    ['feed=sip preserved from live', first.includes('feed=sip')],
+    ['feed=iex preserved from live', first.includes('feed=iex')],
     ['timeframe=1Day preserved from live', first.includes('timeframe=1Day')],
     ['paging actually engaged', requests > 1],
     ['loop terminated', requests < 64],

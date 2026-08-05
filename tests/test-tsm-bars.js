@@ -144,7 +144,7 @@ check('BUG-04', 'sorted-by-symbol truncation: a bigger limit alone still blanks 
   const u = book(10); const syms = Object.keys(u);
   const alpaca = makeAlpaca(u);
   const body = await alpaca.httpGet(
-    `https://data.alpaca.markets/v2/stocks/bars?symbols=${syms.join(',')}&timeframe=1Day&start=2026-06-01&limit=20&feed=sip`);
+    `https://data.alpaca.markets/v2/stocks/bars?symbols=${syms.join(',')}&timeframe=1Day&start=2026-06-01&limit=20&feed=iex`);
   const got = B.mergePage({}, body);
   const names = Object.keys(got);
   assert.ok(names.length < syms.length, `only ${names.length}/${syms.length} symbols came back`);
@@ -172,7 +172,7 @@ check('REQ-02', 'limit scales with the universe, not with one symbol (D2)', () =
 check('REQ-03', 'split/dividend adjustment is requested, never raw (D3)', () => {
   const { params } = B.buildBarsRequest({ symbols: ['AES'], now: NOW });
   assert.strictEqual(params.adjustment, 'all');
-  assert.strictEqual(params.feed, 'sip', 'feed unchanged from live');
+  assert.strictEqual(params.feed, 'iex', 'feed unchanged from live (iex - the repo copy wrongly said sip)');
   assert.strictEqual(params.timeframe, '1Day', 'timeframe unchanged from live');
 });
 
