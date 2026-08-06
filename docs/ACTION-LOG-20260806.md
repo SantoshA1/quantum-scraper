@@ -41,7 +41,37 @@ All deployed jsCode byte-verified against `docs/sql-builders-20260806/*` (live +
 archived there). Watch: main pipeline on next TradingView signal; thesis 08:30 ET 08-07.
 Unswept: `VaUQ4J95wyc5CAVP` (not MCP-reachable — PO to enable). MEDIUM/LOW findings open.
 
+## Deployed (afternoon 2): naked-window RCA — the day's real money bug — gov 190/191/192
+
+**"No orders after 10:55 ET" RCA found the flow quiet for market reasons (morning movers all
+deduped, no fresh ±0.7% qualifiers) — but exposed that BOTH of the day's entries were
+destroyed minutes after fill by a three-part interaction:** entry brackets born 3–4% wide
+(raw ATR×mult) → TSM wide-stop recovery cancels the working stop BEFORE knowing the
+tightened replacement is placeable → price already through the level → Alpaca 422 → naked →
+scalp watcher market-dumps it. WRB 13:46Z −$143.60 · APA 14:30Z −$47.68. Both TSM failure
+cycles also lost their audit batches to the (since-fixed) escaping bug — the evidence was
+recovered from execution records.
+
+| Fix | Where | Version | Rollback | Proof |
+|---|---|---|---|---|
+| **Entry stop clamp v1** — `stopDist = min(ATR×SL_MULT, price×1.2%)`; entry and TSM finally agree; qty (%-of-portfolio) unaffected; TP untouched | main pipeline "Alpaca Paper Trade" | active `10a5a6a5` | `94fd764e` | suite 7/7 (real WRB/APA/AKAM numbers; 60-case sweep ≤1.2%); byte-identical `e9cd909c` |
+| **Trail Stops v4.3.1** — validity guard BEFORE any cancel (unplaceable → `KEPT_EXISTING`, wide stop stays, TG review) + re-protect fallback stop at market∓0.5% after any cancel; never naked | TSM "Trail Stops" (98KB node byte-ferried via subagent) | active `cec40297` | `5faacd55` | suite 8/8 (WRB 72.40-vs-72.085, APA 35.58-vs-35.51 replays → KEEP_EXISTING); **new pin `5f22eddd175bfdc3`** (retires `b6bf74f0`); live cycle 526088 17:00Z green |
+| **Scalp watcher scope v1.1** — entry `client_order_id` attribution; `qet-` (main pipeline) → `SKIP_MAIN_PIPELINE_SCOPE`; unattributed → `SKIP_UNATTRIBUTED_NOT_SCALP`; genuine scalps still close | scalp watcher (2 nodes) | active `30adf8f3` | `92c4745e` | suite 7/7 executing actual node bytes (zero broker calls on skips); **live 16:26/16:28Z: ALLE + DGX real qet- coids → SKIP** |
+
+Full Maya gate after all three: **18/18 suites, 233 checks**. Note: code comments citing
+"gov 189" correspond to governance rows **190/192** (id 189 was taken between drafting and
+insert). Watcher context window quirk (pre-existing): only entries ≤3 days old are fed to
+the watcher (AES/XPEV outside it — never at its risk). Deployed live/fixed pairs archived
+in `docs/naked-window-20260806/`.
+
 ## Notes
+- Main-pipeline sink columns `candidate_path_trace_10fc.raw_payload` and
+  `vc_gate_forensics_shadow.raw_payload_json` turned out to be **TEXT** (not jsonb) — the
+  legacy corruption there was content-level, not statement-kill. The new `safe_jsonb(...)`
+  values assignment-coerce jsonb→text cleanly (proven live in a rollback txn 15:20Z: canonical
+  JSON stored, `$3` real, quotes intact, `::jsonb` round-trip green). Strictly better data.
+  The 15:15Z webhook signals stopped at the ingress guard (dedupe) — full-route live proof
+  arrives with the next routed signal.
 - Supabase MCP token expired mid-task (~14:35Z), re-authorized by PO (~14:48Z); recovery + gov 187
   landed after re-auth. Deployment itself was unaffected.
 - "Format Supabase TSM Result" node still echoes a hardcoded `v4.2.1` label in its own output
