@@ -1,0 +1,33 @@
+-- QTP_H4_GET_OPEN_LEDGER_ROWS_v2_20260806
+-- Node "Get Open Ledger Rows", workflow "QET H4 Exit-Fill Sync" (bBIAbsClonHP94hk).
+--
+-- THE BUG (found 2026-08-06 while investigating "no new executions" for the PO).
+-- "Build Exit Updates" (QTP_H4_EXIT_RESOLUTION_v2_20260804) matches a position's real
+-- closing fill via lib/recon/ledger_divergence.js::resolveExit, which requires an EXACT
+-- quantity match: Math.abs(Number(o.filled_qty) - Number(r.qty)) < 1e-9. That contract
+-- was implemented and tested (tests/test-h4-exit-updates.js, 22/22) on 2026-08-04 — but
+-- this upstream SELECT, which is what actually populates `r`, was never updated to
+-- SELECT qty. Number(undefined) is NaN, and any comparison against NaN is false in JS,
+-- so the account-scan match ALWAYS fails, silently, for every row, forever. The v2 fix
+-- has therefore been a no-op since the hour it shipped: every run since 2026-08-04 has
+-- logged a clean "0 closed, 0 busted" with no error, while trade_ledger accumulated
+-- phantom-open rows for every position TSM closed via a replaced (non-bracket-leg) order.
+--
+-- Confirmed casualties as of 2026-08-06 19:00 UTC (broker-truth CLOSED_NO_POSITION in
+-- quantum.position_risk_state, still status='open' in trade_ledger):
+--   WMT  entry 2026-07-30T13:32:07Z 95sh short @112.47  -> closed 2026-08-06T13:31:03Z stop  @113.91  (~-136.80)
+--   AEP  entry 2026-08-05T17:35:54Z 84sh short @126.03  -> closed 2026-08-06T13:33:55Z stop  @127.34369 (~-110.35)
+--   WRB  entry 2026-08-06T13:33:37Z 148sh long @73.0553 -> closed 2026-08-06T13:46:06Z market@71.99   (~-157.66)
+--   APA  entry 2026-08-06T14:06:00Z 298sh long @35.90   -> closed 2026-08-06T14:30:15Z market@35.748456(~-45.16)
+-- AES/ALLE/DGX/XPEV remain genuinely open at the broker (FULLY_PROTECTED) -- not affected.
+--
+-- THE FIX: add the two columns Build Exit Updates already reads off `r` but this query
+-- never selected: qty (fatal -- breaks the match) and entry_fill_time (non-fatal --
+-- silently falls back to the entry order's own filled_at, but should come from the
+-- ledger's own record of truth). Strictly additive; no WHERE/ORDER/LIMIT change.
+
+-- BEFORE (live 2026-08-04 through 2026-08-06, confirmed via get_workflow_details):
+-- SELECT id, user_id, strategy, mode, symbol, side, entry_order_id, entry_fill_price, intended_stop, intended_target FROM public.trade_ledger WHERE status = 'open' AND mode = 'paper' AND entry_order_id IS NOT NULL ORDER BY created_at LIMIT 50
+
+-- AFTER:
+SELECT id, user_id, strategy, mode, symbol, side, qty, entry_order_id, entry_fill_price, entry_fill_time, intended_stop, intended_target FROM public.trade_ledger WHERE status = 'open' AND mode = 'paper' AND entry_order_id IS NOT NULL ORDER BY created_at LIMIT 50

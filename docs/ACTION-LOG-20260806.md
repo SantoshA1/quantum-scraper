@@ -64,6 +64,74 @@ insert). Watcher context window quirk (pre-existing): only entries ≤3 days old
 the watcher (AES/XPEV outside it — never at its risk). Deployed live/fixed pairs archived
 in `docs/naked-window-20260806/`.
 
+## Deployed (evening): H4 ledger-sync SELECT-completeness gap — gov 193
+
+**PO reported "no new executions" after the naked-window fixes went live. RCA of that
+report found the quiet tape itself benign** — every actionable candidate since 14:06Z
+was correctly rejected by pre-existing, untouched gates (`PAPER_SECONDARY` on APA 18:15Z:
+VC score 9 sits one point under the hardcoded `vcScore >= 10` paper-secondary bar from
+Conclave 2026-07-08, and neither relaxed leg saves it — volume_ratio 1.12 vs the 1.25
+strict cutoff, cross_asset NEUTRAL; `REGIME_CONFLICT`/`BROAD_SCANNER_BIAS_PATH`/
+`SESSION_OR_NEUTRAL_FILTER` on everything else). Today's 5/30 pass-rate and 2 blocked
+`PAPER_SECONDARY` count both sit inside the last 7 days' normal range — **not a
+regression, nothing here touches code changed today.**
+
+**But the same investigation surfaced a real, separate, standing bug.** `quantum.position_risk_state`
+showed WMT/AEP/WRB/APA broker-truth `CLOSED_NO_POSITION` while `trade_ledger` still had
+all four `status='open'` — a phantom-open desync hiding real realized losses from every
+downstream reader (Gate-K's certified-trade count, the PO's own view of exposure/P&L).
+RCA on the "QET H4 Exit-Fill Sync" workflow (5-min schedule, 229+ green runs/day) found
+two independent, silent defects, both live since the v2 rewrite on 2026-08-04:
+
+1. **"Get Open Ledger Rows" never `SELECT`ed `qty`.** The account-scan exit matcher
+   (`QTP_H4_EXIT_RESOLUTION_v2_20260804`) requires `Math.abs(filled_qty - r.qty) < 1e-9`;
+   `Number(undefined)` is `NaN`, and any comparison against `NaN` is `false` in JS — so
+   the match the 08-04 fix was built for could never succeed. The existing 22/22 Maya
+   suite (`tests/test-h4-exit-updates.js`) tested the matcher in isolation with `qty`
+   always present in its fixtures and stayed green throughout — it never caught that the
+   real upstream query didn't supply it. Silent no-op every 5 minutes for 3 days.
+2. **"Fetch Closed Orders" only looked back 7 days**, but Alpaca's `after` filters order
+   *submission* time, not fill time. WMT's qualifying replacement stop was submitted
+   2026-07-30T13:45:11Z — ~5h15m before the 7-day cutoff at the 19:00:35Z run — so it
+   would have stayed invisible to the account scan even after fix 1.
+
+| Fix | Where | Proof |
+|---|---|---|
+| Add `qty, entry_fill_time` to the SELECT | "Get Open Ledger Rows" node | matcher can now succeed at all |
+| Widen `after` 7d → 14d | "Fetch Closed Orders" node | WMT's submit time now inside the window, ~5d margin |
+
+Both nodes updated in one `update_workflow` call, byte-verified against
+`docs/h4-ledger-sync-fix-20260806/*`, published — active `498085c4` (rollback `778c02d3`).
+New suite `tests/test-h4-ledger-select-gap.js` **8/8** on the real captured rows (not
+synthetic): reproduces the actual 0-closed outcome from live execution 527111, proves the
+qty fix alone unblocks AEP/WRB/APA while WMT still correctly stays open (proving the
+window bug is independent, not just a restatement of the qty bug), proves the 14-day
+window recovers WMT too, and adds a completeness guard (`GAP-05`) that fails loudly if
+`Build Exit Updates` ever reads a ledger field this SELECT doesn't supply — the class of
+gap that let this ship in the first place. Full gate re-run after: **19/19 suites, 241
+checks.**
+
+**Live-fired immediately** (`execute_workflow`, production mode, execution `527316`) rather
+than waiting on the next cron tick — independently re-confirmed against `trade_ledger`
+directly (not just the workflow's own `RETURNING`): all four now `status='closed'`,
+`lineage_source='H4_EXIT_RESOLUTION_v2'`.
+
+| Symbol | Held | Realized net P&L | R | Exit reason |
+|---|---|---|---|---|
+| WMT | 07-30 → 08-06 (stop, 7d) | **-$136.80** | -0.39R | trail |
+| AEP | 08-05 → 08-06 (stop) | **-$110.35** | -0.21R | trail |
+| WRB | 08-06 → 08-06 (naked-window panic-close) | **-$157.66** | -0.87R | manual |
+| APA | 08-06 → 08-06 (naked-window panic-close) | **-$45.15** | -0.12R | manual |
+| **Total newly booked** | | **-$449.96** | | |
+
+**Correction to gov 190/191/192:** those rows cited WRB "13:46Z −$143.60" and APA "14:30Z
+−$47.68" as the naked-window losses. Those were `position_risk_state` *unrealized*
+snapshots taken seconds before each panic-close filled, not the realized exit — the real
+numbers are -$157.66 and -$45.15 respectively, per the actual broker fill (71.99 and
+35.748456). Directionally the same story, WRB slightly worse than reported. AES/ALLE/DGX/
+XPEV were never affected by either bug — broker-truth confirms they're genuinely still
+open and `FULLY_PROTECTED`.
+
 ## Notes
 - Main-pipeline sink columns `candidate_path_trace_10fc.raw_payload` and
   `vc_gate_forensics_shadow.raw_payload_json` turned out to be **TEXT** (not jsonb) — the
@@ -82,3 +150,7 @@ in `docs/naked-window-20260806/`.
 ## Rollback pointers
 TSM audit builder: republish `09b85df5` (v4.2.1 behavior) · `quantum.safe_jsonb` is additive
 (safe to leave) · recovery rows removable by `run_id='524111' AND raw_payload ? '__recovered_from_exec'`.
+H4 Exit-Fill Sync: republish `778c02d3` (pre-fix behavior — reverts to the silent no-op,
+NOT recommended) · the four ledger closes are real broker fills newly booked, not
+speculative; reverting the workflow does not un-book them, and reverting the ledger rows
+themselves would re-hide real realized losses — do not roll those back without PO sign-off.

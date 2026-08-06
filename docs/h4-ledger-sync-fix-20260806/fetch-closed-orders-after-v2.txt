@@ -1,0 +1,27 @@
+QTP_H4_FETCH_CLOSED_ORDERS_WINDOW_v2_20260806
+Node "Fetch Closed Orders", workflow "QET H4 Exit-Fill Sync" (bBIAbsClonHP94hk),
+query parameter "after".
+
+SECOND, INDEPENDENT bug found alongside the qty-select gap (docs/h4-ledger-sync-fix-20260806/
+get-open-ledger-rows-v2.sql). Alpaca's GET /v2/orders `after` parameter filters on the
+order's submission time, not its fill time. WMT's real closing stop order was CREATED
+2026-08-06T13:31... no -- its qualifying REPLACEMENT stop was created 2026-07-30T13:45:11Z
+(per quantum.order_events), i.e. ~5h15m before the 7-day cutoff computed at the 19:00:35Z
+run (2026-07-30T19:00:35Z). It therefore never appears in the account-wide closed-orders
+scan and would NOT self-heal even after the qty fix -- confirmed empirically: of 61 orders
+returned by the live 7-day window at 19:00:35Z, AEP/WRB/APA's real closing orders are all
+present; WMT's is the only real casualty missing, and it is missing for this reason, not
+the qty bug (verified against docs/h4-ledger-sync-fix-20260806/../../tests/test-h4-ledger-select-gap.js
+GAP-02, which reproduces the omission with the exact captured pool).
+
+FIX: widen the window from 7 to 14 days. 14 days keeps WMT's 2026-07-30T13:45:11Z
+replacement comfortably inside the window (with ~5 days of margin, so the same edge case
+does not immediately recur), while keeping the account-wide row count far under Alpaca's
+500-row response cap (61 orders were returned for a 6-day span on 2026-08-06 -> ~140
+projected for 14 days).
+
+BEFORE (live 2026-08-04 through 2026-08-06):
+  {"name":"after","value":"={{ new Date(Date.now() - 7*86400000).toISOString() }}"}
+
+AFTER:
+  {"name":"after","value":"={{ new Date(Date.now() - 14*86400000).toISOString() }}"}
