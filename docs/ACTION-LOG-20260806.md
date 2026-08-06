@@ -19,6 +19,28 @@ re-kills every 10-min cycle and darkens the heartbeat; Daily Thesis — LLM pros
 6 MEDIUM, 5 LOW. 11 clean. `VaUQ4J95wyc5CAVP` unreachable via MCP (not swept). **Fixes not yet
 authorized — PO decision pending.**
 
+## Deployed (afternoon): fleet escaping-class remediation — gov 188
+
+PO authorized **CRITICALs + HIGHs** from the sweep. One canonical helper set
+(`QTP_SAFE_PG_v1_20260806`, `lib/sql/safe_pg.js`) embedded verbatim in each node: quotes-only
+escaping + NUL strip · deep-clean of NUL/lone surrogates · **real `$` preserved in jsonb via
+the JSON unicode escape** (no literal `$` reaches SQL text — pg-param safe AND the "USD 3"
+corruption is dead) · oversize re-wrap (never mid-JSON slices) · every jsonb literal through
+`quantum.safe_jsonb()`. Suite `tests/test-safe-pg.js` **13/13** + poison sandbox smoke **6/6**.
+
+| Workflow | Node(s) | Version | Rollback |
+|---|---|---|---|
+| Scalp Exit Watcher `IzTXfM9G0TM2wt0U` | Build Supabase Scalp Exit Watch Audit SQL → **v1.4** | active `92c4745e` | `2968be9d` |
+| Order Lifecycle Ingestor `n31KzRDp6wR5BlFb` | Fetch Order Lifecycle → **v1.3** | active `06d72744` | `68d6a224` |
+| MAIN PIPELINE `vaqfCaELhOEWnkdo` | 10FC Trace **v4.2.3** · VC Gate Audit **v4.2.2** · PF_MARGIN **v1.1** · Persist Grok Verdict → `safe_jsonb` (**grok-sig-v4.4**) | active `94fd764e` | `1a5c5ee9` |
+| Daily Thesis `pvSiSm1JxsCLH4Qm` | Prepare Insert → **v1.1** | active `e42cefe1` | `d327daf0` |
+
+**Live-proven same hour:** ingestor 15:10Z heartbeat note `v1.3` (order_events landing);
+scalp 15:12Z row stamped `v1.4_20260806`; **zero** `__jsonb_parse_error` fallbacks anywhere.
+All deployed jsCode byte-verified against `docs/sql-builders-20260806/*` (live + fixed pairs
+archived there). Watch: main pipeline on next TradingView signal; thesis 08:30 ET 08-07.
+Unswept: `VaUQ4J95wyc5CAVP` (not MCP-reachable — PO to enable). MEDIUM/LOW findings open.
+
 ## Notes
 - Supabase MCP token expired mid-task (~14:35Z), re-authorized by PO (~14:48Z); recovery + gov 187
   landed after re-auth. Deployment itself was unaffected.

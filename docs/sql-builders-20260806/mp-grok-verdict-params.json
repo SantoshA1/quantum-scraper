@@ -1,0 +1,5 @@
+{
+ "operation": "executeQuery",
+ "query": "=INSERT INTO quantum.grok_verdicts (signal_id, symbol, side, content, grok_error, schema_error, schema_error_detail, latency_ms, attempts, workflow_version)\nVALUES (\n  NULLIF('{{ String($json.signal_id || $json.idempotency_key || '').replace(/'/g, \"''\") }}', ''),\n  '{{ String($json.ticker || 'UNKNOWN').replace(/'/g, \"''\") }}',\n  '{{ String($json.execution || '').toUpperCase().replace(/'/g, \"''\") }}',\n  '{{ String(($json.choices && $json.choices[0] && $json.choices[0].message && $json.choices[0].message.content) || '{}').replace(/'/g, \"''\") }}'::jsonb,\n  NULLIF('{{ String($json._grok_error || '').replace(/'/g, \"''\") }}', ''),\n  {{ $json._grok_schema_error ? 'true' : 'false' }},\n  NULLIF('{{ String($json._grok_schema_error_detail || '').replace(/'/g, \"''\") }}', ''),\n  {{ Number($json._grok_latency_ms) || 'NULL' }},\n  {{ Number($json._grok_attempts) || 'NULL' }},\n  'grok-sig-v4.3'\n);",
+ "options": {}
+}
