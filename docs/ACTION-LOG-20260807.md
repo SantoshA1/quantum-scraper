@@ -262,15 +262,33 @@ before kelly★, including that a *positive* kelly★ cannot rescue a failing PF
 - Pipeline healthy after all deploys: webhook executions every ~5 min, **zero errored
   executions fleet-wide today** ✔
 
-**NOT proven — flagged rather than claimed:**
-- **No real signal has reached Gate-K since either deploy.** Last audited signal was WSM
-  16:50:41Z, one minute before the R3/R1/R2 package went live. Everything above is verified
-  by direct function calls, not by a routed trade.
-- The Gate-K stop-parity telemetry (`__qet_stop_clamped`, `__qet_stop_raw_pct`, the
-  `[GATE-K STOP-PARITY v1]` log line) has not yet been observed firing in production.
-- Correction to an earlier draft of this log: the market was **open** at deploy time
-  (16:51Z = 12:51 ET), not closed. First live confirmation is possible this afternoon;
-  otherwise Monday.
+## ✅ LIVE END-TO-END PROOF — ZBRA, 2026-08-07 18:20:57Z
+
+**The first order through the rebuilt gate. Every fix from the last two days fired on this
+single trade, and one of them is the only reason the trade exists at all.**
+
+`ZBRA BUY 28 @ $376.43` · signal price 376.99 · ATR 17.32 · stop 372.47 · TP 428.95
+
+| layer | evidence |
+|---|---|
+| **gov 195/196/197** — R3/R1/R2 | `sizing_meta.gate` on the ledger row records `gate_version: GATE_K_v2.8_R2_DIRECTION_SCOPED_20260807`, `approved: true`, `reason: probation_sizing_insufficient_sample`, `risk_pct: 0.5`. **A long resumed at exactly the size the ruling specified.** |
+| **gov 194** — Gate-K stop parity | Pre-fix, Gate-K Prep would have handed the gate `376.99 − 1.5×17.32 = 351.01` = **6.891% wide**, past the 5% sanity line → `stop_width_exceeds_sanity`. **This trade would have been rejected.** It exists only because of gov 194. |
+| **gov 190** — entry stop clamp | `intended_stop_width_pct` **1.1990%**. The *same ticker* on 2026-07-27 was **3.0079%**. 3.01% → 1.20% on identical machinery. |
+| mirror ⇔ broker | `lib/entry/gatek_stop.js` predicts stop **372.47**; the broker actually placed **372.47**. Byte-identical. |
+| **naked-window class** (gov 190/191/192) | TSM ran **5 consecutive cycles** (18:30 → 19:30Z), every one `NO_ORDER_PLACED_ALREADY_PROTECTED` at `stopDistancePct 0.0105`. At 1.05% the stop sits inside the TSM's 1.2% limit, so **the wide-stop recovery never armed** — no cancel, no 422, no naked window, no watcher dump. This is precisely the sequence that destroyed WRB and APA yesterday. |
+
+Position: `FULLY_PROTECTED`, 28/28 protected, 0 unprotected, 1 protective stop, +$16.80
+unrealized at 19:30Z. ZBRA is **open**, so it does not enter the edge sample until it closes —
+the Gate-K verdict and the Q5 watch are unchanged by it.
+
+**Cosmetic wart, not a fault:** `exec_flow_audit.blocked_stage = 'UNKNOWN'` on this row despite
+`audit_status = EXECUTED` and `risk_gate = RISK_PASS`. The trade executed correctly; the label
+is a fall-through in the audit builder's reason ladder. Worth tidying on the next authorized
+touch — not worth breaking the HOLD for.
+
+**Still not observed:** the `[GATE-K STOP-PARITY v1]` console line itself (n8n node logs aren't
+persisted to Supabase). The arithmetic above is stronger evidence than the log line would be —
+the placed stop matches the fixed formula to the cent and is impossible under the old one.
 
 ## Recommended posture: HOLD — change nothing else until there is live evidence
 
