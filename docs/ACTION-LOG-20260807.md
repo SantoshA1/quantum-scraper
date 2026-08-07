@@ -207,14 +207,57 @@ dollar PF ≤ 1.0 blocks; where PF clears but kelly★ is negative the direction
 **probation sizing rather than kelly sizing** (the conservative reading). If the Conclave meant
 kelly★ to remain co-blocking, that is a one-line change.
 
-## Verification status
-- Deployed jsCode byte-identical to `docs/gatek-stop-parity-20260807/qet-gatek-prep-v2.js` ✔
-- Published, pipeline running clean post-deploy (4 webhook executions 15:55Z, zero errors) ✔
-- Zero errored n8n executions across the fleet today ✔
-- **Not yet observed:** a real signal reaching Gate-K *since* the publish — only ~3/day get
-  past VC/bias/MTF/AI. Live telemetry (`__qet_stop_clamped`, `__qet_stop_raw_pct`, and the
-  `[GATE-K STOP-PARITY v1]` log line) confirms on the next qualifying signal. Flagged as
-  pending rather than claimed.
+## Verification status — what is proven vs. what is not
+
+**Proven (evidence in hand):**
+- Gate-K Prep v2 deployed byte-identical to `docs/gatek-stop-parity-20260807/qet-gatek-prep-v2.js`
+  (`aff5743c7d8182ba`), published; sibling "Alpaca Paper Trade" still pinned `e9cd909c` ✔
+- `compute_kelly_gate` live at `GATE_K_v2.8_R2_DIRECTION_SCOPED_20260807`,
+  functiondef md5 `625b111e0ca5ece7bf2ff80b731479bc` ✔
+- LONG → `approved:true`, `probation_sizing_insufficient_sample`, 0.50%, n=16, PF 1.4655,
+  `sample_scope: direction:bullish` — **by direct call to the live function** ✔
+- SHORT → `short_side_blocked_pf_below_bar`, n=24, PF 0.0101 — verified in isolation with
+  `p_regime_mode='off'` after the first attempt was blocked by the regime leg instead ✔
+- Six-scenario safety matrix incl. R1-off, forced-probation, and config-wiped — all shorts
+  refused, all longs approved; every mutation inside a rolled-back transaction ✔
+- Suites: `test-gatek-conclave.js` 16/16, `test-gatek-stop-parity.js` 11/11; full gate
+  **38/38 suites green on the PO's machine** ✔
+- Pipeline healthy after all deploys: webhook executions every ~5 min, **zero errored
+  executions fleet-wide today** ✔
+
+**NOT proven — flagged rather than claimed:**
+- **No real signal has reached Gate-K since either deploy.** Last audited signal was WSM
+  16:50:41Z, one minute before the R3/R1/R2 package went live. Everything above is verified
+  by direct function calls, not by a routed trade.
+- The Gate-K stop-parity telemetry (`__qet_stop_clamped`, `__qet_stop_raw_pct`, the
+  `[GATE-K STOP-PARITY v1]` log line) has not yet been observed firing in production.
+- Correction to an earlier draft of this log: the market was **open** at deploy time
+  (16:51Z = 12:51 ET), not closed. First live confirmation is possible this afternoon;
+  otherwise Monday.
+
+## Recommended posture: HOLD — change nothing else until there is live evidence
+
+Gate-K has been materially rewritten today and currently has **zero live evidence** behind it.
+Any further change from here confounds attribution: if something misbehaves on Monday, it will
+be impossible to say cleanly whether it was R3, R1, R2, the gov 194 stop-parity fix, or
+something unrelated. The highest-value thing available right now is a clean observation window.
+
+Also worth knowing before anyone reaches for another lever: the long book is at n=16 and needs
+n≥20 before the gate will even *judge* it. The next four long trades are at 0.50% probation
+sizing no matter what anyone changes.
+
+**Open question that should be settled before any further gate work:** the kelly★ co-blocking
+interpretation flagged above.
+
+## Watch list (monitoring, not changes)
+The Conclave's precommitted reverts need something actually computing them:
+- long-side cleaned dollar PF over the next ≥15 certified trades — drops below 1.0 → long side
+  returns to halt
+- long ≥3R-exit count in frozen dollar-R — must not collapse vs. baseline (the edge is
+  right-tail asymmetry; a book of small scratches is a failure mode, not a success)
+- any quarantined or out-of-window row reappearing in the main edge calc → re-pin and re-audit
+- R2 ever observed sending a short to probation → immediate full revert
+Re-run `docs/gatek-conclave-20260807/verify-gatek.sql` after any change to the gate or config.
 
 ## Book state (healthy)
 4 open positions, all `FULLY_PROTECTED`, zero unprotected qty, +$600.75 unrealized:
@@ -222,7 +265,13 @@ AES −731 (−$43.86) · ALLE 64 (+$264.00) · DGX 45 (+$148.95) · XPEV −858
 Ledger and broker in exact agreement — yesterday's phantom-open desync stays closed.
 
 ## Rollback pointers
-Gate-K Prep: republish `10a5a6a5` (restores the uncapped 1.5×ATR stop and the
-`stop_width_exceeds_sanity` false rejections — not recommended). The gate function
-`public.compute_kelly_gate` was **not** modified today; the halt is data-driven, so rolling
-back any workflow will not lift it.
+| what | how |
+|---|---|
+| **R1 short block** | `UPDATE quantum.gate_config SET live_value=0 WHERE gate_id='GATE_K' AND constant_name='short_side_block_active'` |
+| **R2 direction scoping** | same, `constant_name='direction_scoped_edge_active'` |
+| **Whole Gate-K package** | restore `GATE_K_v2.5`, functiondef md5 `0303bc25e50d77aee86eee74cbce2dc0` (returns the total halt) |
+| **Gate-K Prep v2** | republish n8n `10a5a6a5` (restores the uncapped 1.5×ATR stop and the false `stop_width_exceeds_sanity` rejections — not recommended) |
+
+Flag reverts need **no migration and no redeploy**. Note both flags **fail closed** — deleting
+the config rows does *not* revert anything; it leaves the short block ACTIVE. To actually
+revert, set the value to 0; do not delete the row.
