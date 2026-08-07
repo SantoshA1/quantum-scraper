@@ -109,6 +109,104 @@ production signal carries an ATR. This closes a latent hole rather than changing
 regardless of stop width. Gate-K stop parity is a correctness fix that matters whenever trading
 resumes — it is not a workaround for the halt, and was not treated as one.
 
+## Deployed (afternoon): CONCLAVE RULING — Gate-K R3 → R1 → R2 — gov 195/196/197
+
+**Trading has resumed on the long side.** The Conclave ruled the halt's *sign* correct but its
+*permanence and confidence* the defect, and identified the real flaw: Gate-K measured edge
+**blind to direction**, so 25 catastrophic shorts vetoed 17 decent longs. Shipped in the
+mandated dependency order, verified live between each step.
+
+| | n | win rate | dollar PF | realised P&L | bootstrap P(PF>1) |
+|---|---|---|---|---|---|
+| **LONGS** | 17 | 29.4% | **1.474** | **+$693.92** | 70.9% |
+| **SHORTS** | 25 | 8.0% | **0.280** | **−$2,279.73** | 3.6% |
+
+### R3 — measurement integrity (shipped FIRST, per the Conclave's reordering)
+Migration `qtp_gatek_r3_measurement_integrity_20260807` · `GATE_K_v2.6`.
+Excludes `RECERT_QUARANTINE%` lineage from the main edge calc (the short leg already filtered
+lineage; the main calc did not); bounds the 90-day window on **`entry_fill_time` as well as
+`exit_fill_time`**; quarantines rows with no reconstructable risk basis. Adds **dollar profit
+factor**, immune to the 170× risk-basis spread ($3.60 → $623) that makes averaged R multiples
+meaningless.
+
+**It makes the number worse — which is the point.** kelly★ **−0.1102 → −0.5072**, n 42 → 40.
+Live function returned exactly what `analysis/cleaned.py` predicted offline (−0.5072). A change
+that deepens the halt cannot be an attempt to manufacture a resume.
+
+Removed: LDOS (quarantined, +10.2174R) and AFL (April entry, $3.60 risk basis, no
+`intended_stop`). **Deliberately kept:** 12 rows whose stored `risk_amount` differs >10% from
+fill-implied risk — that is ordinary signal-to-fill slippage, and discarding them would be the
+over-broad filter the Conclave explicitly forbade.
+
+### R1 — short-side rule escalated from ×0.5 multiplier to BLOCK
+Migration `qtp_gatek_r1_short_side_block_20260807` · `GATE_K_v2.7`.
+Changes **only the consequence** of a rule the Conclave already ratified in v2.4 — thresholds
+(n≥20 AND certified dollar PF>1.0) and release condition unchanged.
+
+**Re-verified on the post-R3 sample before shipping, not assumed** (the Conclave's explicit
+requirement). This exposed a further defect: the v2.4 short filter accepts any `RECERT_`
+prefix, so the **quarantined row passed it** — that single row was $855.40 of the short book's
+$887.26 gross win. R1 applies R3's cleaning, so:
+
+| sample | n | dollar PF | sample bar | PF bar | block holds |
+|---|---|---|---|---|---|
+| v2.4 filter as-is | 25 | 0.2802 | met | failed | ✔ |
+| **R3-cleaned (what R1 uses)** | **24** | **0.0101** | met | failed | ✔ |
+
+Self-releasing at certified short dollar PF > 1.0 over ≥20 trades; the block lifts
+automatically but **restoring size requires explicit Conclave re-arm**.
+
+### R2 — direction-scoped edge measurement (HARD-GATED behind verified-live R1)
+Migration `qtp_gatek_r2_direction_scoped_edge_20260807` · `GATE_K_v2.8` ·
+functiondef md5 `625b111e0ca5ece7bf2ff80b731479bc`.
+Scopes `m` to `v_direction` at the **ratified n≥20** bar (the v2.4 number, not one invented to
+get an answer). R2 was applied only after R1 was confirmed live in isolation.
+
+```
+LONG  -> approved: true,  probation_sizing_insufficient_sample, risk_pct 0.50,
+         n=16, dollar_pf 1.4655, sample_scope "direction:bullish"
+SHORT -> approved: false, short_side_blocked_pf_below_bar, n=24, dollar_pf 0.0101
+```
+
+**Longs resume because the sample is too small to judge (n=16 < 20), NOT because an edge was
+proven.** kelly★ is not used for sizing here. Nobody should read this as "the long book is
+healthy."
+
+### The failure mode the Conclave called "the single most dangerous" — sealed three ways
+Direction-scoping alone would send both sides to probation (both n<40) and silently reopen the
+short book. Sealed by: (1) the threshold being 20 not 40, so shorts at n=24 are *judged*, never
+probationary; (2) an explicit `short_side_probation_forbidden` guard — a bearish direction can
+never be approved via probation sizing; (3) R1's rule-level block firing earlier and
+independently (redundancy **kept, not collapsed**, per the ruling).
+
+**Live safety matrix**, every mutation inside a rolled-back transaction:
+
+| scenario | result |
+|---|---|
+| SHORT, all flags on | `short_side_blocked_pf_below_bar` ✔ |
+| SHORT, **R1 OFF** | `negative_measured_edge` ✔ (R2 holds independently) |
+| SHORT, **R1 OFF + forced to probation** | `short_side_probation_forbidden` ✔ **← the dangerous mode, dead** |
+| LONG, same forced-probation config | approved 0.50% ✔ |
+| SHORT, **GATE_K config wiped** | still blocked ✔ (fail-closed) |
+| LONG, GATE_K config wiped | approved 0.50% ✔ |
+
+### Reversibility (Conclave: "flag-gated, reversible without republish")
+`quantum.gate_config` gate_id `GATE_K`: `short_side_block_active=1`,
+`direction_scoped_edge_active=1`, `direction_min_trades=20`. Revert is a **single UPDATE** — no
+migration, no redeploy. Both blocks **fail closed**: a missing or unreadable row coalesces to
+active, so losing the config table can never silently reopen the short book (verified by
+deleting it in a rolled-back transaction).
+
+Suite `tests/test-gatek-conclave.js` **16/16**, including three explicit BLOCKED tests for the
+reopening modes and a fail-closed test. Re-runnable live verification archived at
+`docs/gatek-conclave-20260807/verify-gatek.sql`. Full gate: **21 suites, 268 checks.**
+
+### Interpretation flagged for the Conclave
+The ruling says "dollar PF is the gate-release metric; kelly★ secondary." Implemented as:
+dollar PF ≤ 1.0 blocks; where PF clears but kelly★ is negative the direction is approved at
+**probation sizing rather than kelly sizing** (the conservative reading). If the Conclave meant
+kelly★ to remain co-blocking, that is a one-line change.
+
 ## Verification status
 - Deployed jsCode byte-identical to `docs/gatek-stop-parity-20260807/qet-gatek-prep-v2.js` ✔
 - Published, pipeline running clean post-deploy (4 webhook executions 15:55Z, zero errors) ✔
