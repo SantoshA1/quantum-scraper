@@ -178,5 +178,78 @@ check('CK-16', 'version stamps pin the shipped package', () => {
   assert.strictEqual(G.SAMPLE_VERSION, 'R3_PROVENANCE_CLEANED_20260807');
 });
 
+// ══ THE FOUR-QUADRANT TRUTH TABLE — ratified by the Conclave 2026-08-07 ═════════════
+// "PF is the release metric, kelly* secondary" = PF BLOCKS, kelly* only DOWNGRADES SIZING,
+// kelly* NEVER VETOES. Pinned here so "release metric vs. secondary" can never again be
+// re-litigated by interpretation. Each expectation was first verified against the LIVE
+// plpgsql (docs/gatek-conclave-20260807/quadrant-truth-table.sql), not just this mirror.
+function book({ n, wins, winPnl, winR, lossPnl, lossR }) {
+  return Array.from({ length: n }, (_, i) => i < wins
+    ? row({ side: 'buy', net_pnl: winPnl,  r: winR })
+    : row({ side: 'buy', net_pnl: lossPnl, r: lossR }));
+}
+
+check('CK-17', 'QUADRANT 1 — PF ≤ 1.0, n ≥ 20 → BLOCK, whatever kelly★ says', () => {
+  const q1 = book({ n: 20, wins: 5, winPnl: 100, winR: 2.0, lossPnl: -100, lossR: -1.0 });
+  const m = G.measure(q1);
+  assert.ok(Math.abs(m.dollarPf - 0.3333) < 0.001, `live pinned PF 0.3333, got ${m.dollarPf}`);
+  const d = G.gateDecision({ side: 'buy', ledger: q1 });
+  assert.strictEqual(d.approved, false);
+  assert.strictEqual(d.reason, 'negative_measured_edge');
+});
+check('CK-18', 'QUADRANT 2 — PF > 1.0, kelly★ < 0, n ≥ 20 → PROBATION 0.50%, NOT a veto', () => {
+  const q2 = book({ n: 20, wins: 3, winPnl: 900, winR: 0.4, lossPnl: -150, lossR: -1.5 });
+  const m = G.measure(q2);
+  assert.ok(Math.abs(m.dollarPf - 1.0588) < 0.001, `live pinned PF 1.0588, got ${m.dollarPf}`);
+  assert.ok(Math.abs(m.kelly - (-2.025)) < 0.001, `live pinned kelly -2.0250, got ${m.kelly}`);
+  const d = G.gateDecision({ side: 'buy', ledger: q2 });
+  assert.strictEqual(d.approved, true, 'a negative kelly must NEVER veto PF-clearing data');
+  assert.strictEqual(d.reason, 'probation_sizing_insufficient_sample');
+  assert.strictEqual(d.risk_pct, 0.5, 'small size for an unstable positive — never full Kelly');
+  assert.ok((d.degraded || []).includes('dollar_pf_positive_but_kelly_negative_probation_sized'),
+    'and the instability must be recorded, not silently swallowed');
+});
+check('CK-19', 'QUADRANT 3 — PF > 1.0, kelly★ > 0, n < 20 → PROBATION 0.50% (small sample)', () => {
+  const q3 = book({ n: 16, wins: 8, winPnl: 200, winR: 2.0, lossPnl: -100, lossR: -1.0 });
+  assert.strictEqual(G.measure(q3).dollarPf, 2.0);
+  const d = G.gateDecision({ side: 'buy', ledger: q3 });
+  assert.strictEqual(d.approved, true);
+  assert.strictEqual(d.reason, 'probation_sizing_insufficient_sample');
+  assert.strictEqual(d.risk_pct, 0.5);
+});
+check('CK-20', 'QUADRANT 4 — PF > 1.0, kelly★ > 0, n ≥ 20 → FRACTIONAL KELLY (the only one)', () => {
+  const q4 = book({ n: 24, wins: 12, winPnl: 200, winR: 2.0, lossPnl: -100, lossR: -1.0 });
+  const m = G.measure(q4);
+  assert.strictEqual(m.dollarPf, 2.0);
+  assert.strictEqual(m.kelly, 0.25, 'live pinned kelly +0.2500');
+  const d = G.gateDecision({ side: 'buy', ledger: q4 });
+  assert.strictEqual(d.approved, true);
+  assert.strictEqual(d.reason, 'fractional_kelly', 'ONLY this quadrant earns measured sizing');
+  assert.strictEqual(d.risk_pct, 1.0, '0.25 fraction x 0.25 kelly x 100 = 6.25%, gate-1 capped to 1.0');
+  assert.strictEqual(d.probation, false);
+});
+check('CK-21', 'QUADRANT 5 (not in the ruling) — PF ≤ 1.0 but n < 20 → probation, PF has NO blocking authority yet', () => {
+  const q5 = book({ n: 10, wins: 2, winPnl: 100, winR: 2.0, lossPnl: -100, lossR: -1.0 });
+  assert.strictEqual(G.measure(q5).dollarPf, 0.25, 'a losing book');
+  const d = G.gateDecision({ side: 'buy', ledger: q5 });
+  assert.strictEqual(d.approved, true, 'deliberate: blocking here would deadlock any fresh direction');
+  assert.strictEqual(d.risk_pct, 0.5);
+  // the deliberate part: a first-trade loss must NOT permanently block a fresh direction
+  const fresh = G.gateDecision({ side: 'buy', ledger: [row({ side:'buy', net_pnl:-100, r:-1.0 })] });
+  assert.strictEqual(fresh.approved, true, 'PF=0 at n=1 must not recreate the self-locking deadlock');
+});
+check('CK-22', 'the quadrant ordering is structural: n is consulted BEFORE PF, PF before kelly★', () => {
+  // n<20 short-circuits before PF -> quadrant 5 exists at all
+  assert.strictEqual(G.gateDecision({ side:'buy',
+    ledger: book({ n: 10, wins: 1, winPnl: 10, winR: 0.1, lossPnl: -500, lossR: -5 }) }).approved, true);
+  // at n>=20 PF decides before kelly is even allowed to matter
+  const pfFailsKellyPasses = book({ n: 20, wins: 4, winPnl: 100, winR: 5.0, lossPnl: -200, lossR: -0.2 });
+  const m = G.measure(pfFailsKellyPasses);
+  assert.ok(m.dollarPf <= 1.0 && m.kelly > 0, `setup: PF ${m.dollarPf}<=1 with kelly ${m.kelly}>0`);
+  const d = G.gateDecision({ side: 'buy', ledger: pfFailsKellyPasses });
+  assert.strictEqual(d.reason, 'negative_measured_edge',
+    'a POSITIVE kelly cannot rescue a failing PF — PF is the release metric, in both directions');
+});
+
 console.log(`\n  ${passed}/${passed + failed} checks passed`);
 process.exit(failed === 0 ? 0 : 1);

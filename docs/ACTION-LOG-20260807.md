@@ -201,11 +201,48 @@ Suite `tests/test-gatek-conclave.js` **16/16**, including three explicit BLOCKED
 reopening modes and a fail-closed test. Re-runnable live verification archived at
 `docs/gatek-conclave-20260807/verify-gatek.sql`. Full gate: **21 suites, 268 checks.**
 
-### Interpretation flagged for the Conclave
-The ruling says "dollar PF is the gate-release metric; kelly★ secondary." Implemented as:
-dollar PF ≤ 1.0 blocks; where PF clears but kelly★ is negative the direction is approved at
-**probation sizing rather than kelly sizing** (the conservative reading). If the Conclave meant
-kelly★ to remain co-blocking, that is a one-line change.
+### RATIFIED — the four-quadrant truth table — gov 198
+The Conclave confirmed the conservative reading was the intended one and directed that the
+truth table be pinned so "release metric vs. secondary" is never re-litigated by
+interpretation. **No code change** — the gate function is byte-identical to the R2 deploy
+(md5 `625b111e0ca5ece7bf2ff80b731479bc`); gov 198 pins semantics and coverage only.
+
+**PF BLOCKS · kelly★ only DOWNGRADES SIZING · kelly★ NEVER VETOES.**
+
+| # | dollar PF | kelly★ | n | outcome | live-verified |
+|---|---|---|---|---|---|
+| 1 | ≤ 1.0 | any | ≥20 | **BLOCK** `negative_measured_edge` | PF 0.3333, kelly −0.1250 ✔ |
+| 2 | > 1.0 | < 0 | ≥20 | **APPROVE**, probation 0.50% — never kelly | PF 1.0588, kelly −2.0250 ✔ |
+| 3 | > 1.0 | > 0 | <20 | **APPROVE**, probation 0.50% | PF 2.0000, n=16 ✔ |
+| 4 | > 1.0 | > 0 | ≥20 | **APPROVE**, fractional kelly ← only one | PF 2.0000, kelly +0.2500 → 1.0000% ✔ |
+
+Every row was tested against the **live plpgsql**, not just the JS mirror
+(`docs/gatek-conclave-20260807/quadrant-truth-table.sql`, re-runnable, rolls back).
+
+**Quadrant 2 is load-bearing.** kelly★ of −2.0250 did *not* veto a PF of 1.0588. Rationale:
+kelly★ is corrupted by the R-comparability defect (risk bases spanning 170×), and a corrupted
+estimator holding veto power is the specific failure that welded the profitable long book to
+the catastrophic short book. **P0 tripwire: if quadrant 2 ever returns
+`negative_measured_edge`, kelly★ has been restored to blocking authority.**
+
+### Quadrant 5 — the cell the ruling's table does not cover (disclosed, not fixed)
+`PF ≤ 1.0` with `n < 20` **still approves at probation 0.50%** — verified live at PF 0.2500,
+n=10. The `n<20` check short-circuits before PF is consulted, so a direction can be losing
+money and still trade at small size until it reaches 20 trades.
+
+This is **deliberate and must not be "fixed" casually**: making PF block at any n would mean a
+fresh direction whose first trade loses (PF = 0) is blocked forever — recreating the exact
+self-locking deadlock this whole ruling exists to remove.
+
+Its safety net is **not in the function**. It is the Conclave's monitored revert ("long-side
+cleaned dollar PF < 1.0 over ≥15 certified trades → halt the long side"), which nothing was
+computing. It is now computed in `verify-gatek.sql` §2b. **Current state: n=16, trigger ARMED
+(≥15), dollar PF 1.4655 → `ok - long side may continue`.** Bounded exposure while unguarded:
+at most (20 − n) trades at 0.50% risk.
+
+Coverage: `tests/test-gatek-conclave.js` **22/22** — CK-17..CK-20 one per quadrant, CK-21 the
+bootstrap corner, CK-22 a structural-ordering test proving n is consulted before PF and PF
+before kelly★, including that a *positive* kelly★ cannot rescue a failing PF.
 
 ## Verification status — what is proven vs. what is not
 

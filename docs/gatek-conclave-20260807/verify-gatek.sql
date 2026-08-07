@@ -68,6 +68,34 @@ SELECT scenario, approved, reason, risk_pct,
 FROM res ORDER BY scenario;
 ROLLBACK;
 
+-- 2b. QUADRANT 5 WATCH — the one cell in the truth table the function does NOT guard.
+-- PF <= 1.0 with n < 20 still approves at probation size (deliberate: blocking there would
+-- deadlock any fresh direction). Its ONLY safety net is the Conclave's monitored revert:
+-- "long-side cleaned dollar PF drops below 1.0 over the next >= 15 certified trades ->
+--  long side returns to negative_measured_edge halt."  Nothing computes that automatically,
+-- so compute it here. If TRIGGERED, revert with:
+--   UPDATE quantum.gate_config SET live_value=0 WHERE gate_id='GATE_K' AND constant_name='direction_scoped_edge_active';
+SELECT 'Q5 WATCH: long side, cleaned dollar PF over the most recent certified trades' AS rule,
+       count(*) AS n_certified,
+       round(coalesce(sum(net_pnl) FILTER (WHERE net_pnl>0),0)
+             / NULLIF(abs(sum(net_pnl) FILTER (WHERE net_pnl<=0)),0), 4) AS dollar_pf,
+       count(*) >= 15 AS trigger_armed,
+       CASE
+         WHEN count(*) < 15 THEN 'not yet armed - needs >= 15 certified trades'
+         WHEN coalesce(sum(net_pnl) FILTER (WHERE net_pnl>0),0)
+              / NULLIF(abs(sum(net_pnl) FILTER (WHERE net_pnl<=0)),0) < 1.0
+           THEN 'TRIGGERED - halt the long side'
+         ELSE 'ok - long side may continue'
+       END AS verdict
+FROM public.trade_ledger
+WHERE user_id='04a6a5d7-ddc0-437f-b95b-5340941c0742' AND strategy='qtp-main-pipeline'
+  AND mode='paper' AND status='closed' AND r_multiple IS NOT NULL
+  AND (CASE WHEN side IN ('buy','buy_call','sell_put') THEN 'bullish' ELSE 'bearish' END)='bullish'
+  AND exit_fill_time >= now() - interval '90 days' AND entry_fill_time >= now() - interval '90 days'
+  AND coalesce(lineage_source,'') NOT LIKE 'RECERT_QUARANTINE%'
+  AND risk_amount IS NOT NULL AND risk_amount > 0
+  AND intended_stop IS NOT NULL AND entry_fill_price IS NOT NULL;
+
 -- 3. the release conditions, so the PO can see how far each book is from its bar
 SELECT 'SHORT release: certified dollar PF > 1.0 over >= 20 trades' AS rule,
        count(*) AS n_certified,
