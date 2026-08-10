@@ -1,0 +1,21 @@
+{
+  "probe": "STOP_WIDTH_AGG_v3_strictly_after_exit",
+  "run": "n8n workflow 62ItHOZskMlHASTf, execution 546330, 2026-08-10T18:45Z (archived)",
+  "n_all": 41, "n_stopped": 24,
+  "atr14_pct_of_entry": { "min": 1.69, "median": 2.91, "max": 4.97 },
+  "stop_dist_in_ATR_as_traded": { "min": 0.49, "median": 1.13, "max": 2.22 },
+  "stop_dist_in_ATR_under_1p2_clamp": { "min": 0.24, "median": 0.41, "max": 0.71 },
+  "median_tightening_factor": 2.69,
+  "n_trades_the_clamp_tightens": 41,
+  "target_dist_in_ATR_median": 1.9,
+  "stopped_price_back_through_entry_AFTER_exit": {
+    "next_1_session":  { "yes": 11, "no": 13, "unknown": 0 },
+    "next_3_sessions": { "yes": 11, "no": 13, "unknown": 0 },
+    "next_5_sessions": { "yes": 16, "no": 8,  "unknown": 0 } },
+  "loss_on_stops_that_recovered_within_3_after": -1255.94,
+  "loss_on_stops_that_did_not_recover_within_5_after": -1614.43,
+  "stopped_then_hit_ORIGINAL_target_within_5_after": { "yes": 4, "no": 20, "unknown": 0 },
+  "winners": { "n": 5,  "median_stop_in_ATR": 0.78 },
+  "losers":  { "n": 36, "median_stop_in_ATR": 1.17 },
+  "superseded": "an earlier pass (execution 546309) included the exit session in the recovery window and reported 19/24 same-session recovery. That is not sound - a daily bar cannot order the session high against the stop fill - and it is superseded by this run."
+}
