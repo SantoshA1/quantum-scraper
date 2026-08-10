@@ -1,0 +1,27 @@
+{
+  "probe": "EXCURSION_COUNTERFACTUAL_v1",
+  "run": "n8n workflow DBlNKVkMum20ja5o, execution 546937, 2026-08-10T20:21Z (archived)",
+  "method": "1-minute bars, consolidated feed, over each trade's actual holding window. Bars start AT the entry timestamp, so the partial bar containing the fill is excluded — this understates excursions and therefore undercounts killed winners, biasing against the hypothesis under test.",
+  "n_trades": 41, "n_with_minute_bars": 41, "no_bars": [],
+  "Q1_tier1": {
+    "reached_t1": 6, "of": 41,
+    "median_t1_threshold_pct": 4.358,
+    "median_mfe_pct": 1.006, "median_mfe_in_ATR": 0.28,
+    "winners_reaching_t1": 3, "of_winners": 5
+  },
+  "Q2_counterfactual": {
+    "winners": 5,
+    "winners_the_1p2_stop_would_have_killed": 0,
+    "killed_symbols": [],
+    "winner_pnl_at_risk": 0, "total_winner_pnl": 2177.13,
+    "losers_that_also_breached": 11, "of_losers": 36,
+    "all_trades_breaching_1p2": 11,
+    "median_mae_pct": 0.977, "median_mae_in_ATR": 0.337,
+    "median_breach_frac_of_hold": 0.48
+  },
+  "winner_max_adverse_excursion_pct": {
+    "RMD": 0.233, "ARE": 0.429, "WSM": 0.473, "ZBRA": 0.556, "AKAM": 0.615,
+    "note": "all five well inside the 1.2% stop; smallest headroom is 2.0x"
+  },
+  "verdict": "The 1.2% entry stop would not have closed a single winning trade. The stop-width concern raised earlier on 2026-08-10 is falsified and retracted."
+}

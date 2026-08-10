@@ -1,3 +1,18 @@
+> ## ⚠️ SUPERSEDED IN PART — read `docs/MEASURED-STOPWIDTH-RESULT-20260810.md` first
+>
+> The measurement this brief asked for was run the same day, at 1-minute resolution over all
+> 41 trades. **It falsified the concern.** Zero of five winners would have been closed by the
+> 1.2% stop; every winner's worst drawdown was under 0.62%. **§2–§3 below are retracted.**
+>
+> Worse, §2's claim that *"avg R on stops is −1.228 — worse than −1.0, meaning stops are
+> overshooting"* was reading a **corrupted field**. `r_multiple` is wrong on 30 of 42 closed
+> trades (all 24 stop exits), written by the `RECERT_20260805_fills` backfill. True average R
+> on stop exits is **−0.537**. That defect is the real finding of this line of work.
+>
+> What survives: the clamp does tighten the stop from 1.13 to 0.41 ATR on 41 of 41 trades, no
+> closed trade has been taken under it, and the entry cap is pinned to the TSM's 1.20%
+> classifier. What does not survive is the inference that any of that is costing money.
+
 # Conclave Brief — the stop was cut to a third of an ATR to fix a plumbing bug, and nobody checked what that does to the strategy
 **Date:** 2026-08-10 · **Prepared by:** claude-architect for PO (Santosh Adari)
 **Status:** DECISION REQUESTED. Nothing changed. The 1.2% clamp is live and untouched.

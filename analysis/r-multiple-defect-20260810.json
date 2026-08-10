@@ -1,0 +1,35 @@
+{
+  "finding": "r_multiple is wrong on 30 of 42 closed trades, including all 24 stop exits",
+  "measured": "2026-08-10",
+  "invariant": "r_multiple must equal net_pnl / risk_amount",
+  "inputs_verified_correct": {
+    "risk_amount": "= |intended_entry - intended_stop| * qty, ratio 1.000 on every row",
+    "net_pnl": "= actual price move * qty, exact on every row"
+  },
+  "by_exit_reason": {
+    "stop":   { "n": 24, "agree": 0, "diverge": 24, "avg_r_recorded": -1.228, "avg_r_true": -0.537 },
+    "manual": { "n": 10, "agree": 4, "diverge": 6,  "avg_r_recorded": 0.339,  "avg_r_true": 0.411 },
+    "trail":  { "n": 3,  "agree": 3, "diverge": 0,  "avg_r_recorded": -0.484, "avg_r_true": -0.484 },
+    "time":   { "n": 4,  "agree": 4, "diverge": 0,  "avg_r_recorded": -0.016, "avg_r_true": -0.017 },
+    "target": { "n": 1,  "agree": 1, "diverge": 0,  "avg_r_recorded": 0.375,  "avg_r_true": 0.375 },
+    "ALL":    { "n": 42, "agree": 12, "diverge": 30, "avg_r_recorded": -0.648, "avg_r_true": -0.236, "worst_drift": 1.5546 }
+  },
+  "attributed_to": {
+    "RECERT_20260805_fills": { "rows": 36, "wrong": 30, "avg_drift_on_stops": -0.6908 },
+    "H4_EXIT_RESOLUTION_v2 (live writer)": { "rows": 5, "wrong": 0, "drift": 0.0 },
+    "backfill_symbol_time_v1": { "rows": 1, "wrong": 0, "drift": 0.0 }
+  },
+  "worked_example_ADI_20260717": {
+    "risk_amount": 463.12, "net_pnl": -97.25,
+    "r_recorded": -1.0276, "r_true": -0.21, "factor_too_negative": 4.9
+  },
+  "impact": {
+    "dollar_profit_factor": "UNAFFECTED - computed from net_pnl, correct on every row. Gate-K's halt and the short-side block stand.",
+    "kelly_star_long_n17": { "recorded": -0.1756, "true": 0.0703, "note": "SIGN FLIP" },
+    "kelly_star_short_n24": { "recorded": -9.0085, "true": -9.0617, "note": "blocked either way, dollar PF 0.0101" },
+    "operational": "No effect today: at n=17 the sample-size condition dominates and the long side is on probation regardless. At n=20 - three trades away - the corrupted value gives Quadrant 2 (probation 0.50%) where the true value gives Quadrant 4 (fractional kelly).",
+    "direction_of_error": "CONSERVATIVE. Inflated losses make kelly* too negative, which biases sizing DOWN. Under the ratified four-quadrant table kelly* only downgrades sizing and never vetoes, so the worst case has been under-sizing. Nothing unsafe occurred."
+  },
+  "caveat": "The three trades that take the long side to n=20 will also move the averages. The claim is only that recorded and true kelly* currently sit on opposite sides of zero, not that the true value stays positive.",
+  "not_found": "The faulty formula inside RECERT_20260805_fills. The output is provably wrong and attributed; the arithmetic has not been read and is not guessed at here."
+}
