@@ -1,0 +1,382 @@
+{
+ "probe": "S1_STOP_WIDTH_REPLAY_v1",
+ "ruling": "Conclave 2026-08-11 S1",
+ "method": "R = realized move / stop width; a stop-out costs -1R x overshoot. Tightening is exactly replayable from the observed 1-minute path; widening is not and is refused. Back-check: replayed at the as-traded widths with the calibrated overshoot, expectancy reproduces the independently computed truth to within 0.0003R.",
+ "back_check": {
+  "independent_truth_R": -0.2134,
+  "replay_at_as_traded_overshoot_1p67": -0.2137
+ },
+ "overshoot_calibration": {
+  "observed_breaches": 4,
+  "losses_in_R": [
+   1.351,
+   1.579,
+   1.697,
+   2.04
+  ],
+  "mean": 1.67,
+  "note": "stops gap rather than filling at the stop price. A flat -1R flatters TIGHT stops, because at a 2.69x larger position the same dollar gap costs 2.69x more R. Reported as a sensitivity, not a point estimate."
+ },
+ "fixed_width_sweep": {
+  "overshoot_1": {
+   "0.6%": {
+    "stop_out_rate_pct": 78,
+    "win_rate_pct": 9.8,
+    "expectancy_R": -0.2366,
+    "exits_ge_3R": 3,
+    "winners_stopped": "1/5",
+    "harvest_survivors": 3,
+    "best_R": 8.643
+   },
+   "0.8%": {
+    "stop_out_rate_pct": 73.2,
+    "win_rate_pct": 12.2,
+    "expectancy_R": -0.1757,
+    "exits_ge_3R": 4,
+    "winners_stopped": "0/5",
+    "harvest_survivors": 4,
+    "best_R": 6.533
+   },
+   "1.0%": {
+    "stop_out_rate_pct": 43.9,
+    "win_rate_pct": 12.2,
+    "expectancy_R": -0.27,
+    "exits_ge_3R": 4,
+    "winners_stopped": "0/5",
+    "harvest_survivors": 5,
+    "best_R": 5.226
+   },
+   "1.2%": {
+    "stop_out_rate_pct": 26.8,
+    "win_rate_pct": 12.2,
+    "expectancy_R": -0.2561,
+    "exits_ge_3R": 4,
+    "winners_stopped": "0/5",
+    "harvest_survivors": 5,
+    "best_R": 4.355
+   },
+   "1.4%": {
+    "stop_out_rate_pct": 22,
+    "win_rate_pct": 12.2,
+    "expectancy_R": -0.2338,
+    "exits_ge_3R": 4,
+    "winners_stopped": "0/5",
+    "harvest_survivors": 5,
+    "best_R": 3.733
+   },
+   "1.6%": {
+    "stop_out_rate_pct": 17.1,
+    "win_rate_pct": 12.2,
+    "expectancy_R": -0.2271,
+    "exits_ge_3R": 3,
+    "winners_stopped": "0/5",
+    "harvest_survivors": 5,
+    "best_R": 3.266
+   },
+   "1.7%": {
+    "stop_out_rate_pct": 17.1,
+    "win_rate_pct": 12.2,
+    "expectancy_R": -0.2238,
+    "exits_ge_3R": 3,
+    "winners_stopped": "0/5",
+    "harvest_survivors": 5,
+    "best_R": 3.074
+   }
+  },
+  "overshoot_1.3": {
+   "0.6%": {
+    "stop_out_rate_pct": 78,
+    "win_rate_pct": 9.8,
+    "expectancy_R": -0.4707,
+    "exits_ge_3R": 3,
+    "winners_stopped": "1/5",
+    "harvest_survivors": 3,
+    "best_R": 8.643
+   },
+   "0.8%": {
+    "stop_out_rate_pct": 73.2,
+    "win_rate_pct": 12.2,
+    "expectancy_R": -0.3952,
+    "exits_ge_3R": 4,
+    "winners_stopped": "0/5",
+    "harvest_survivors": 4,
+    "best_R": 6.533
+   },
+   "1.0%": {
+    "stop_out_rate_pct": 43.9,
+    "win_rate_pct": 12.2,
+    "expectancy_R": -0.4017,
+    "exits_ge_3R": 4,
+    "winners_stopped": "0/5",
+    "harvest_survivors": 5,
+    "best_R": 5.226
+   },
+   "1.2%": {
+    "stop_out_rate_pct": 26.8,
+    "win_rate_pct": 12.2,
+    "expectancy_R": -0.3366,
+    "exits_ge_3R": 4,
+    "winners_stopped": "0/5",
+    "harvest_survivors": 5,
+    "best_R": 4.355
+   },
+   "1.4%": {
+    "stop_out_rate_pct": 22,
+    "win_rate_pct": 12.2,
+    "expectancy_R": -0.2997,
+    "exits_ge_3R": 4,
+    "winners_stopped": "0/5",
+    "harvest_survivors": 5,
+    "best_R": 3.733
+   },
+   "1.6%": {
+    "stop_out_rate_pct": 17.1,
+    "win_rate_pct": 12.2,
+    "expectancy_R": -0.2783,
+    "exits_ge_3R": 3,
+    "winners_stopped": "0/5",
+    "harvest_survivors": 5,
+    "best_R": 3.266
+   },
+   "1.7%": {
+    "stop_out_rate_pct": 17.1,
+    "win_rate_pct": 12.2,
+    "expectancy_R": -0.275,
+    "exits_ge_3R": 3,
+    "winners_stopped": "0/5",
+    "harvest_survivors": 5,
+    "best_R": 3.074
+   }
+  },
+  "overshoot_1.67": {
+   "0.6%": {
+    "stop_out_rate_pct": 78,
+    "win_rate_pct": 9.8,
+    "expectancy_R": -0.7595,
+    "exits_ge_3R": 3,
+    "winners_stopped": "1/5",
+    "harvest_survivors": 3,
+    "best_R": 8.643
+   },
+   "0.8%": {
+    "stop_out_rate_pct": 73.2,
+    "win_rate_pct": 12.2,
+    "expectancy_R": -0.6659,
+    "exits_ge_3R": 4,
+    "winners_stopped": "0/5",
+    "harvest_survivors": 4,
+    "best_R": 6.533
+   },
+   "1.0%": {
+    "stop_out_rate_pct": 43.9,
+    "win_rate_pct": 12.2,
+    "expectancy_R": -0.5641,
+    "exits_ge_3R": 4,
+    "winners_stopped": "0/5",
+    "harvest_survivors": 5,
+    "best_R": 5.226
+   },
+   "1.2%": {
+    "stop_out_rate_pct": 26.8,
+    "win_rate_pct": 12.2,
+    "expectancy_R": -0.4359,
+    "exits_ge_3R": 4,
+    "winners_stopped": "0/5",
+    "harvest_survivors": 5,
+    "best_R": 4.355
+   },
+   "1.4%": {
+    "stop_out_rate_pct": 22,
+    "win_rate_pct": 12.2,
+    "expectancy_R": -0.3809,
+    "exits_ge_3R": 4,
+    "winners_stopped": "0/5",
+    "harvest_survivors": 5,
+    "best_R": 3.733
+   },
+   "1.6%": {
+    "stop_out_rate_pct": 17.1,
+    "win_rate_pct": 12.2,
+    "expectancy_R": -0.3415,
+    "exits_ge_3R": 3,
+    "winners_stopped": "0/5",
+    "harvest_survivors": 5,
+    "best_R": 3.266
+   },
+   "1.7%": {
+    "stop_out_rate_pct": 17.1,
+    "win_rate_pct": 12.2,
+    "expectancy_R": -0.3382,
+    "exits_ge_3R": 3,
+    "winners_stopped": "0/5",
+    "harvest_survivors": 5,
+    "best_R": 3.074
+   }
+  },
+  "overshoot_2": {
+   "0.6%": {
+    "stop_out_rate_pct": 78,
+    "win_rate_pct": 9.8,
+    "expectancy_R": -1.0171,
+    "exits_ge_3R": 3,
+    "winners_stopped": "1/5",
+    "harvest_survivors": 3,
+    "best_R": 8.643
+   },
+   "0.8%": {
+    "stop_out_rate_pct": 73.2,
+    "win_rate_pct": 12.2,
+    "expectancy_R": -0.9074,
+    "exits_ge_3R": 4,
+    "winners_stopped": "0/5",
+    "harvest_survivors": 4,
+    "best_R": 6.533
+   },
+   "1.0%": {
+    "stop_out_rate_pct": 43.9,
+    "win_rate_pct": 12.2,
+    "expectancy_R": -0.709,
+    "exits_ge_3R": 4,
+    "winners_stopped": "0/5",
+    "harvest_survivors": 5,
+    "best_R": 5.226
+   },
+   "1.2%": {
+    "stop_out_rate_pct": 26.8,
+    "win_rate_pct": 12.2,
+    "expectancy_R": -0.5244,
+    "exits_ge_3R": 4,
+    "winners_stopped": "0/5",
+    "harvest_survivors": 5,
+    "best_R": 4.355
+   },
+   "1.4%": {
+    "stop_out_rate_pct": 22,
+    "win_rate_pct": 12.2,
+    "expectancy_R": -0.4533,
+    "exits_ge_3R": 4,
+    "winners_stopped": "0/5",
+    "harvest_survivors": 5,
+    "best_R": 3.733
+   },
+   "1.6%": {
+    "stop_out_rate_pct": 17.1,
+    "win_rate_pct": 12.2,
+    "expectancy_R": -0.3978,
+    "exits_ge_3R": 3,
+    "winners_stopped": "0/5",
+    "harvest_survivors": 5,
+    "best_R": 3.266
+   },
+   "1.7%": {
+    "stop_out_rate_pct": 17.1,
+    "win_rate_pct": 12.2,
+    "expectancy_R": -0.3945,
+    "exits_ge_3R": 3,
+    "winners_stopped": "0/5",
+    "harvest_survivors": 5,
+    "best_R": 3.074
+   }
+  }
+ },
+ "as_traded": {
+  "overshoot_1": {
+   "label": "as-traded (1.13 ATR median, 3.22% median width)",
+   "median_width_pct": 3.2232,
+   "n_replayable": 41,
+   "n_not_replayable": 0,
+   "stop_out_rate_pct": 9.8,
+   "expectancy_R": -0.1483,
+   "exits_ge_3R": 0,
+   "original_winners_stopped": 0,
+   "harvest_survivors": 6
+  },
+  "overshoot_1.3": {
+   "label": "as-traded (1.13 ATR median, 3.22% median width)",
+   "median_width_pct": 3.2232,
+   "n_replayable": 41,
+   "n_not_replayable": 0,
+   "stop_out_rate_pct": 9.8,
+   "expectancy_R": -0.1776,
+   "exits_ge_3R": 0,
+   "original_winners_stopped": 0,
+   "harvest_survivors": 6
+  },
+  "overshoot_1.67": {
+   "label": "as-traded (1.13 ATR median, 3.22% median width)",
+   "median_width_pct": 3.2232,
+   "n_replayable": 41,
+   "n_not_replayable": 0,
+   "stop_out_rate_pct": 9.8,
+   "expectancy_R": -0.2137,
+   "exits_ge_3R": 0,
+   "original_winners_stopped": 0,
+   "harvest_survivors": 6
+  },
+  "overshoot_2": {
+   "label": "as-traded (1.13 ATR median, 3.22% median width)",
+   "median_width_pct": 3.2232,
+   "n_replayable": 41,
+   "n_not_replayable": 0,
+   "stop_out_rate_pct": 9.8,
+   "expectancy_R": -0.2459,
+   "exits_ge_3R": 0,
+   "original_winners_stopped": 0,
+   "harvest_survivors": 6
+  }
+ },
+ "atr_floor": {
+  "k0.2": {
+   "label": "max(1.2pct, 0.2 x ATR14)",
+   "median_width_pct": 1.2,
+   "n_replayable": 41,
+   "n_not_replayable": 0,
+   "stop_out_rate_pct": 26.8,
+   "expectancy_R": -0.4359,
+   "exits_ge_3R": 4,
+   "original_winners_stopped": 0,
+   "harvest_survivors": 5
+  },
+  "k0.3": {
+   "label": "max(1.2pct, 0.3 x ATR14)",
+   "median_width_pct": 1.2,
+   "n_replayable": 41,
+   "n_not_replayable": 0,
+   "stop_out_rate_pct": 26.8,
+   "expectancy_R": -0.4511,
+   "exits_ge_3R": 4,
+   "original_winners_stopped": 0,
+   "harvest_survivors": 5
+  },
+  "k0.4": {
+   "label": "max(1.2pct, 0.4 x ATR14)",
+   "median_width_pct": 1.2,
+   "n_replayable": 41,
+   "n_not_replayable": 0,
+   "stop_out_rate_pct": 22,
+   "expectancy_R": -0.4165,
+   "exits_ge_3R": 3,
+   "original_winners_stopped": 0,
+   "harvest_survivors": 5
+  },
+  "k0.5": {
+   "label": "max(1.2pct, 0.5 x ATR14)",
+   "median_width_pct": 1.4525,
+   "n_replayable": 40,
+   "n_not_replayable": 1,
+   "stop_out_rate_pct": 17.5,
+   "expectancy_R": -0.378,
+   "exits_ge_3R": 2,
+   "original_winners_stopped": 0,
+   "harvest_survivors": 5
+  }
+ },
+ "verdicts": {
+  "ruling_decisive_read": "At 1.2 pct (0.41 ATR) ZERO of the 5 real winners are stopped and 5 of 6 TSM-harvest survivors remain. By the ruling own criterion the tight stop is DEFENSIBLE - it does not destroy the only exit path that ever paid.",
+  "but_expectancy": "At the calibrated overshoot, expectancy is -0.436R at 1.2 pct versus -0.214R as traded. The tight stop roughly DOUBLES the loss rate per trade. Wider is monotonically better across 1.0-1.7 pct and better still as traded.",
+  "metric_conflict": "The ruling kill metric (>=3R exits) moves the OPPOSITE way: 4 at 1.2 pct versus 0 as traded, because R = move/width mechanically manufactures big R at tight stops. Optimising the kill metric and optimising expectancy disagree on this parameter.",
+  "harvest_floor": "The width at which the harvest actually breaks is near 0.8 pct, not 1.2 pct. At 0.6 pct one winner dies and harvest survivors fall from 5 to 3.",
+  "atr_floor": "max(1.2 pct, k x ATR14) for k in 0.2-0.5 does not beat the flat 1.2 pct cap on this sample.",
+  "overarching": "Expectancy is NEGATIVE at every width tested, from 0.8 pct to as-traded. No stop width makes this strategy profitable. This is the ruling third precommitted trigger: the stop was never the binding constraint, and the problem is signal quality - which is where gov 195/196/197 already pointed."
+ }
+}

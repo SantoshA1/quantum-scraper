@@ -140,5 +140,65 @@ check('H3-13', 'the $qet$ dollar-quote escape is still stripped from meta, so a 
   assert.strictEqual((out.sql.match(/\$qet\$/g) || []).length, 2, 'exactly one balanced dollar-quoted literal');
 });
 
+
+console.log('\n\u2550\u2550\u2550 Conclave S3 (2026-08-11) \u2014 the stop regime must be separable \u2550\u2550\u2550\n');
+
+// Maya adds: "The council told you my edge number is measured on a strategy that no longer
+// exists \u2014 a 1.13-ATR stop, when I'm running 0.41. You're adding a tag so that never happens
+// again. Fine. But if that tag says 'ATR' and means a DIFFERENT ATR than the one the analysis
+// uses, you've built the same trap with a new label. Prove it says which ATR it is."
+const V3 = fs.readFileSync(path.join(DIR, 'qet-ledger-h3-v3.js'), 'utf8');
+const runV3 = (j) => run(j, V3);
+const FILLED_V3 = { ...FILLED,
+  alpaca_entry_stop_clamp_pct: 1.2, alpaca_stop_clamped: true, alpaca_raw_stop_dist: 7.8,
+  alpaca_atr_used: 5.2 };
+
+check('H3-14', 'a capped-limit entry is tagged regime C, so the clean week is separable from the old sample', () => {
+  const sr = metaOf(runV3(FILLED_V3)).stop_regime;
+  assert.strictEqual(sr.label, 'C_CLAMP_CAPPED_LIMIT');
+  assert.strictEqual(sr.clamp_pct, 1.2);
+  assert.strictEqual(sr.clamp_bound, true, 'the 1.2% cap did override the ATR stop on this trade');
+  assert.strictEqual(sr.raw_stop_dist_before_clamp, 7.8, 'and what the ATR wanted is recorded too');
+});
+check('H3-15', 'a market-order entry under the same clamp is regime B \u2014 not silently lumped in with C', () => {
+  const j = { ...FILLED_V3 }; delete j.alpaca_exec_regime;
+  assert.strictEqual(metaOf(runV3(j)).stop_regime.label, 'B_CLAMP_MARKET');
+});
+check('H3-16', 'a pre-clamp entry is regime A \u2014 the 41-trade sample Gate-K is actually measured on', () => {
+  const j = { ...FILLED_V3 }; delete j.alpaca_exec_regime; delete j.alpaca_entry_stop_clamp_pct;
+  const sr = metaOf(runV3(j)).stop_regime;
+  assert.strictEqual(sr.label, 'A_UNCLAMPED_MARKET');
+  assert.strictEqual(sr.clamp_pct, null);
+});
+check('H3-17', 'stop width is recorded against BOTH the signal and the fill, because they differ', () => {
+  const sr = metaOf(runV3(FILLED_V3)).stop_regime;
+  assert.ok(Math.abs(sr.stop_pct_of_signal - 0.6335) < 0.002, String(sr.stop_pct_of_signal));
+  assert.ok(Math.abs(sr.stop_pct_of_fill - 1.15) < 0.002, String(sr.stop_pct_of_fill));
+  assert.notStrictEqual(sr.stop_pct_of_signal, sr.stop_pct_of_fill, 'one number could not serve both');
+});
+check('H3-18', 'the ATR term names WHICH ATR it is \u2014 the trap this tag exists to avoid', () => {
+  const sr = metaOf(runV3(FILLED_V3)).stop_regime;
+  assert.strictEqual(sr.atr_source, 'tradingview_payload',
+    'unlabelled, this reads as daily ATR-14 and rebuilds the same measurement trap under a new name');
+  assert.strictEqual(sr.atr_value, 5.2);
+  assert.ok(Math.abs(sr.stop_in_payload_atr - 0.431) < 0.003, String(sr.stop_in_payload_atr));
+  assert.ok(/NOT the consolidated daily ATR-14/.test(V3), 'and the caveat is in the deployed bytes, not just here');
+});
+check('H3-19', 'a missing ATR yields null, never a divide-by-zero or an Infinity in the ledger', () => {
+  for (const a of [0, undefined, null]) {
+    assert.strictEqual(metaOf(runV3({ ...FILLED_V3, alpaca_atr_used: a })).stop_regime.stop_in_payload_atr, null, 'atr=' + a);
+  }
+});
+check('H3-20', 'every v2 key survives v3 untouched \u2014 the tag is additive, as the ruling requires', () => {
+  const a = metaOf(run(FILLED_V3, V2)), b = metaOf(runV3(FILLED_V3));
+  for (const k of Object.keys(a)) assert.deepStrictEqual(b[k], a[k], 'key "' + k + '" drifted');
+  assert.ok('stop_regime' in b && !('stop_regime' in a), 'and stop_regime is the only addition');
+});
+check('H3-21', 'the non-executing statuses still write no row \u2014 S3 did not weaken the H3 v2 guard', () => {
+  for (const st of ['SKIPPED_NO_FILL_WITHIN_CAP', 'ERROR_FILL_STATE_UNKNOWN', 'BLOCKED_EXEC_CAP']) {
+    assert.strictEqual(runV3({ ...FILLED_V3, alpaca_status: st }).h3, 'skipped', st);
+  }
+});
+
 console.log(`\n${passed} passed, ${failed} failed\n`);
 process.exit(failed ? 1 : 0);
