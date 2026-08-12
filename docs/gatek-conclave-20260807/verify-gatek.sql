@@ -3,7 +3,11 @@
 -- Every mutation below is inside a transaction that ROLLS BACK. Nothing persists.
 -- Run this after ANY change to compute_kelly_gate or quantum.gate_config.
 --
--- Expected (2026-08-07, GATE_K_v2.8_R2_DIRECTION_SCOPED_20260807, functiondef md5 625b111e...):
+-- Expected (2026-08-12, GATE_K_v2.9_K3_EXTENDED_20260812, functiondef md5 d2a9e381...):
+--   (gov 209: K3 cooldown is now 120h / symbol-wide / any-loss, checked BEFORE R1/R2 —
+--    so the candidates below are SYNTHETIC never-traded symbols; a real symbol with a
+--    losing exit in the last 120h would return stop_out_cooldown and mask the R1/R2 reads.
+--    K3 itself is proven by the gov209 fixture set, docs/gov209-k3/.)
 --   LONG                              -> approved=true  probation_sizing_insufficient_sample 0.50%
 --   SHORT (all flags on)              -> approved=false short_side_blocked_pf_below_bar
 --   SHORT (R1 off)                    -> approved=false negative_measured_edge
@@ -17,7 +21,7 @@
 -- 0. what is live right now
 SELECT public.compute_kelly_gate(
          '04a6a5d7-ddc0-437f-b95b-5340941c0742'::uuid,'38aa32eb-4269-4f13-bb36-f0a538db8ab7'::uuid,
-         'qtp-main-pipeline','paper',100000,200.00,197.60,NULL,'buy','AMAT')->>'gate_version' AS live_gate_version,
+         'qtp-main-pipeline','paper',100000,200.00,197.60,NULL,'buy','MAYAOK')->>'gate_version' AS live_gate_version,
        md5(pg_get_functiondef(p.oid)) AS functiondef_md5
 FROM pg_proc p JOIN pg_namespace n ON n.oid=p.pronamespace
 WHERE n.nspname='public' AND p.proname='compute_kelly_gate';
@@ -33,33 +37,33 @@ CREATE TEMP TABLE res(scenario text, approved bool, reason text, risk_pct text) 
 INSERT INTO res SELECT '1. SHORT, all flags on', (v->>'approved')::bool, v->>'reason', v->>'risk_pct'
 FROM (SELECT public.compute_kelly_gate('04a6a5d7-ddc0-437f-b95b-5340941c0742'::uuid,
   '38aa32eb-4269-4f13-bb36-f0a538db8ab7'::uuid,'qtp-main-pipeline','paper',100000,50.00,50.60,
-  NULL,'sell','ZETA',90,40,0.50,0.25,'off') v) t;
+  NULL,'sell','MAYAZZ',90,40,0.50,0.25,'off') v) t;
 
 UPDATE quantum.gate_config SET live_value=0 WHERE gate_id='GATE_K' AND constant_name='short_side_block_active';
 INSERT INTO res SELECT '2. SHORT, R1 OFF (R2 must hold)', (v->>'approved')::bool, v->>'reason', v->>'risk_pct'
 FROM (SELECT public.compute_kelly_gate('04a6a5d7-ddc0-437f-b95b-5340941c0742'::uuid,
   '38aa32eb-4269-4f13-bb36-f0a538db8ab7'::uuid,'qtp-main-pipeline','paper',100000,50.00,50.60,
-  NULL,'sell','ZETA',90,40,0.50,0.25,'off') v) t;
+  NULL,'sell','MAYAZZ',90,40,0.50,0.25,'off') v) t;
 
 UPDATE quantum.gate_config SET live_value=999 WHERE gate_id='GATE_K' AND constant_name='direction_min_trades';
 INSERT INTO res SELECT '3. SHORT, R1 OFF + forced to probation', (v->>'approved')::bool, v->>'reason', v->>'risk_pct'
 FROM (SELECT public.compute_kelly_gate('04a6a5d7-ddc0-437f-b95b-5340941c0742'::uuid,
   '38aa32eb-4269-4f13-bb36-f0a538db8ab7'::uuid,'qtp-main-pipeline','paper',100000,50.00,50.60,
-  NULL,'sell','ZETA',90,40,0.50,0.25,'off') v) t;
+  NULL,'sell','MAYAZZ',90,40,0.50,0.25,'off') v) t;
 INSERT INTO res SELECT '4. LONG, same forced-probation config', (v->>'approved')::bool, v->>'reason', v->>'risk_pct'
 FROM (SELECT public.compute_kelly_gate('04a6a5d7-ddc0-437f-b95b-5340941c0742'::uuid,
   '38aa32eb-4269-4f13-bb36-f0a538db8ab7'::uuid,'qtp-main-pipeline','paper',100000,200.00,197.60,
-  NULL,'buy','AMAT',90,40,0.50,0.25,'off') v) t;
+  NULL,'buy','MAYAOK',90,40,0.50,0.25,'off') v) t;
 
 DELETE FROM quantum.gate_config WHERE gate_id='GATE_K';
 INSERT INTO res SELECT '5. SHORT, GATE_K config WIPED', (v->>'approved')::bool, v->>'reason', v->>'risk_pct'
 FROM (SELECT public.compute_kelly_gate('04a6a5d7-ddc0-437f-b95b-5340941c0742'::uuid,
   '38aa32eb-4269-4f13-bb36-f0a538db8ab7'::uuid,'qtp-main-pipeline','paper',100000,50.00,50.60,
-  NULL,'sell','ZETA',90,40,0.50,0.25,'off') v) t;
+  NULL,'sell','MAYAZZ',90,40,0.50,0.25,'off') v) t;
 INSERT INTO res SELECT '6. LONG, GATE_K config WIPED', (v->>'approved')::bool, v->>'reason', v->>'risk_pct'
 FROM (SELECT public.compute_kelly_gate('04a6a5d7-ddc0-437f-b95b-5340941c0742'::uuid,
   '38aa32eb-4269-4f13-bb36-f0a538db8ab7'::uuid,'qtp-main-pipeline','paper',100000,200.00,197.60,
-  NULL,'buy','AMAT',90,40,0.50,0.25,'off') v) t;
+  NULL,'buy','MAYAOK',90,40,0.50,0.25,'off') v) t;
 
 SELECT scenario, approved, reason, risk_pct,
        CASE WHEN scenario LIKE '%SHORT%' AND approved THEN 'P0 FAIL - SHORT BOOK REOPENED'

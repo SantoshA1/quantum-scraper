@@ -174,7 +174,7 @@ check('CK-15', 'dollar PF is the release metric; a PF-positive but kelly-negativ
   assert.ok((d.degraded || []).includes('dollar_pf_positive_but_kelly_negative_probation_sized'));
 });
 check('CK-16', 'version stamps pin the shipped package', () => {
-  assert.strictEqual(G.GATE_VERSION, 'GATE_K_v2.8_R2_DIRECTION_SCOPED_20260807');
+  assert.strictEqual(G.GATE_VERSION, 'GATE_K_v2.9_K3_EXTENDED_20260812');
   assert.strictEqual(G.SAMPLE_VERSION, 'R3_PROVENANCE_CLEANED_20260807');
 });
 

@@ -13,6 +13,8 @@
  * Variant 'live' mirrors v2.1 (GATE_K_v2.1_20260710) — the pre-fix regression reference.
  * Variant 'proposed' mirrors v2.2 (GATE_K_v2.2_K3_LOSS_ONLY_20260805) — DEPLOYED 2026-08-05
  * (migration qtp_gate_k_v2_2_k3_loss_only_20260805; flip proven live with tagged fixtures).
+ * Variant 'v29' mirrors v2.9 (GATE_K_v2.9_K3_EXTENDED_20260812, gov 209) — DEPLOYED
+ * 2026-08-12: 120h, symbol-wide, ANY losing exit. CD-14+ pin the v2.9 delta.
  */
 const assert = require('assert');
 const K = require('../lib/risk/cooldown');
@@ -117,6 +119,60 @@ check('CD-12', 'direction mapping matches the live CASE: sell_put is bullish, bu
 check('CD-13', 'missing symbol or unknown side degrades to skip (matches the live v_degraded path)', () => {
   assert.strictEqual(K.cooldownDecision({ symbol: null, side: 'buy', mode: 'paper', now: '2026-08-05T13:00:00Z' }, [WDAY_CLASS_LOSS], 'live').blocked, false);
   assert.strictEqual(K.cooldownDecision({ symbol: 'WDAY', side: 'weird', mode: 'paper', now: '2026-08-05T13:00:00Z' }, [WDAY_CLASS_LOSS], 'live').blocked, false);
+});
+
+// ── v2.9 (gov 209): 120h, symbol-wide, any losing exit ─────────────────────────
+const at = (hoursAgo, over = {}) => ({ symbol: 'RVNG', side: 'buy', mode: 'paper', status: 'closed',
+  exit_reason: 'stop', net_pnl: -100, exit_fill_time: new Date(Date.parse('2026-08-12T14:00:00Z') - hoursAgo * 3600000).toISOString(), ...over });
+const NOW = { symbol: 'RVNG', side: 'buy', mode: 'paper', now: '2026-08-12T14:00:00Z' };
+
+check('CD-14', 'v2.9 DELTA: cross-direction MANUAL loss @90h blocks under v29 — invisible to v2.2 three ways at once', () => {
+  const row = at(90, { side: 'sell', exit_reason: 'manual' });   // wrong dir, wrong label, outside 24h
+  assert.strictEqual(K.cooldownDecision(NOW, [row], 'proposed').blocked, false, 'v2.2 misses it');
+  assert.strictEqual(K.cooldownDecision(NOW, [row], 'v29').blocked, true, 'v2.9 catches it');
+});
+check('CD-15', 'v2.9 window bound: the same loss @121h passes', () => {
+  assert.strictEqual(K.cooldownDecision(NOW, [at(121, { side: 'sell', exit_reason: 'manual' })], 'v29').blocked, false);
+  assert.strictEqual(K.cooldownDecision(NOW, [at(119, { side: 'sell', exit_reason: 'manual' })], 'v29').blocked, true);
+});
+check('CD-16', 'v2.9 keeps the v2.2 core promise: a WINNER never cools down, whatever its label', () => {
+  assert.strictEqual(K.cooldownDecision(NOW, [at(10, { net_pnl: 500, exit_reason: 'stop' })], 'v29').blocked, false);
+});
+check('CD-17', "v2.9 any-loss: a 'target'-labelled LOSS blocks (the label list no longer decides)", () => {
+  for (const reason of ['target', 'manual', 'time', 'signal_flip', 'liquidation']) {
+    assert.strictEqual(K.cooldownDecision(NOW, [at(50, { exit_reason: reason })], 'v29').blocked, true, reason);
+  }
+});
+check('CD-18', 'v2.9 symbol isolation survives: an unrelated symbol is never cooled', () => {
+  assert.strictEqual(K.cooldownDecision({ ...NOW, symbol: 'OTHR' }, [at(10)], 'v29').blocked, false);
+});
+check('CD-19', 'v2.9 is a strict SUPERSET of v2.2: everything v2.2 blocks, v2.9 blocks', () => {
+  const v22blocked = [at(10), at(23, { exit_reason: 'trail' })];
+  for (const row of v22blocked) {
+    assert.strictEqual(K.cooldownDecision(NOW, [row], 'proposed').blocked, true, 'setup');
+    assert.strictEqual(K.cooldownDecision(NOW, [row], 'v29').blocked, true, 'superset violated');
+  }
+});
+check('CD-20', 'THE EVIDENCE: the five real re-entry shapes (71h same, 72h+96h cross, 91h, 114h) — v2.2 blocked NONE, v2.9 blocks ALL', () => {
+  // WMT@71h same-dir, WST@72h cross-dir (prior exit was MANUAL), AVB@96h cross-dir,
+  // WMB@91h same-dir, WSM@114h same-dir. All five re-entries lost: -785.71 USD total.
+  const five = [
+    at(71),
+    at(72, { side: 'sell', exit_reason: 'manual' }),
+    at(96, { side: 'sell' }),
+    at(91),
+    at(114),
+  ];
+  for (const row of five) {
+    assert.strictEqual(K.cooldownDecision(NOW, [row], 'proposed').blocked, false, 'v2.2 let it through');
+    assert.strictEqual(K.cooldownDecision(NOW, [row], 'v29').blocked, true, 'v2.9 must stop it');
+  }
+});
+check('CD-21', 'v2.9 symbol-wide means an unknown candidate side still cools down (deployed outer IF)', () => {
+  assert.strictEqual(K.cooldownDecision({ ...NOW, side: 'weird' }, [at(10)], 'v29').blocked, true,
+    'v_k3_symbol_wide OR v_direction IS NOT NULL — symbol alone is enough under v2.9');
+  assert.strictEqual(K.cooldownDecision({ ...NOW, symbol: null }, [at(10)], 'v29').blocked, false,
+    'but no symbol still degrades to skip');
 });
 
 console.log(`\n  ${passed}/${passed + failed} checks passed`);
