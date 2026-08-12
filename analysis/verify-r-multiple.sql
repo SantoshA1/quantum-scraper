@@ -1,8 +1,11 @@
 -- ═══════════════════════════════════════════════════════════════════════════════════════
 -- r_multiple INTEGRITY CHECK — 2026-08-10.  Read-only. Safe on production.
 -- r_multiple must equal net_pnl / risk_amount. On 2026-08-10, 30 of 42 closed trades
--- failed this, including ALL 24 stop exits, all written by RECERT_20260805_fills.
--- Re-run after any backfill or writer change.
+-- failed this (31 on the widest filter), all written by RECERT_20260805_fills.
+-- FIXED 2026-08-12 by migration qtp_gov206_m1_r_multiple_entry_risk_restore (gov 208):
+-- root cause was RECERT_OWN_STOP using the TSM-trailed EXIT-time stop as the risk
+-- denominator instead of the entry-time stop. EXPECTED RESULT NOW: zero wrong_r rows.
+-- Any non-zero result after 2026-08-12 is a NEW defect. Re-run after any backfill.
 -- ═══════════════════════════════════════════════════════════════════════════════════════
 
 -- 1. THE INVARIANT, by writer. Any non-zero "wrong_r" is a defect.
