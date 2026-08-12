@@ -1,0 +1,23 @@
+{
+  "n": 41,
+  "mean_asTraded": -0.2134,
+  "ci_asTraded": [
+    -0.443,
+    0.031
+  ],
+  "mean_at12_overshoot167": -0.4359,
+  "ci_at12": [
+    -0.882,
+    0.099
+  ],
+  "paired_diff_asTraded_minus_12": {
+    "ci": [
+      -0.108,
+      0.504
+    ],
+    "p_wider_better": 0.9162
+  },
+  "canary_trades_to_reject_tail_alive_p20": 14,
+  "canary_trades_to_reject_tail_alive_p122": 24,
+  "tail_killed_effect_R": 0.184
+}

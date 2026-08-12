@@ -128,3 +128,26 @@ WHERE user_id='04a6a5d7-ddc0-437f-b95b-5340941c0742' AND strategy='qtp-main-pipe
   AND coalesce(lineage_source,'') NOT LIKE 'RECERT_QUARANTINE%'
   AND risk_amount IS NOT NULL AND risk_amount > 0
   AND intended_stop IS NOT NULL AND entry_fill_price IS NOT NULL;
+
+-- 4. THE TAIL CANARY — gov 210 (S1-a closed as posed; PO one-line sign-off 2026-08-12)
+-- Unit FROZEN as raw realized move >= 3.6% (= 3R at the live 1.2% clamp), so no future width
+-- change can move the count — the flaw that killed the ledger-R version of this metric.
+-- Roles: expectancy/dollar-PF (with CIs) govern parameter comparisons; THIS metric only
+-- detects harvest destruction, and it is the fastest detector we have: ~14 consecutive
+-- certified longs with no new >=3.6% winner rejects "tail alive" at 95% (winner rate 0.20),
+-- where expectancy needs ~68 trades to separate the same failure from noise.
+-- Baseline at ratification (2026-08-12): 4 of 20. The ratchet backtest is PRECOMMITTED to
+-- passing on BOTH numbers: expectancy improves AND this count does not drop on replay.
+SELECT 'TAIL CANARY (gov 210): certified longs capturing >= 3.6% realized move' AS rule,
+       count(*) AS n_certified,
+       count(*) FILTER (WHERE (exit_fill_price - entry_fill_price) / entry_fill_price * 100 >= 3.6) AS tail_winners,
+       round(max((exit_fill_price - entry_fill_price) / entry_fill_price * 100), 2) AS best_move_pct,
+       'baseline 4 of 20 (2026-08-12); a drop, or 14 straight closes with no new tail winner, is the alarm' AS read_against
+FROM public.trade_ledger
+WHERE user_id='04a6a5d7-ddc0-437f-b95b-5340941c0742' AND strategy='qtp-main-pipeline'
+  AND mode='paper' AND status='closed' AND r_multiple IS NOT NULL
+  AND (CASE WHEN side IN ('buy','buy_call','sell_put') THEN 'bullish' ELSE 'bearish' END)='bullish'
+  AND exit_fill_time >= now() - interval '90 days' AND entry_fill_time >= now() - interval '90 days'
+  AND coalesce(lineage_source,'') NOT LIKE 'RECERT_QUARANTINE%'
+  AND risk_amount IS NOT NULL AND risk_amount > 0
+  AND intended_stop IS NOT NULL AND entry_fill_price IS NOT NULL AND exit_fill_price IS NOT NULL;
