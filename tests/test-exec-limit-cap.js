@@ -28,7 +28,7 @@ function check(id, name, fn) {
 }
 function acheck(id, name, fn) { return { id, name, fn }; }
 
-const NODE_PATH = path.join(__dirname, '..', 'docs', 'execution-fix-20260810', 'alpaca-paper-trade-v4.9.js');
+const NODE_PATH = path.join(__dirname, '..', 'docs', 'execution-fix-20260810', 'alpaca-paper-trade-v4.9.2.js');
 const LIVE_PATH = path.join(__dirname, '..', 'docs', 'execution-fix-20260810', 'alpaca-paper-trade-v4.8-LIVE.js');
 const NODE = fs.readFileSync(NODE_PATH, 'utf8');
 const PREV = fs.readFileSync(LIVE_PATH, 'utf8');
@@ -127,11 +127,12 @@ console.log('\n═══ APT v4.9 execution fix — EX-C1 (capped limit) ══�
     const p = posts(calls);
     assert.strictEqual(p.length, 1, `expected 1 entry POST, got ${p.length}`);
     assert.strictEqual(p[0].body.type, 'limit', `type=${p[0].body.type}`);
-    assert.strictEqual(p[0].body.time_in_force, 'day', `tif=${p[0].body.time_in_force}`);
+    assert.strictEqual(p[0].body.time_in_force, 'gtc', `tif=${p[0].body.time_in_force}` +
+      ' — v4.9.2 gov211: day-TIF cancelled WMB/WMT protective stops at the 08-12 close; bracket children must be gtc');
     assert.strictEqual(p[0].body.order_class, 'bracket');
     assert.strictEqual(p[0].body.limit_price, '354.68', `limit=${p[0].body.limit_price}`);
     assert.strictEqual(Number(p[0].body.limit_price), L.capLimit(353.62, true, 0.003), 'agrees with the spec-mirror');
-    assert.strictEqual(json.alpaca_bracket_v, '4.9');
+    assert.strictEqual(json.alpaca_bracket_v, '4.9.2');
   });
 }
 // EXE-02
@@ -377,7 +378,7 @@ console.log('\n═══ things that must NOT have changed ═══\n');
     assert.strictEqual(deletes(calls).length, 0);
     assert.strictEqual(patches(calls).length, 0);
     assert.ok(!calls.some(c => /\/v2\/orders\//.test(c.url)), 'and it must not poll an order id that does not exist');
-    assert.strictEqual(json.alpaca_bracket_v, '4.9');
+    assert.strictEqual(json.alpaca_bracket_v, '4.9.2');
   });
 }
 // EXE-21 — paper-only assert
