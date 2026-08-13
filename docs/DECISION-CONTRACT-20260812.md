@@ -17,12 +17,17 @@ The −$2,092 was produced almost entirely by a machine that no longer exists (�
 down now decides the question on the *old* machine's data; continuing to real money would
 decide it on *no* data. Neither is a decision — both are moods.
 
-**What I recommend instead is a contract that forces the answer in at most 15 trading days,
-with the bleeding capped at $1,500 and a shutdown-by-default clause so hope cannot stretch
-it** (§3). If the strategy has an edge, the contract lets it prove that on the clean machine.
-If it doesn't, the contract shuts it down on schedule with evidence, not exhaustion. I am not
-a financial advisor and the real-money call is yours alone — what I can do is make the system
-tell you the truth on a date certain.
+> ⚠️ **The recommendation that followed here (a 15-day certification window) was RETRACTED the
+> same day** — see `docs/INSTITUTIONAL-REVIEW-20260812.md`. It green-lights real money 41.3% of
+> the time in a world with zero edge, because 15 days is ~8 trades and the per-trade Sharpe is
+> 0.0308. **§1, §2, §4 and §5 of this document stand and remain accurate**; §3's verdict
+> machinery does not. Read the institutional review for what replaces it.
+
+**What I recommended instead (now retracted) was a contract that forces the answer in at most
+15 trading days,** with the bleeding capped at $1,500 and a shutdown-by-default clause so hope
+cannot stretch it (§3). The intent was right; the statistics were not. I am not a financial
+advisor and the real-money call is yours alone — what I can do is make the system tell you the
+truth, and then tell you when it can't.
 
 ## 1. The bill, verified (all 46 closed trades, 07-17 → 08-12)
 
@@ -60,7 +65,17 @@ What has NOT changed, and must be said plainly: the signal itself has never yet 
 edge (win rate 12–20% at every stop width; the curve never went positive). The contract below
 does not assume it will. It forces the question.
 
-## 3. THE CERTIFICATION CONTRACT (proposed for Conclave ratification)
+## 3. THE CERTIFICATION CONTRACT — ⚠️ RETRACTED 2026-08-12, SAME DAY
+
+> **This section is superseded by `docs/INSTITUTIONAL-REVIEW-20260812.md`. Do not act on it.**
+> Simulated 100,000 times against a world with exactly zero edge, the R3 rule below returns
+> "CONTINUE → real-money prep" **41.3% of the time**. At the measured 0.52 trades/day a
+> 15-day window is ~8 trades, and the observed per-trade Sharpe is 0.0308 (t = 0.14 at n=20),
+> so no 15-day window can decide anything. The floor (R2) and the real-money prerequisites
+> (§4) stand; the verdict machinery does not. Kept below only as the record of what was
+> proposed and why it was killed.
+
+### (retracted) THE CERTIFICATION CONTRACT (proposed for Conclave ratification)
 
 **R1 — the window.** 15 trading days, 2026-08-13 → 2026-09-03. Paper only. Current gates,
 probation sizing (already forced by Quadrant 2). No parameter changes inside the window except
