@@ -1,0 +1,17 @@
+{
+ "pause-guard.node.js": {
+  "node": "QTP-10FC New Entry Pause Guard",
+  "chars": 3826,
+  "sha256": "79a0a171d49be05e6b8f7dfa8074de78ab81da849ef6093514dbf5145425eb18"
+ },
+ "pause-reader.node.js": {
+  "node": "Prepare Supabase Pause Guard Query",
+  "chars": 816,
+  "sha256": "0dc3c8d7009c93c84debd679aa612b8c5f3041d8092de4865bf3cd0de16574eb"
+ },
+ "kelly-sql-build.node.js": {
+  "node": "QET Kelly SQL Build",
+  "chars": 3316,
+  "sha256": "773b65bf0dd6cef514497e437d1f6f569461ade970b8505181d1f00a716eaeca"
+ }
+}
