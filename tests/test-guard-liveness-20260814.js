@@ -54,21 +54,28 @@ const HEALTHY = [
   console.log('\n═══ the bytes are the deployed bytes ═══\n');
 
   check('GL-01', 'fixtures are sha256-identical to workflow pDzjkktLoyKkxnXE version 6f8b9bae', () => {
-    assert.strictEqual(sha(SQL), '7f73287845a22645ab4d13c9b38b335aae91e3da3bd1c1925cbba249ace97e1e');
+    assert.strictEqual(sha(SQL), '4c26be43ce350f1ad7bbc3acff547769c332b51e39e66d7ff8074799ccbdf500');
     assert.strictEqual(sha(CODE), '3e1e026591d5ae518c280d710c795869125f5611cf06acc13604e7bb89568912');
   });
 
   console.log('\n═══ every input that killed us is watched ═══\n');
 
-  check('GL-02', 'the checks SQL covers all 5 alive inputs and all 6 known-dead inputs', () => {
+  check('GL-02', 'the checks SQL covers all 6 alive inputs and all 6 known-dead inputs', () => {
     for (const name of ['scanner_signals', 'afto_heartbeat', 'position_risk_state', 'order_events_feed',
-      'killswitch_config', 'adx_payload', 'mtf_payload', 'vix_payload', 'trade_log_pnl',
-      'signal_ts_offset', 'backtest_cache']) {
+      'killswitch_config', 'scanner_universe_coverage', 'adx_payload', 'mtf_payload', 'vix_payload',
+      'trade_log_pnl', 'signal_ts_offset', 'backtest_cache']) {
       assert.ok(SQL.includes(`'${name}'`), `check missing from SQL: ${name}`);
     }
     assert.ok(SQL.includes('killswitch_cum_baseline_epoch'), 'gov-215 baseline constant must be asserted present');
     assert.ok(SQL.includes("NOT IN ('0','24')"), 'vix expectation is the TRUE state (24 new-signal / 0 repeat), learned in shakedown');
     assert.ok(SQL.includes('BETWEEN 3.9 AND 4.1'), 'signal_ts offset pinned at the known ~4h defect');
+    // gov 218: the universe-collapse assertion. Its signature was zero signals from the
+    // middle 50% of the watchlist for 16 sessions while head and tail kept firing.
+    assert.ok(SQL.includes('quantum_watchlist_raw'), 'coverage check must read the real watchlist');
+    assert.ok(/e\.idx BETWEEN[\s\S]{0,120}\/ 4[\s\S]{0,160}\* 3 \/ 4/.test(SQL),
+      'coverage must be measured on the MIDDLE 50% of the alphabetical index, not the whole list');
+    assert.ok(/scanner_universe_coverage[\s\S]{0,400}NOT \(SELECT in_rth FROM rth\) THEN 'OK'/.test(SQL),
+      'the coverage check must be RTH-gated so it cannot spam outside market hours');
   });
 
   console.log('\n═══ alarm on new deaths, silence on known ones ═══\n');

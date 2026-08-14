@@ -3,6 +3,24 @@ WITH rth AS (
      AND ((now() AT TIME ZONE 'America/New_York')::time BETWEEN '09:30' AND '16:00') AS in_rth
 ), sig90 AS (
   SELECT count(*) n FROM quantum.strategy_signals WHERE ingested_at > now() - interval '90 minutes'
+), wl AS (
+  SELECT DISTINCT upper(trim(coalesce(symbol, ticker))) tk
+  FROM quantum.quantum_watchlist_raw
+  WHERE coalesce(symbol, ticker) IS NOT NULL AND trim(coalesce(symbol, ticker)) <> ''
+), eff AS (
+  SELECT tk, row_number() OVER (ORDER BY tk) - 1 AS idx FROM wl
+  WHERE tk ~ '^[A-Z]+$' AND length(tk) <= 6
+), univcov AS (
+  -- gov 218: assert the scanner is still looking at the MIDDLE of its own watchlist.
+  -- The 07-23 collapse had an unmistakable signature: signals only ever from the
+  -- alphabetical head and tail, zero from the middle 50%, for 16 straight sessions.
+  -- Nothing asserted coverage, so nobody saw it. This is that assertion.
+  SELECT (SELECT count(*) FROM eff) AS uni,
+         (SELECT count(DISTINCT e.tk) FROM eff e
+            JOIN (SELECT DISTINCT upper(symbol) s FROM quantum.strategy_signals
+                   WHERE ingested_at > now() - interval '5 days') g ON g.s = e.tk
+           WHERE e.idx BETWEEN (SELECT count(*) FROM eff) / 4
+                           AND (SELECT count(*) FROM eff) * 3 / 4) AS mid_seen
 ), sig24 AS (
   SELECT count(*) n,
          max(coalesce((raw_payload->>'ADX')::numeric, 0)) max_adx,
@@ -67,4 +85,10 @@ SELECT c.check_name, c.expected, c.observed, c.status FROM (
   UNION ALL
   SELECT 'backtest_cache', 'STALE(known, 60d limit)', round((SELECT age_d FROM btc)::numeric,0)::text || ' d old',
          CASE WHEN (SELECT age_d FROM btc) > 60 THEN 'EXPECTED' ELSE 'NOTICE' END
+  UNION ALL
+  SELECT 'scanner_universe_coverage', 'MID-UNIVERSE NAMES SIGNALLED (>=1 in 5d)',
+         (SELECT mid_seen FROM univcov)::text || ' of ' || (SELECT uni FROM univcov)::text || ' universe',
+         CASE WHEN NOT (SELECT in_rth FROM rth) THEN 'OK'
+              WHEN (SELECT uni FROM univcov) < 50 THEN 'OK'
+              WHEN (SELECT mid_seen FROM univcov) = 0 THEN 'ALARM' ELSE 'OK' END
 ) c
