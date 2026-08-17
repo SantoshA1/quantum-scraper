@@ -1,0 +1,21 @@
+{
+  "options": {
+    "caseSensitive": true,
+    "leftValue": "",
+    "typeValidation": "strict",
+    "version": 2
+  },
+  "combinator": "and",
+  "conditions": [
+    {
+      "id": "rcf-drop-cond-20260720",
+      "leftValue": "={{ $json._rcf_dropped === true }}",
+      "rightValue": "",
+      "operator": {
+        "type": "boolean",
+        "operation": "true",
+        "singleValue": true
+      }
+    }
+  ]
+}
