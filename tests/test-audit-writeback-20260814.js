@@ -14,7 +14,7 @@
  *
  * Deterministic + offline. The fixture is the LIVE jsCode of both new Code nodes in
  * workflow vaqfCaELhOEWnkdo, published version 8ddf1775 (both instances verified
- * byte-identical, sha256 884e3042…). The builder is EXECUTED
+ * byte-identical, sha256 9c60bd1b…). The builder is EXECUTED
  * here, not grepped. First production fire: exec 577728/577729 at 12:50 ET wrote
  * SSM_KILL rows for WMB/XOM duplicate-suppression kills — a kill class that had
  * never once appeared in quantum.exec_flow_audit.
@@ -74,7 +74,7 @@ const SSM_DUP = {              // WMB 12:50 today: the first row this fix ever w
   console.log('\n═══ the bytes are the deployed bytes ═══\n');
 
   check('AW-01', 'fixture is sha256-identical to BOTH deployed builder instances (version 8ddf1775)', () => {
-    assert.strictEqual(sha(CODE), '884e304284703fba05109ba1205185e6881bbebee63cf8de6bf875ef6c33004e');
+    assert.strictEqual(sha(CODE), '9c60bd1b8cea92098221d10b622535ffee186d659545708a366f84d75004fee3');
   });
 
   console.log('\n═══ every terminal cause lands under its own name ═══\n');
@@ -118,6 +118,18 @@ const SSM_DUP = {              // WMB 12:50 today: the first row this fix ever w
   });
 
   console.log('\n═══ nothing that arrives is ever dropped ═══\n');
+
+  check('AW-07b', 'gov 219 short-side halt gets its OWN stage, not filed under ENTRY_PAUSE', () => {
+    const r = one({ symbol: 'ZTS', side: 'SELL', bias_score: 74,
+      _sm_signal_id: 'ZTS_5_20260817133000', _sm_idempotency_key: 'ZTS_5_20260817133000',
+      _pause_guard_action: 'BLOCK_SHORT_ENTRY_ONLY', _pause_guard_live_order_allowed: false,
+      _pause_guard_reason: 'gov 219 short-side halt: PF 0.2802', _sm_action: 'KILLED', _sm_route: 'SKIP' });
+    assert.strictEqual(r._audit_writeback_stage, 'SHORT_SIDE_HALT',
+      'a permanent strategy halt must never be conflated with a temporary manual pause');
+    assert.ok(r._audit_writeback_kill.includes('PF 0.2802'), r._audit_writeback_kill);
+    assert.strictEqual(one(PAUSE_KILL)._audit_writeback_stage, 'ENTRY_PAUSE',
+      'a real gov-213-style entry pause must still read ENTRY_PAUSE');
+  });
 
   check('AW-08', 'an unrecognised terminal item still produces a row, named UNROUTED_TERMINAL', () => {
     const r = one({ symbol: 'ZZZ', side: 'BUY', bias_score: 90, _sm_route: 'FULL', _sm_action: 'PASS' });
@@ -216,10 +228,10 @@ const SSM_DUP = {              // WMB 12:50 today: the first row this fix ever w
 
   check('AW-15', 'the row is self-describing: version token and stage land in gate_decision', () => {
     const r = one(SSM_DUP);
-    assert.ok(r.__audit_writeback_sql.includes('QTP_AUDIT_WRITEBACK_v1.1_gov217_20260814:SSM_KILL'),
+    assert.ok(r.__audit_writeback_sql.includes('QTP_AUDIT_WRITEBACK_v1.2_gov217_20260814:SSM_KILL'),
       'the append token names the version AND the stage, so a backfill is never mistaken for an observation');
     assert.ok(r.__audit_writeback_sql.includes('branch=TERMINAL_WRITEBACK'));
-    assert.strictEqual(r._audit_writeback_version, 'QTP_AUDIT_WRITEBACK_v1.1_gov217_20260814');
+    assert.strictEqual(r._audit_writeback_version, 'QTP_AUDIT_WRITEBACK_v1.2_gov217_20260814');
   });
 
   check('AW-16', 'observability only: the builder writes no table but exec_flow_audit and mutates no gate field', () => {

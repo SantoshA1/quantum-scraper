@@ -1,4 +1,4 @@
-// QTP Terminal Audit Write-Back Builder v1.1 — gov 217, 2026-08-14
+// QTP Terminal Audit Write-Back Builder v1.2 — gov 217, 2026-08-14
 // ---------------------------------------------------------------------------
 // WHY: quantum.exec_flow_audit rows were left stuck at PENDING (or never written
 // at all) whenever a candidate died on a terminal branch that had no audit writer:
@@ -33,7 +33,7 @@
 // v1.1: a MISSING bias score is UNROUTED_TERMINAL, not a fabricated score kill.
 // The version constant is bumped with the body so two generations of rows are never
 // indistinguishable in the audit table.
-const VERSION = 'QTP_AUDIT_WRITEBACK_v1.1_gov217_20260814';
+const VERSION = 'QTP_AUDIT_WRITEBACK_v1.2_gov217_20260814';
 
 function esc(v) {
   if (v === undefined || v === null || v === '') return 'NULL';
@@ -82,12 +82,19 @@ return $input.all().map((it) => {
   const rawScore = d.bias_score ?? d.ai_super_score ?? d.composite_score ?? d.bull_score ?? d.bear_score ?? d.score;
   const hasScore = rawScore !== undefined && rawScore !== null && String(rawScore).trim() !== '';
   const score = Number(hasScore ? rawScore : 0);
+  // v1.2 (gov 219): a permanent strategy-side halt is NOT the same fact as a temporary
+  // manual entry pause. Checked first, or the short-side halt would be filed under
+  // ENTRY_PAUSE and a blocked_stage rollup would conflate the two forever.
+  const shortHalted = d._pause_guard_action === 'BLOCK_SHORT_ENTRY_ONLY';
   const pauseBlocked =
     d._pause_guard_action === 'BLOCK_NEW_ENTRY_ONLY' || d._pause_guard_live_order_allowed === false;
   const ssmKilled = d._sm_route === 'SKIP' || d._sm_action === 'KILLED';
 
   let stage, kill;
-  if (pauseBlocked) {
+  if (shortHalted) {
+    stage = 'SHORT_SIDE_HALT';
+    kill = 'SHORT_SIDE_HALT: ' + clean(d._pause_guard_reason, 'short entries disabled by gov 219');
+  } else if (pauseBlocked) {
     stage = 'ENTRY_PAUSE';
     kill = 'ENTRY_PAUSE: ' + clean(d._pause_guard_reason || d._sm_reason, 'pause_new_entries=true');
   } else if (ssmKilled) {
