@@ -1,0 +1,77 @@
+{
+  "_source": "quantum.entry_pause_control, live SELECT on 2026-08-17 ~12:35 ET (Supabase vdmtwmwpxvohodyrdlon).",
+  "_why": "Maya doctrine V2-1 — fixtures are captured reality, not written from memory. `reason` is truncated to 70 chars for legibility; nothing else is edited.",
+  "_note_checked_at": "The PO halt appears TWICE: `before` is the row as it stood from the gov-214 lift (2026-08-14) until the gov-223 correction (2026-08-17). `after` is what is in the table now. Only checked_at differs.",
+
+  "afto_nominal": [
+    {
+      "control_id": "qtp_afto_20260817163003",
+      "source": "qtp_afto_monitor",
+      "status": "NOMINAL",
+      "pause_new_entries": false,
+      "trading_blocked": false,
+      "checked_at": "2026-08-17T16:30:05.444489+00:00",
+      "expires_at": "2026-08-17T17:00:05.444489+00:00",
+      "reason": "nominal | marketHoliday=false"
+    },
+    {
+      "control_id": "qtp_afto_20260817161502",
+      "source": "qtp_afto_monitor",
+      "status": "NOMINAL",
+      "pause_new_entries": false,
+      "trading_blocked": false,
+      "checked_at": "2026-08-17T16:15:03.234455+00:00",
+      "expires_at": "2026-08-17T16:45:03.234455+00:00",
+      "reason": "nominal | marketHoliday=false"
+    },
+    {
+      "control_id": "qtp_afto_20260817160004",
+      "source": "qtp_afto_monitor",
+      "status": "NOMINAL",
+      "pause_new_entries": false,
+      "trading_blocked": false,
+      "checked_at": "2026-08-17T16:00:08.987603+00:00",
+      "expires_at": "2026-08-17T16:30:08.987603+00:00",
+      "reason": "nominal | marketHoliday=false"
+    }
+  ],
+
+  "po_halt_before": {
+    "control_id": "po_halt_20260813_entries_off",
+    "source": "po_manual_20260813",
+    "status": "EXPANSION_CUMULATIVE_HALT",
+    "pause_new_entries": true,
+    "trading_blocked": false,
+    "checked_at": "2026-09-12T20:50:52.572787+00:00",
+    "expires_at": "2026-08-14T13:37:37.232233+00:00",
+    "reason": "PO-ordered halt on NEW ENTRIES 2026-08-13 (gov 213). Ratified -$2,500 "
+  },
+
+  "po_halt_after": {
+    "control_id": "po_halt_20260813_entries_off",
+    "source": "po_manual_20260813",
+    "status": "EXPANSION_CUMULATIVE_HALT",
+    "pause_new_entries": true,
+    "trading_blocked": false,
+    "checked_at": "2026-08-14T13:37:37.232233+00:00",
+    "expires_at": "2026-08-14T13:37:37.232233+00:00",
+    "reason": "PO-ordered halt on NEW ENTRIES 2026-08-13 (gov 213). Ratified -$2,500 "
+  },
+
+  "_live_gov215_killswitch_pattern": "The sanctioned priority pattern, quoted verbatim from workflow awDk3AQesvO3SpQs node `Evaluate Trip + Write Pause`: `-- gov215: checked_at = expires_at so the pause reader (ORDER BY checked_at DESC LIMIT 1) keeps returning this halt for its whole life despite AFTO's 15-min NOMINAL inserts.` Both columns get the identical CASE expression, so the invariant checked_at = expires_at holds by construction. The PO halt was a hand-written instance of the same pattern; the gov-214 lift moved only expires_at and broke it.",
+
+  "_readers_audited_20260817": {
+    "gates_entries": ["vaqfCaELhOEWnkdo / Prepare Supabase Pause Guard Query -> Query Supabase Pause Guard (HAS the expiry filter)"],
+    "no_expiry_filter_but_immune": [
+      "pDzjkktLoyKkxnXE / Run Liveness Checks — scoped WHERE source='qtp_afto_monitor'",
+      "8VxYF7JfHeqYWMLq / Query Supabase Daily Summary — COUNT(*) only",
+      "UHYsIUCB5moypUl3 / Query Supabase Health Counts — COUNT(*) only"
+    ],
+    "writers_insert_only_no_update": [
+      "AaaQOrBVEXwJkOyz / Write Supabase Telemetry — checked_at=now(), expires_at=now()+30min",
+      "awDk3AQesvO3SpQs / Evaluate Trip + Write Pause — checked_at=expires_at (gov215 pattern)",
+      "975pZZEtxeUbzI22 / Write Kill-Switch Pause Row — never fired, 0 rows"
+    ],
+    "postgres_views_matviews_functions_referencing_table": "none"
+  }
+}

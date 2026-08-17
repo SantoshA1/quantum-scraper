@@ -1,0 +1,129 @@
+{
+  "activeVersionId": "a4358cbe-78c0-48e4-a485-e53f1e835a24",
+  "nodes": [
+    {
+      "alwaysOutputData": null,
+      "keys": [
+        "id",
+        "name",
+        "notes",
+        "notesInFlow",
+        "parameters",
+        "position",
+        "type",
+        "typeVersion"
+      ],
+      "name": "QTP-10FC New Entry Pause Guard",
+      "onError": null,
+      "parameters": {
+        "jsCode": "\n// QTP-10FC New Entry Pause Guard — Supabase context v4.2.1\n// Blocks ONLY new opening entries. Never blocks exits, stops, trailing stops, or closing orders.\n// QTP_PAUSE_GUARD_INTENT_PARSE_FIX_v1_20260526\n//   Fix: substring-match on 'CLOSE'/'STOP'/'EXIT' was flagging descriptive OR-clause intents\n//   like \"sell_short_or_close_per_downstream_state\" as closing actions, mis-routing every\n//   Broad Scanner new-entry signal to Alpaca Position Closer (→ STAND ASIDE / no fill).\n//   Now: exact set match OR end-anchored token match, with explicit OR-clause exclusion.\nconst closingActions = new Set([\n  'SELL_TO_CLOSE', 'BUY_TO_COVER', 'CLOSE', 'EXIT', 'STOP', 'TRAILING_STOP',\n  'PROTECTIVE_STOP', 'PROTECTION', 'SCALE_OUT', 'REDUCE_ONLY'\n]);\n// QTP_PAUSE_GUARD_INTENT_PARSE_FIX_v1_20260526 — descriptive OR-clause exclusion\nconst _PG_OR_CLAUSE_RE = /_OR_(CLOSE|STOP|EXIT)(_|$)/;\n// QTP_PAUSE_GUARD_INTENT_PARSE_FIX_v1_20260526 — end-anchored closing token (suffix or exact)\nconst _PG_CLOSING_TOKEN_RE = /(^|_)(CLOSE|STOP|EXIT)$/;\nfunction isClosingOrProtective(j) {\n  const fields = [j.action, j.order_action, j._order_action, j.intent, j.order_intent, j._intent, j.route, j.order_class]\n    .map(v => String(v || '').toUpperCase());\n  const hit = fields.some(v => {\n    if (!v) return false;\n    if (_PG_OR_CLAUSE_RE.test(v)) return false;       // explicit allow for descriptive OR-clauses\n    if (closingActions.has(v)) return true;            // exact set membership\n    if (_PG_CLOSING_TOKEN_RE.test(v)) return true;     // end-anchored token (..._CLOSE / ..._STOP / ..._EXIT)\n    return false;\n  });\n  if (hit) return true;\n  if (j.reduce_only === true || j._reduce_only === true) return true;\n  if (j.is_protective === true || j._is_protective === true) return true;\n  return false;\n}\n// QTP_SHORT_SIDE_HALT_v1_gov219_20260814 — PO-authorized after the 07-15 cohort review.\n//   Short side since 2026-07-15: 25 closed trades, 2 winners, -$2,279.73, dollar PF 0.2802.\n//   Since the 2026-07-23 universe collapse: 10 trades, ZERO winners, -$1,874.03. The long\n//   side over that same window: +$482.85, PF 1.290. The ratified -$2,500 cumulative stop was\n//   breached at -$3,064.22 and the shorts are essentially all of it.\n//   Q5's revert trigger named the LONG side because its window still reaches back past the\n//   collapse to SHW (-$453.81 — an overnight gap through a 2.10% stop, exit_reason=manual);\n//   ex-SHW the long book is PF 1.24. So the leg halted here is the leg that lost the money.\n//   FAIL-SAFE: shorts are blocked unless QTP_SHORT_ENTRIES_ENABLED is explicitly 'true'.\n//   Missing, unreadable or malformed => blocked. Capital protection never depends on a value\n//   being present. Re-enable from n8n Variables; no deploy needed.\n//   EXITS ARE NEVER BLOCKED: this runs AFTER isClosingOrProtective(), so covers, closes,\n//   stops and trailing stops on existing short positions bypass it exactly as they did before\n//   — the same assumption the gov-213 pause block has already run on in production.\nconst _QTP_SHORT_TOKEN_RE = /^(SELL|SHORT|BEARISH|SELL_SHORT)$/;\nfunction shortEntriesEnabled() {\n  try {\n    return typeof $vars !== 'undefined' && $vars !== null &&\n           String($vars.QTP_SHORT_ENTRIES_ENABLED).trim().toLowerCase() === 'true';\n  } catch (e) { return false; }\n}\nfunction isNewShortEntry(j) {\n  // Deliberately does NOT read order_intent: the Broad Scanner's descriptive\n  // \"sell_short_or_close_per_downstream_state\" is exactly the OR-clause the 2026-05-26 parse\n  // fix exists to keep out of side detection.\n  const fields = [j.side, j.execution, j.signal, j.direction, j.signal_direction, j.action, j.order_action]\n    .map(v => String(v || '').trim().toUpperCase());\n  return fields.some(v => v && _QTP_SHORT_TOKEN_RE.test(v));\n}\n// Supabase pause control is attached by Format Supabase Pause Guard Context.\n\nreturn items.map(item => {\n  const j = item.json || {};\n  const pause = j._supabase_pause_control || {};\n  const pauseActive = String(pause.pause_new_entries).toLowerCase() === 'true';\n\n  // QTP_EXEC_FLOW_V2_RISK_OBSERVABILITY_20260506 — observability only, no logic/routing change.\n  j._risk_gate_observability = {\n    version: 'QTP_EXEC_FLOW_V2_20260506',\n    observed_at: new Date().toISOString(),\n    ticker: j.ticker || j.symbol || j.Ticker || j.Symbol || null,\n    execution: j.execution || j.side || j.direction || j.signal_direction || null,\n    legacy_live_vc_score: Number(j.live_vc_score ?? 0),\n    live_vc_score_v2: Number(j.live_vc_score_v2 ?? 0),\n    vc_threshold_locked: 7,\n    vc_v2_passed: Number(j.live_vc_score_v2 ?? 0) >= 7,\n    vc_legacy_passed: Number(j.live_vc_score ?? 0) >= 7,\n    parity_delta: Number(j._vc_parity_delta ?? 0),\n    risk_gate_logic_changed: false,\n    alpaca_routing_changed: false,\n    protective_exit_logic_changed: false,\n    pause_guard_intent_parse_fix_v: 'QTP_PAUSE_GUARD_INTENT_PARSE_FIX_v1_20260526'\n  };\n\n  if (isClosingOrProtective(j)) {\n    return { json: { ...j, _pause_guard_checked: true, _pause_guard_action: 'BYPASS_PROTECTIVE_OR_CLOSING', _pause_guard_live_order_allowed: true, _pause_guard_fix_v: 'QTP_PAUSE_GUARD_INTENT_PARSE_FIX_v1_20260526' } };\n  }\n  if (isNewShortEntry(j) && !shortEntriesEnabled()) {\n    return { json: { ...j, _pause_guard_checked: true, _pause_guard_action: 'BLOCK_SHORT_ENTRY_ONLY', _pause_guard_live_order_allowed: false, _pause_guard_reason: 'gov 219 short-side halt: 25 closed shorts since 07-15, 2 winners, -$2,279.73, PF 0.2802; 0 winners in 10 since the 07-23 universe collapse. Set QTP_SHORT_ENTRIES_ENABLED=true to re-enable.', _sm_action: 'KILLED', _sm_route: 'SKIP', _sm_reason: 'Short entries halted by gov 219 (short-side PF 0.2802)', _short_halt_v: 'QTP_SHORT_SIDE_HALT_v1_gov219_20260814' } };\n  }\n  if (pauseActive) {\n    return { json: { ...j, _pause_guard_checked: true, _pause_guard_action: 'BLOCK_NEW_ENTRY_ONLY', _pause_guard_live_order_allowed: false, _pause_guard_reason: pause.reason || 'pause_new_entries=true', _sm_action: 'KILLED', _sm_route: 'SKIP', _sm_reason: `New entry paused by QTP-10FC: ${pause.reason || 'pause_new_entries=true'}`, _pause_guard_fix_v: 'QTP_PAUSE_GUARD_INTENT_PARSE_FIX_v1_20260526' } };\n  }\n  return { json: { ...j, _pause_guard_checked: true, _pause_guard_action: 'ALLOW_NEW_ENTRY', _pause_guard_live_order_allowed: true, _pause_guard_fix_v: 'QTP_PAUSE_GUARD_INTENT_PARSE_FIX_v1_20260526' } };\n});\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2
+    },
+    {
+      "alwaysOutputData": null,
+      "keys": [
+        "id",
+        "name",
+        "parameters",
+        "position",
+        "type",
+        "typeVersion"
+      ],
+      "name": "QTP-10FC Pause Guard Gate",
+      "onError": null,
+      "parameters": {
+        "conditions": {
+          "combinator": "and",
+          "conditions": [
+            {
+              "id": "pause-guard-allow",
+              "leftValue": "={{ $json._pause_guard_live_order_allowed }}",
+              "operator": {
+                "operation": "true",
+                "singleValue": true,
+                "type": "boolean"
+              },
+              "rightValue": true
+            },
+            {
+              "id": "qtp-bias-filter-pause-pass",
+              "leftValue": "={{ Number($json.bias_score ?? $json.ai_super_score ?? $json.composite_score ?? $json.bull_score ?? $json.bear_score ?? $json.score ?? 0) }}",
+              "operator": {
+                "operation": "gte",
+                "type": "number"
+              },
+              "rightValue": 65
+            }
+          ],
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 1
+          }
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2
+    },
+    {
+      "alwaysOutputData": null,
+      "keys": [
+        "id",
+        "name",
+        "parameters",
+        "position",
+        "type",
+        "typeVersion"
+      ],
+      "name": "Prepare Supabase Pause Guard Query",
+      "onError": null,
+      "parameters": {
+        "jsCode": "\n// QTP Supabase Main Trading pause guard query v4.2.1\nconst d = $json || {};\nreturn [{\n  json: {\n    ...d,\n    __supabase_pause_sql: `\n      WITH ctrl AS (\n        SELECT pause_new_entries, reason, status, checked_at, expires_at\n        FROM quantum.entry_pause_control\n        WHERE expires_at > CURRENT_TIMESTAMP\n        ORDER BY checked_at DESC\n        LIMIT 1\n      )\n      SELECT\n        COALESCE((SELECT pause_new_entries FROM ctrl), false) AS pause_new_entries,\n        COALESCE((SELECT reason FROM ctrl), 'no active pause control') AS reason,\n        COALESCE((SELECT status FROM ctrl), 'NO_ACTIVE_PAUSE') AS status,\n        (SELECT checked_at::text FROM ctrl) AS checked_at,\n        (SELECT expires_at::text FROM ctrl) AS expires_at\n    `,\n    migration_version: 'QTP_SUPABASE_MAIN_TRADING_v4.2.1'\n  }\n}];\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2
+    },
+    {
+      "alwaysOutputData": null,
+      "keys": [
+        "id",
+        "name",
+        "parameters",
+        "position",
+        "type",
+        "typeVersion"
+      ],
+      "name": "Query Supabase Pause Guard",
+      "onError": null,
+      "parameters": {
+        "operation": "executeQuery",
+        "options": {},
+        "query": "{{$json.__supabase_pause_sql}}"
+      },
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6
+    },
+    {
+      "alwaysOutputData": null,
+      "keys": [
+        "id",
+        "name",
+        "parameters",
+        "position",
+        "type",
+        "typeVersion"
+      ],
+      "name": "Format Supabase Pause Guard Context",
+      "onError": null,
+      "parameters": {
+        "jsCode": "\n// QTP Supabase Main Trading pause guard context formatter v4.2.1\nconst original = $('Prepare Supabase Pause Guard Query').first().json || {};\nconst row = ($input.first() && $input.first().json) || {};\nreturn [{ json: { ...original, _supabase_pause_control: row, _pause_guard_source: 'supabase.entry_pause_control' } }];\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2
+    }
+  ]
+}
