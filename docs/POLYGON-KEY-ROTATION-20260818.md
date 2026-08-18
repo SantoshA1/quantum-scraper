@@ -100,3 +100,20 @@ in two other workflows).
 line 4 — redacted from the committed fixtures, unchanged in production. Full follow-up list
 now: this Supabase key, xAI keys (3 workflows), a Perplexity bearer, Alpaca fallback
 literals, webhook-secret literals (2 workflows). Same playbook per key when the PO says go.
+
+## PROVIDER NOTE (PO-prompted check, 2026-08-18 evening) — "Grok" is a legacy label
+
+Verified from the live bytes: **`Grok AI Analysis` is Grok in name only.** Every LLM call in
+it goes to `api.anthropic.com/v1/messages`, default model **`claude-opus-4-8`** (overridable
+via `$vars.ANTHROPIC_MODEL`); the `_grok_ai_*` / `grokResponse` names are deliberately
+preserved legacy telemetry ("Contract preserved" per the node's own migration comment).
+Wider sweep of the main pipeline: **zero xAI references anywhere**; four nodes call Anthropic
+(`VC Agent Gatekeeper`, `Grok AI Analysis`, `Grok Signal Analyzer`, `Indicator Enrichment`
+chart-vision) and **all four resolve the key by name** (`$vars.ANTHROPIC_API_KEY`, staticData
+fallback, placeholder-guarded) — no hardcoded Anthropic literal exists. Fail-open by design:
+a missing Anthropic key passes the signal through with "AI analysis unavailable" rather than
+halting trading. Corrections this implies: the follow-up list's "xAI keys in 3 workflows"
+refers to OTHER workflows (the news feeder's Grok Sentiment Scorer — genuinely xAI with a
+hardcoded literal — plus the two Website Signal workflows), not the main pipeline; and the
+`QTP_SB_METER_KEY` literal is the Supabase credential used by `qtpMeterLLM` to log per-call
+Anthropic token costs. gov 227b is unaffected — it touched only Polygon key resolution.
