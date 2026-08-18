@@ -1,0 +1,18 @@
+{
+  "options-chain": {
+    "before": "=https://api.polygon.io/v3/snapshot/options/{{ $json.ticker }}?strike_price.gte={{ Math.floor(Number($json.price) * 0.93) }}&strike_price.lte={{ Math.ceil(Number($json.price) * 1.07) }}&expiration_date.gte={{ new Date().toISOString().split('T')[0] }}&expiration_date.lte={{ new Date(Date.now() + 45*24*60*60*1000).toISOString().split('T')[0] }}&limit=250&apiKey={{ $('Indicator Enrichment').first().json._polygon_key }}",
+    "after": "=https://api.polygon.io/v3/snapshot/options/{{ $json.ticker }}?strike_price.gte={{ Math.floor(Number($json.price) * 0.93) }}&strike_price.lte={{ Math.ceil(Number($json.price) * 1.07) }}&expiration_date.gte={{ new Date().toISOString().split('T')[0] }}&expiration_date.lte={{ new Date(Date.now() + 45*24*60*60*1000).toISOString().split('T')[0] }}&limit=250&apiKey={{ $vars.POLYGON_API_KEY }}"
+  },
+  "price-history": {
+    "before": "=https://api.polygon.io/v2/aggs/ticker/{{ $('Options Flow Engine').first().json.ticker }}/range/1/day/{{ $today.minus(14, 'days').format('yyyy-MM-dd') }}/{{ $today.format('yyyy-MM-dd') }}?apiKey={{ $('Indicator Enrichment').first().json._polygon_key }}",
+    "after": "=https://api.polygon.io/v2/aggs/ticker/{{ $('Options Flow Engine').first().json.ticker }}/range/1/day/{{ $today.minus(14, 'days').format('yyyy-MM-dd') }}/{{ $today.format('yyyy-MM-dd') }}?apiKey={{ $vars.POLYGON_API_KEY }}"
+  },
+  "cross-asset-today": {
+    "before": "={{ 'https://api.polygon.io/v2/aggs/grouped/locale/us/market/stocks/' + ($today.weekday === 1 ? $today.minus(3, 'days') : $today.weekday === 0 ? $today.minus(2, 'days') : $today.weekday === 6 ? $today.minus(1, 'days') : $today.minus(1, 'days')).format('yyyy-MM-dd') + '?apiKey=' + $('Indicator Enrichment').first().json._polygon_key }}",
+    "after": "={{ 'https://api.polygon.io/v2/aggs/grouped/locale/us/market/stocks/' + ($today.weekday === 1 ? $today.minus(3, 'days') : $today.weekday === 0 ? $today.minus(2, 'days') : $today.weekday === 6 ? $today.minus(1, 'days') : $today.minus(1, 'days')).format('yyyy-MM-dd') + '?apiKey=' + $vars.POLYGON_API_KEY }}"
+  },
+  "cross-asset-previous": {
+    "before": "={{ 'https://api.polygon.io/v2/aggs/grouped/locale/us/market/stocks/' + ($today.weekday === 1 ? $today.minus(4, 'days') : $today.weekday === 0 ? $today.minus(3, 'days') : $today.weekday === 6 ? $today.minus(2, 'days') : $today.weekday === 2 ? $today.minus(4, 'days') : $today.minus(2, 'days')).format('yyyy-MM-dd') + '?apiKey=' + $('Indicator Enrichment').first().json._polygon_key }}",
+    "after": "={{ 'https://api.polygon.io/v2/aggs/grouped/locale/us/market/stocks/' + ($today.weekday === 1 ? $today.minus(4, 'days') : $today.weekday === 0 ? $today.minus(3, 'days') : $today.weekday === 6 ? $today.minus(2, 'days') : $today.weekday === 2 ? $today.minus(4, 'days') : $today.minus(2, 'days')).format('yyyy-MM-dd') + '?apiKey=' + $vars.POLYGON_API_KEY }}"
+  }
+}

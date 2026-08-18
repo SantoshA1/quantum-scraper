@@ -72,3 +72,31 @@ at its provider. Say the word and I'll run the same playbook per key.
 Five workflows remain MCP-blocked and unauditable (incl. the archived "Quantum Polygon
 Backtester", near-certain old-key carrier — dead key makes it moot, but enable MCP on the
 workflow cards when convenient so future sweeps cover everything).
+
+---
+
+## ADDENDUM — rotation completed and verified, 2026-08-18 evening
+
+**Step 3 done (18:04 ET).** Fired the news feeder once with the PO's rotation in place:
+execution 601845 success; `Polygon Key Init` v2 ran clean; `Polygon News per Ticker` returned
+**HTTP 200 / status "OK" on every fetch** (empty results = quiet news window, not an auth
+condition). With the old key dead, 200s prove the `POLYGON_API_KEY` Variable was found,
+staticData was overwritten, and the NEW key is live end-to-end. Scheduled 10-minute runs
+green. No key value was read at any point.
+
+**Step 4 done — gov 227b published (`379178db`).** The `_polygon_key` payload passthrough is
+gone: `Indicator Enrichment` no longer stamps the key on signal items; the four Polygon HTTP
+nodes read `$vars.POLYGON_API_KEY` in their url expressions (each URL changed by exactly one
+token, proven); `Grok AI Analysis` resolves $vars first with a deploy-order-safe item
+fallback. Six nodes changed, 144 untouched by manifest hash. Suite
+`test-polygon-passthrough-20260818.js` 7/7. From this version on, execution logs stop
+accumulating the key. **Morning watch:** the first scheduled execution (~09:35 ET Wed)
+exercises the $vars path in the main pipeline — SE-C1 or empty options/cross-asset data would
+be the failure signature; none is expected (the identical pattern is already live and green
+in two other workflows).
+
+**New finding, added to the hardcoded-secrets follow-up list:** the main pipeline's
+`Grok AI Analysis` node carries a JWT-shaped **`QTP_SB_METER_KEY` (Supabase) literal** at
+line 4 — redacted from the committed fixtures, unchanged in production. Full follow-up list
+now: this Supabase key, xAI keys (3 workflows), a Perplexity bearer, Alpaca fallback
+literals, webhook-secret literals (2 workflows). Same playbook per key when the PO says go.
