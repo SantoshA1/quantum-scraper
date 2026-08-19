@@ -3,8 +3,8 @@ name: CI — QTP commit gate
 # Runs on every PR and every push (all branches). This is the pre-merge
 # quality gate from the QTP build plan (Workstream A3): gate logic must pass
 # its harnesses, shippable code must be syntactically valid, and no NEW secret
-# may be committed. Deploy is a separate workflow (deploy-railway.yml) and is
-# unaffected — this gate only asserts correctness, it does not deploy.
+# may be committed. (The Railway deploy workflow was removed in gov 230 —
+# this gate only asserts correctness, it does not deploy.)
 
 on:
   pull_request:

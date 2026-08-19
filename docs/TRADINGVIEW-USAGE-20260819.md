@@ -93,3 +93,18 @@ bench, Alpaca+Polygon+internal scanner as production.
   research feed.
 - No gov action taken; nothing in this audit changes trading behavior.
 - Standing P0 unchanged: kill-switch tripwire root-cause when n8n MCP reconnects.
+
+---
+
+## ADDENDUM (gov 230, same day) — decommission ordered; Railway found already dark
+
+PO authorized the scraper decommission and asked whether Railway is needed at all. Full
+evidence and runbook: `RAILWAY-DECOMMISSION-20260819.md`. Verdict: **not needed.** Two
+corrections to §3 above: (1) the Railway app only ever scrapes on `POST /run` — it has no
+self-scheduling — and n8n's Script Scraper v6 scrapes TradingView **natively**, never
+calling Railway; (2) a live probe today shows the Railway service answering **404 on `/`
+and `/health`** — "running or idling" overstated it: **the service is not serving at all**,
+and QTP never noticed. The Railway auto-deploy workflow was removed from the repo in the
+gov 230 commit. Railway also hosted retired Grok-3 `/signal`, xAI `/ai-analysis`, and
+Yahoo-based `/technical` engines — zero fingerprints from any of them in the full recorded
+corpus (27,197 signals + 770 verdicts, all time).
