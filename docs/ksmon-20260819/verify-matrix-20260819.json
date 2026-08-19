@@ -1,0 +1,37 @@
+{
+  "recorded_at_et": "2026-08-19 ~12:45",
+  "recorded_by": "gov 231 RCA session, read-only Supabase queries",
+  "old_predicate": "event_date=D AND order_status = 'filled' AND order_type IN ('trailing_stop','stop','stop_limit')",
+  "new_predicate": "event_date=D AND upper(order_status) = 'FILLED' AND order_type IN ('trailing_stop','stop','stop_limit')",
+  "new_count_expr": "count(DISTINCT coalesce(broker_order_id, order_event_id::text))",
+  "results": {
+    "old_pred_2026_08_18": 0,
+    "new_pred_2026_08_18": 4,
+    "new_pred_2026_08_19_intraday": 0,
+    "null_broker_id_filled_stops_alltime": 0,
+    "filled_stop_events_2026_08_18": 8,
+    "distinct_stop_orders_2026_08_18": 4,
+    "orders_2026_08_18": [
+      {"sym": "AES",  "order8": "6e82070a", "events": 2, "first_et": "09:32"},
+      {"sym": "DDOG", "order8": "c8e9b2e9", "events": 2, "first_et": "10:10"},
+      {"sym": "DUK",  "order8": "80569534", "events": 2, "first_et": "14:01"},
+      {"sym": "DASH", "order8": "96371725", "events": 2, "first_et": "14:15"}
+    ],
+    "historical_trip_days_new_pred": [
+      {"day": "2026-04-13", "stops": 4},
+      {"day": "2026-04-20", "stops": 5},
+      {"day": "2026-04-28", "stops": 5},
+      {"day": "2026-07-24", "stops": 4},
+      {"day": "2026-08-18", "stops": 4}
+    ],
+    "status_case_inventory_alltime_has_lowercase_filled": false
+  },
+  "live_witness_execution": {
+    "id": "600258", "workflow": "awDk3AQesvO3SpQs",
+    "started_utc": "2026-08-18T18:34:00.063Z",
+    "output": {"stop_trip": false, "stop_fills_today": "0", "pnl_trip": false, "cum_trip": false,
+               "day_pnl": "-838.42", "equity": "105520.07", "pnl_threshold_usd": "-2638.00",
+               "cohort_cum_net": "-666.4030", "cohort_trades": 6, "pause_rows_written": "0"},
+    "note": "ran 19 min after DASH's stop fill; 4 distinct filled stop orders stood in order_events"
+  }
+}
