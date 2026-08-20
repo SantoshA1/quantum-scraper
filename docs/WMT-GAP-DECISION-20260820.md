@@ -74,11 +74,29 @@ concrete E3 candidate: an **earnings-calendar guard** (no new entry within N day
 scheduled print / force-exit before print) — cheaply measurable against history, and both
 catastrophic gap-throughs on record appear to be earnings windows.
 
+## RESOLUTION ADDENDUM (11:05 ET) — XPEV closed ahead of Monday's print, verified clean
+
+The earnings-calendar check on the open book found **XPEV reporting Q2 on Monday 08-24**
+(DGX next mid-October; WMB already reported) — the same failure class as this morning's
+WMT, on the short side, two sessions out. PO closed the short manually in Alpaca at 10:51
+ET. Verified end-to-end: the GTC protective stop was **CANCELED first** (10:51:25, zero
+filled — no orphaned order that could open a phantom long on Monday's gap), market
+buy-to-close **FILLED 858 @ 11.91** (10:51:26), the 11:00 reconcile reads
+`CLOSED_NO_POSITION`, and the ledger healed within minutes: exit_reason `manual`,
+**+$437.58 realized, +1.09R** on a 17-day legacy short (entered 08-03, pre-halt).
+
+Effects: the open book is now **DGX (+$411) and WMB (−$63) only — zero earnings exposure
+until mid-October**; the cumulative kill switch improves from 64% to **46% consumed**
+(−$1,162.14 of −$2,500); the certified short sample gains its first winner (negligible
+against the release bar). A one-glance orphan hazard existed and did not materialize —
+noted as a machinery gap regardless: nothing in QTP watches for open orders on symbols
+with NO position (reconcile is position-keyed). Queued as a small sentinel extension.
+
 ## Ledger
 
 - PO decisions open: D1 formal halt (rec: unnecessary), D2 WMT quarantine (rec: yes,
-  paired with structural fix). No DB/workflow change made this morning.
-- Watch: cumulative switch at 64%; DGX +$380 open (trail-managed); E1 fresh-data re-run
+  paired with structural fix). E3 earnings-calendar guard awaiting build authorization.
+- Watch: cumulative switch at 46%; DGX +$411 open (trail-managed); E1 fresh-data re-run
   ~Friday (run_id e1_20260821).
-- Backlog note from the report, now shadow-certified: drop `&feed=iex` from the TSM's
-  bars calls (safe across full session) — deploy when convenient.
+- Backlog: drop `&feed=iex` from the TSM's bars calls (shadow-certified safe); orphan-order
+  sentinel (orders with no position).
