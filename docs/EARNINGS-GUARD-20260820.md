@@ -71,13 +71,49 @@ built in: `quantum.earnings_calendar` must show XPEV 2026-08-24 and DGX mid-Octo
 if any position is still open within 3 days of its print, the advisory names it that same
 night.
 
+## VALIDATION ADDENDUM (13:25 ET) — key seeded, first real fetch, every prediction landed
+
+PO seeded `ALPHAVANTAGE_API_KEY`; manual run 618280: **1,656 symbols ingested**
+(2026-08-20 → 11-18, 1,048 with consensus EPS estimates), staleness 0.00, advisory
+correctly SILENT (no open position within 3 days of a print — DGX and WMB verified below).
+
+| prediction (made before the data existed) | calendar says | verdict |
+|---|---|---|
+| XPEV reports Mon 2026-08-24 (why the short was closed this morning) | **2026-08-24** | ✓ exact |
+| DGX mid-October | **2026-10-20**, est $2.85 | ✓ |
+| WMB already reported → no alert expected | absent from forward calendar | ✓ |
+| — | **WMT 2026-08-20, est $0.73** — the first row in the table is this morning's −$933 print | the system now knows the thing that hurt it |
+
+**The guard is armed on real data:** of the last 48h of live candidates, **ROST and WMT**
+have prints within 3 days — both would return `EARNINGS_WINDOW` at the gate right now.
+Precision note for the record: WMT's 08-12 *entry* predates the 3-day entry window — the
+ENTRY guard alone would not have stopped it; the POSITION advisory is the layer that would
+have fired (nightly from T-3, three warnings before the print). Both layers exist now.
+
+## What else Alpha Vantage offers (PO asked) — catalogued, budget-aware
+
+Free tier is a hard **25 requests/day**; the nightly calendar spends 1. Ranked by QTP value:
+
+1. **`EARNINGS` (historical, per symbol)** — quarterly reportedDate + reported/estimated
+   EPS + surprise%. **The one concrete use: E3b retro-measurement** — backfill PAST print
+   dates and quantify what holding-through-earnings has cost across the whole ledger (the
+   WMT+SHW pattern, measured). ~100 certified symbols ≈ 4–5 days of request budget,
+   one-time. Already on the ledger; authorize and I build it on the E1 harness pattern.
+2. **Consensus estimates in the calendar we already store** — free enrichment; could later
+   distinguish high-attention prints (has-estimate) from junk listings.
+3. `NEWS_SENTIMENT` — redundant (Polygon news + sentiment scorer already live).
+4. Economic calendar / CPI / FOMC — a future macro-event guard candidate (FOMC days are
+   gap risk too); regime layer partly covers this. Catalogued, not proposed.
+5. `OVERVIEW` fundamentals — possible strat-cache enrichment someday; not a bottleneck.
+
 ## Ledger
 
 - Config knobs (gate_config, EARNINGS): guard_active=1, entry_block_days=3, alert_days=3,
   calendar_stale_days=3 — tune without deploys.
 - Main pipeline chain: … → 27304305 (gov 232) → **cb21316f (gov 235)**.
-- Watch: first scheduled nightly run tonight 18:10 ET (expect the stale alarm until the
-  key is seeded); first real calendar fetch validates XPEV/DGX; first EARNINGS_WINDOW
-  audit row whenever entries resume near a print.
-- Retro-measurement (E3b, later): count historical certified trades held through prints
-  and their cost — the WMT+SHW pattern quantified.
+- Calendar boundary, known: AV covers ~1,656 symbols with prints in the next 3 months;
+  absence means "no scheduled print," not missing data. Nightly refresh keeps it rolling.
+- Watch: tonight's 18:10 scheduled run (should be silent); first EARNINGS_WINDOW audit row
+  whenever entries resume near a print (ROST/WMT-class candidates).
+- E3b retro-measurement: ready to build on PO authorization (uses AV `EARNINGS`, ~5 days
+  of free-tier budget, zero live risk).
