@@ -1,0 +1,28 @@
+{
+  "recorded_at_et": "2026-08-24 10:49",
+  "method": "read-only execution of freshness-probe.sql against the live database",
+  "probe_result": {
+    "now_et": "2026-08-24 10:49",
+    "expected_last_refresh_et": "2026-08-21 18:10",
+    "actual_last_refresh_et": "2026-08-21 18:10",
+    "hours_since_refresh": 64.65,
+    "forward_rows": 1610,
+    "calendar_fresh": true
+  },
+  "counterfactual_one_missed_run": {
+    "description": "same query with the actual refresh shifted 24h earlier",
+    "calendar_fresh": false,
+    "proves": "a single missed nightly run flips the verdict to ALARM the next morning"
+  },
+  "weekend_property": {
+    "today_isodow": 1,
+    "expected_slot_isodow": 5,
+    "proves": "Monday 10:15 correctly expects FRIDAY 18:10, not Sunday — no weekend false alarm"
+  },
+  "flat_threshold_comparison": {
+    "gate_config_stale_days": 3,
+    "flat_threshold_hours": 72,
+    "actual_hours": 64.65,
+    "note": "Under the old flat 72h rule this Monday reads healthy at 64.65h EVEN IF Friday's run had failed, because the weekend alone consumes 64h of budget. The slot-based rule closes that blind window."
+  }
+}
