@@ -1,0 +1,30 @@
+{
+  "recorded_at_et": "2026-08-24 10:35",
+  "method": "read-only queries against the live database; no state changed",
+  "live_function_probe": {
+    "call": "compute_kelly_gate(..., 'buy', 'PARITY_PROBE', p_lookback_days=90, p_min_trades=40, regime_mode='off')",
+    "fn_n_trades": 27,
+    "fn_dollar_pf": 0.6585,
+    "fn_reason": "negative_measured_edge"
+  },
+  "view_output_bullish": {
+    "n_trades": 27, "wins": 4, "win_rate": 0.1481,
+    "gross_win": 2145.27, "gross_loss": 3258.05, "dollar_pf": 0.6585,
+    "avg_win_r": 1.8945, "avg_loss_r": 0.9539, "kelly_star": -0.2943,
+    "meets_sample_bar": true, "meets_pf_bar": false
+  },
+  "view_output_bearish": {
+    "n_trades": 26, "wins": 2, "dollar_pf": 0.1442, "kelly_star": -1.4038,
+    "meets_sample_bar": true, "meets_pf_bar": false
+  },
+  "PARITY_MATCH": true,
+  "tail_canary_view": {
+    "consecutive_since_last_tail_winner": 15,
+    "tail_winners": 5, "tail_universe": 28, "alarm_threshold": 14
+  },
+  "user_id_scope": {
+    "distinct_user_ids_in_certified_window": 1,
+    "all_rows_match_gate_user": true,
+    "note": "The view intentionally omits the function's user_id = p_user_id clause. This witness proves the omission cannot change any number today: exactly one user_id exists in the certified window and it is the gate's own. If a second account ever appears, GV-05 fails and the view must gain the clause."
+  }
+}
