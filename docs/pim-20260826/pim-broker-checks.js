@@ -29,7 +29,7 @@ let checks = 0;
 const check = (name, arr) => { checks++; for (const d of (arr || [])) V.push({ code: name, detail: d }); };
 
 // ---- DB-side verdicts (computed in SQL, judged here) ----
-check('I1_STOP_WIDTH', (inv.I1_bad_stop_widths || []).map((r) => r.sym + ' stop ' + r.stop_pct + '% (reanchored=' + r.reanchored + ') outside 2.35-2.65 policy band'));
+check('I1_STOP_WIDTH', (inv.I1_bad_stop_widths || []).map((r) => r.sym + ' stop ' + r.stop_pct + '% (reanchored=' + r.reanchored + ') outside the 1.8-3.2 fill-basis sanity band (policy: 2.5% of anchor)'));
 checks++; const ep = inv.I4_epoch || {};
 if (Number(ep.v) !== EPOCH_PIN) { V.push({ code: 'I4_EPOCH', detail: 'epoch row is ' + JSON.stringify(ep) + ', pinned ' + EPOCH_PIN + ' — cohort boundary compromised' }); }
 check('I6_TIME_EXIT_DEAD', (inv.I6_overdue_longs || []).map((r) => r.sym + ' at session ' + r.sessions + ' — the 15:50 exit did not fire'));
@@ -61,7 +61,9 @@ for (const p of (inv.open_post_epoch || [])) {
   if (cover < Number(live.qty)) { V.push({ code: 'I2_UNPROTECTED', detail: sym + ' stop coverage ' + cover + ' < position ' + live.qty }); }
   for (const o of stopsL) {
     const w = Math.abs(Number(o.stop_price) - Number(p.entry)) / Number(p.entry) * 100;
-    if (w < 2.3 || w > 2.7) { V.push({ code: 'I2_STOP_DRIFT', detail: sym + ' live stop ' + o.stop_price + ' = ' + w.toFixed(2) + '% of entry (policy 2.5)' }); }
+    // v1.2: fill-basis sanity band [1.8, 3.2] — the placed stop is 2.5% of the entry
+    // ANCHOR; fill slip legitimately moves the pct-of-fill (see I1 note in pim-query.sql).
+    if (w < 1.8 || w > 3.2) { V.push({ code: 'I2_STOP_DRIFT', detail: sym + ' live stop ' + o.stop_price + ' = ' + w.toFixed(2) + '% of entry (policy 2.5 of anchor; sanity 1.8-3.2 of fill)' }); }
     if (String(o.time_in_force) !== 'gtc') { V.push({ code: 'I3_TIF', detail: sym + ' stop leg tif=' + o.time_in_force + ' (gov211: gtc)' }); }
   }
   for (const o of legs.filter((x) => String(x.type) === 'limit')) {

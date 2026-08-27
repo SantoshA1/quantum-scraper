@@ -62,3 +62,25 @@ export shape drops inline credentials by design, so confirm nothing important is
 - **Staleness guard** refuses to publish when live moved since the last `export` (override only with `--force` + a documented reason).
 - No mass-publish: `publish` targets exactly one `--id` at a time.
 - The canonical JSON stores only `name/nodes/connections/settings` — never secrets. Rotate + scrub the exposures listed in `.ci/secret-baseline.json` before/independently of this.
+
+---
+
+## STATUS ADDENDUM (2026-08-27, gov 242) — read this before acting on anything above
+
+The flow described above is **RETIRED**. Doctrine as practiced since gov 227b/232:
+
+- **Live n8n is the canonical RUNTIME.** The repo is the canonical **AUDIT TRAIL**:
+  sha256-pinned per-node fixtures (deployed + patched pairs) and offline suites that
+  execute those exact bytes, committed with every governance change (gov-numbered docs).
+- **Full workflow-JSON exports were stopped deliberately**, not by neglect: gov 232
+  found a hardcoded secret inside workflow bytes. Node fixtures are secret-scanned and
+  REDACTED before any commit. Do not resurrect `.ci/n8n-sync.js export` without that
+  scrubbing layer.
+- One thing above is still true: **publishing from this repo would roll back
+  production.** Never publish from repo state.
+- Freshness is enforced at two layers: every deploy runs a **before-gate** (live node
+  sha must equal the last committed fixture, else abort) and the nightly **Policy
+  Invariant Monitor** (`1sDON3ev6zJo3pGR`, gov 242) re-derives ratified invariants
+  from broker + ledger truth at 18:25 ET.
+- The 2026-07-15 staleness warning above described the old export flow and predates
+  all of the above.

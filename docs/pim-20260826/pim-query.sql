@@ -34,14 +34,18 @@ open_post_epoch as (
     and t.entry_fill_time >= to_timestamp((select v from epoch)::double precision)
 )
 select jsonb_build_object(
-  -- I1 (gov 241/241c): every long entered today carries the 2.5% policy stop
-  -- (2.35–2.65 tolerance covers fill-slip re-anchor legality). A reanchored=true row
-  -- is legal ONLY if its final width is still inside the band — the band check
-  -- catches both, so one list suffices.
+  -- I1 (gov 241/241c): every long entered today carries the 2.5% policy stop.
+  -- v1.2 CALIBRATION (first-light lesson, 2026-08-27): the stop is 2.5% of the entry
+  -- ANCHOR, but this column measures it against the FILL — a favorable capped-limit
+  -- fill (UHS −0.53% on 08-27) legitimately reads 1.97% of fill. The stored fields
+  -- cannot reconstruct the anchor, so the band is a fill-basis SANITY band [1.8, 3.2]:
+  -- wide enough for slip variance, still catches every seen incident class (the
+  -- repealed 1.145% regime, a 0.9% forced stop, any >3.2% runaway). A reanchored=true
+  -- row is legal ONLY inside the same band.
   'I1_bad_stop_widths', (select coalesce(jsonb_agg(jsonb_build_object(
        'sym', symbol, 'stop_pct', stop_pct, 'reanchored', reanchored)), '[]'::jsonb)
      from entries_today where side in ('buy','buy_call')
-       and (stop_pct < 2.35 or stop_pct > 2.65)),
+       and (stop_pct < 1.8 or stop_pct > 3.2)),
   -- I4 (gov 241): epoch row exists, value PINNED to the ratified activation second.
   -- A silently rewritten epoch would re-admit legacy trades into the cohort.
   'I4_epoch', (select coalesce(jsonb_build_object('v', v, 'status', status), '{}'::jsonb) from epoch),

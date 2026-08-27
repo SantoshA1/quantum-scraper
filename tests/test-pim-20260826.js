@@ -60,7 +60,7 @@ const codes = (r) => r.out.violations.map((v) => v.code);
 (async () => {
   console.log('== SQL pins ==');
   ok(SQL.includes('exists (select 1 from epoch)') && SQL.includes("to_timestamp((select v from epoch)"), 'PIM-SQL-1 open_post_epoch is epoch-scoped (DGX excluded)');
-  ok(SQL.includes('stop_pct < 2.35 or stop_pct > 2.65'), 'PIM-SQL-2 I1 band literals 2.35/2.65');
+  ok(SQL.includes('stop_pct < 1.8 or stop_pct > 3.2'), 'PIM-SQL-2 I1 sanity band 1.8/3.2 (v1.2 fill-basis calibration)');
   ok(SQL.includes('sessions >= 3'), 'PIM-SQL-3 I6 overdue = session 3+');
   ok(!/\b(insert|update|delete|truncate|alter|drop)\b/i.test(SQL.replace(/--[^\n]*/g, '')), 'PIM-SQL-4 READ-ONLY (no write verbs outside comments)');
   ok(SQL.includes("side not in ('buy','buy_call','sell_put')"), 'PIM-SQL-5 I9 short-leak predicate');
@@ -83,6 +83,9 @@ const codes = (r) => r.out.violations.map((v) => v.code);
   { const b = HEALTHY_BROKER(); b.orders[0].stop_price = '110.42'; // 1.146% of entry — the incident geometry
     const r = await runPIM(HEALTHY_INV(), b);
     ok(codes(r).includes('I2_STOP_DRIFT'), 'PIM-05 WITNESS: yesterday-class 1.15% live stop = drift violation'); }
+  { const b = HEALTHY_BROKER(); b.orders[0].stop_price = '109.47'; // 2.0% of entry — favorable-fill variance (UHS 08-27 class)
+    const r = await runPIM(HEALTHY_INV(), b);
+    ok(!codes(r).includes('I2_STOP_DRIFT'), 'PIM-05b v1.2: favorable-fill 2.0%-of-fill stop is NOT a violation'); }
   { const b = HEALTHY_BROKER(); b.orders[0].time_in_force = 'day';
     const r = await runPIM(HEALTHY_INV(), b);
     ok(codes(r).includes('I3_TIF'), 'PIM-06 I3 fires on day-TIF protective leg (gov211 class)'); }
