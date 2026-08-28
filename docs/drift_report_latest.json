@@ -1,0 +1,38 @@
+{
+  "manifest": "/home/user/workspace/pine-source/manifest.json",
+  "skip_warmup": 50,
+  "modules": [
+    {
+      "pine_file": "ai_super_score_ensemble_engine_v1.pine",
+      "module": "ensemble_engine_v1",
+      "ohlcv_csv": "/home/user/workspace/pine-reference/ohlcv/ai_super_score_ensemble_engine_v1_ohlcv.csv",
+      "reference_csv": "/home/user/workspace/pine-reference/outputs/ai_super_score_ensemble_engine_v1_reference.csv",
+      "status": "SKIPPED",
+      "reason": "missing_ohlcv_csv"
+    },
+    {
+      "pine_file": "ai_super_score_pro_v25_universal.pine",
+      "module": "super_score_pro_v25",
+      "ohlcv_csv": "/home/user/workspace/pine-reference/ohlcv/ai_super_score_pro_v25_universal_ohlcv.csv",
+      "reference_csv": "/home/user/workspace/pine-reference/outputs/ai_super_score_pro_v25_universal_reference.csv",
+      "status": "SKIPPED",
+      "reason": "missing_ohlcv_csv"
+    },
+    {
+      "pine_file": "ai_super_score_webhook_bridge_v8.pine",
+      "module": "webhook_bridge_v8",
+      "ohlcv_csv": "/home/user/workspace/pine-reference/ohlcv/ai_super_score_webhook_bridge_v8_ohlcv.csv",
+      "reference_csv": "/home/user/workspace/pine-reference/outputs/ai_super_score_webhook_bridge_v8_reference.csv",
+      "status": "SKIPPED",
+      "reason": "missing_ohlcv_csv"
+    },
+    {
+      "pine_file": "quantum_scalp_strategy_v5.pine",
+      "module": "quantum_scalp_strategy_v5",
+      "ohlcv_csv": "/home/user/workspace/pine-reference/ohlcv/quantum_scalp_strategy_v5_ohlcv.csv",
+      "reference_csv": "/home/user/workspace/pine-reference/outputs/quantum_scalp_strategy_v5_reference.csv",
+      "status": "SKIPPED",
+      "reason": "missing_ohlcv_csv"
+    }
+  ]
+}

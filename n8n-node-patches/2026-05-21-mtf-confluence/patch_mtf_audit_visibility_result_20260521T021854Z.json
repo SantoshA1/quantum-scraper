@@ -1,0 +1,78 @@
+{
+  "ok": true,
+  "workflow_id": "vaqfCaELhOEWnkdo",
+  "workflow_name": "TradingView AI Super Score \u2192 Perplexity \u2192 Telegram",
+  "active": true,
+  "versionId_before": "4cad758c-5375-4e0e-8a16-6e969282e72a",
+  "versionId_after": "e073f6a4-ef41-44b4-b533-ee1466775591",
+  "updatedAt": "2026-05-21T02:18:57.141Z",
+  "target_node": "Merge MTF AI Verdict",
+  "target_node_id": "qtp-merge-mtf-ai-verdict-v59",
+  "workflow_backup": "/home/user/workspace/outputs/pre_mtf_audit_visibility_20260521_vaqfCaELhOEWnkdo_20260521T021854Z.json",
+  "node_backup": "/home/user/workspace/outputs/merge_mtf_ai_verdict_pre_audit_visibility_20260521T021854Z.js",
+  "patched_js": "/home/user/workspace/outputs/merge_mtf_ai_verdict_patched_audit_visibility_20260521T021854Z.js",
+  "local_counts": {
+    "QTP_MTF_AUDIT_VISIBILITY_20260521": {
+      "expected": 3,
+      "actual": 3,
+      "pass": true
+    },
+    "j._mtf_block_version = 'QTP_MTF_AUDIT_VISIBILITY_20260521'": {
+      "expected": 1,
+      "actual": 1,
+      "pass": true
+    },
+    "j.blocked_stage = 'MTF_CONFLUENCE_BLOCK'": {
+      "expected": 1,
+      "actual": 1,
+      "pass": true
+    },
+    "j.final_mtf_confluence_decision": {
+      "expected": 2,
+      "actual": 2,
+      "pass": true
+    },
+    "j.final_mtf_confluence_pass": {
+      "expected": 3,
+      "actual": 3,
+      "pass": true
+    },
+    "return": {
+      "expected": 3,
+      "actual": 3,
+      "pass": true
+    }
+  },
+  "deployed_counts": {
+    "QTP_MTF_AUDIT_VISIBILITY_20260521": {
+      "expected": 3,
+      "actual": 3,
+      "pass": true
+    },
+    "j._mtf_block_version = 'QTP_MTF_AUDIT_VISIBILITY_20260521'": {
+      "expected": 1,
+      "actual": 1,
+      "pass": true
+    },
+    "j.blocked_stage = 'MTF_CONFLUENCE_BLOCK'": {
+      "expected": 1,
+      "actual": 1,
+      "pass": true
+    },
+    "j.final_mtf_confluence_decision": {
+      "expected": 2,
+      "actual": 2,
+      "pass": true
+    },
+    "j.final_mtf_confluence_pass": {
+      "expected": 3,
+      "actual": 3,
+      "pass": true
+    },
+    "return": {
+      "expected": 3,
+      "actual": 3,
+      "pass": true
+    }
+  }
+}

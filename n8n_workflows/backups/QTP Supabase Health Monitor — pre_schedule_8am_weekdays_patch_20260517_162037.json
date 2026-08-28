@@ -1,0 +1,350 @@
+{
+  "updatedAt": "2026-05-16T01:03:04.328Z",
+  "createdAt": "2026-05-15T13:54:48.140Z",
+  "id": "<N8N_CREDENTIAL_ID_REDACTED>",
+  "name": "QTP Supabase Health Monitor \u2014 15m",
+  "description": null,
+  "active": true,
+  "isArchived": false,
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "minutes",
+              "minutesInterval": 15
+            }
+          ]
+        }
+      },
+      "id": "qtp_supabase_health_schedule",
+      "name": "Every 15 Minutes",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        0,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "\n// QTP Supabase-only Health Monitor v4.2.1\n// Read-only. No Alpaca calls. No trading logic changes.\nreturn [{\n  json: {\n    monitor_version: 'QTP_SUPABASE_HEALTH_MONITOR_v4.2.1',\n    checked_at: new Date().toISOString(),\n    expected_counts: {\"alert_route_verification_10fc\": 193, \"audit_trail\": 195, \"audit_trail_backup_20260430t0925z\": 40, \"candidate_path_trace_10fc\": 3424, \"daily_pnl\": 1, \"entry_pause_control\": 1, \"exec_flow_audit\": 2722, \"google_sheets_ai_feedback_raw\": 49493, \"infra_telemetry_15m\": 1, \"logging_dead_letter\": 0, \"new_indicator_candidates_raw\": 55, \"optimization_apply_log\": 8, \"optimization_cycle_ledger\": 14, \"optimization_recommendations\": 202, \"optimization_recommendations_backup_20260430t0920z\": 6, \"optimization_recommendations_dedupe_backup_20260430\": 4, \"optimization_recommendations_dedupe_stage_20260430t0920z\": 4, \"optimization_recommendations_pre_kept_apply_20260506t045645z\": 4, \"optimization_state_shadow\": 4, \"order_events\": 2305, \"performance_metrics\": 4, \"portfolio_snapshot\": 33, \"position_risk_state\": 187, \"public_signal_feed_raw\": 0, \"qtp_cost_guardrail_10o\": 1, \"quantum_strat_cache_raw\": 543, \"quantum_watchlist_raw\": 554, \"risk_events\": 1, \"risk_events_v2\": 11047, \"script_discovery_log_raw\": 295, \"selfopt_approval_queue_10o\": 4, \"selfopt_autofinalizer_runs\": 351, \"shadow_monitor_state\": 18619, \"strategy_signals\": 16457, \"system_health\": 1, \"telegram_grok_heartbeat\": 1, \"trade_log\": 34, \"vc_api_health_events_10o\": 83, \"vc_gate_forensics_shadow\": 8348, \"vc_shadow_score_observations\": 0, \"winrate_opportunity_shadow_10o\": 9505, \"wro_shadow_entry_quality_421\": 2523, \"xai_selfopt_brain_10o\": 5},\n    __supabase_health_sql: \"SELECT 'alert_route_verification_10fc'::text AS metric_name, COUNT(*)::bigint AS metric_value FROM quantum.alert_route_verification_10fc UNION ALL SELECT 'audit_trail'::text AS metric_name, COUNT(*)::bigint AS metric_value FROM quantum.audit_trail UNION ALL SELECT 'audit_trail_backup_20260430t0925z'::text AS metric_name, COUNT(*)::bigint AS metric_value FROM quantum.audit_trail_backup_20260430t0925z UNION ALL SELECT 'candidate_path_trace_10fc'::text AS metric_name, COUNT(*)::bigint AS metric_value FROM quantum.candidate_path_trace_10fc UNION ALL SELECT 'daily_pnl'::text AS metric_name, COUNT(*)::bigint AS metric_value FROM quantum.daily_pnl UNION ALL SELECT 'entry_pause_control'::text AS metric_name, COUNT(*)::bigint AS metric_value FROM quantum.entry_pause_control UNION ALL SELECT 'exec_flow_audit'::text AS metric_name, COUNT(*)::bigint AS metric_value FROM quantum.exec_flow_audit UNION ALL SELECT 'google_sheets_ai_feedback_raw'::text AS metric_name, COUNT(*)::bigint AS metric_value FROM quantum.google_sheets_ai_feedback_raw UNION ALL SELECT 'infra_telemetry_15m'::text AS metric_name, COUNT(*)::bigint AS metric_value FROM quantum.infra_telemetry_15m UNION ALL SELECT 'logging_dead_letter'::text AS metric_name, COUNT(*)::bigint AS metric_value FROM quantum.logging_dead_letter UNION ALL SELECT 'new_indicator_candidates_raw'::text AS metric_name, COUNT(*)::bigint AS metric_value FROM quantum.new_indicator_candidates_raw UNION ALL SELECT 'optimization_apply_log'::text AS metric_name, COUNT(*)::bigint AS metric_value FROM quantum.optimization_apply_log UNION ALL SELECT 'optimization_cycle_ledger'::text AS metric_name, COUNT(*)::bigint AS metric_value FROM quantum.optimization_cycle_ledger UNION ALL SELECT 'optimization_recommendations'::text AS metric_name, COUNT(*)::bigint AS metric_value FROM quantum.optimization_recommendations UNION ALL SELECT 'optimization_recommendations_backup_20260430t0920z'::text AS metric_name, COUNT(*)::bigint AS metric_value FROM quantum.optimization_recommendations_backup_20260430t0920z UNION ALL SELECT 'optimization_recommendations_dedupe_backup_20260430'::text AS metric_name, COUNT(*)::bigint AS metric_value FROM quantum.optimization_recommendations_dedupe_backup_20260430 UNION ALL SELECT 'optimization_recommendations_dedupe_stage_20260430t0920z'::text AS metric_name, COUNT(*)::bigint AS metric_value FROM quantum.optimization_recommendations_dedupe_stage_20260430t0920z UNION ALL SELECT 'optimization_recommendations_pre_kept_apply_20260506t045645z'::text AS metric_name, COUNT(*)::bigint AS metric_value FROM quantum.optimization_recommendations_pre_kept_apply_20260506t045645z UNION ALL SELECT 'optimization_state_shadow'::text AS metric_name, COUNT(*)::bigint AS metric_value FROM quantum.optimization_state_shadow UNION ALL SELECT 'order_events'::text AS metric_name, COUNT(*)::bigint AS metric_value FROM quantum.order_events UNION ALL SELECT 'performance_metrics'::text AS metric_name, COUNT(*)::bigint AS metric_value FROM quantum.performance_metrics UNION ALL SELECT 'portfolio_snapshot'::text AS metric_name, COUNT(*)::bigint AS metric_value FROM quantum.portfolio_snapshot UNION ALL SELECT 'position_risk_state'::text AS metric_name, COUNT(*)::bigint AS metric_value FROM quantum.position_risk_state UNION ALL SELECT 'public_signal_feed_raw'::text AS metric_name, COUNT(*)::bigint AS metric_value FROM quantum.public_signal_feed_raw UNION ALL SELECT 'qtp_cost_guardrail_10o'::text AS metric_name, COUNT(*)::bigint AS metric_value FROM quantum.qtp_cost_guardrail_10o UNION ALL SELECT 'quantum_strat_cache_raw'::text AS metric_name, COUNT(*)::bigint AS metric_value FROM quantum.quantum_strat_cache_raw UNION ALL SELECT 'quantum_watchlist_raw'::text AS metric_name, COUNT(*)::bigint AS metric_value FROM quantum.quantum_watchlist_raw UNION ALL SELECT 'risk_events'::text AS metric_name, COUNT(*)::bigint AS metric_value FROM quantum.risk_events UNION ALL SELECT 'risk_events_v2'::text AS metric_name, COUNT(*)::bigint AS metric_value FROM quantum.risk_events_v2 UNION ALL SELECT 'script_discovery_log_raw'::text AS metric_name, COUNT(*)::bigint AS metric_value FROM quantum.script_discovery_log_raw UNION ALL SELECT 'selfopt_approval_queue_10o'::text AS metric_name, COUNT(*)::bigint AS metric_value FROM quantum.selfopt_approval_queue_10o UNION ALL SELECT 'selfopt_autofinalizer_runs'::text AS metric_name, COUNT(*)::bigint AS metric_value FROM quantum.selfopt_autofinalizer_runs UNION ALL SELECT 'shadow_monitor_state'::text AS metric_name, COUNT(*)::bigint AS metric_value FROM quantum.shadow_monitor_state UNION ALL SELECT 'strategy_signals'::text AS metric_name, COUNT(*)::bigint AS metric_value FROM quantum.strategy_signals UNION ALL SELECT 'system_health'::text AS metric_name, COUNT(*)::bigint AS metric_value FROM quantum.system_health UNION ALL SELECT 'telegram_grok_heartbeat'::text AS metric_name, COUNT(*)::bigint AS metric_value FROM quantum.telegram_grok_heartbeat UNION ALL SELECT 'trade_log'::text AS metric_name, COUNT(*)::bigint AS metric_value FROM quantum.trade_log UNION ALL SELECT 'vc_api_health_events_10o'::text AS metric_name, COUNT(*)::bigint AS metric_value FROM quantum.vc_api_health_events_10o UNION ALL SELECT 'vc_gate_forensics_shadow'::text AS metric_name, COUNT(*)::bigint AS metric_value FROM quantum.vc_gate_forensics_shadow UNION ALL SELECT 'vc_shadow_score_observations'::text AS metric_name, COUNT(*)::bigint AS metric_value FROM quantum.vc_shadow_score_observations UNION ALL SELECT 'winrate_opportunity_shadow_10o'::text AS metric_name, COUNT(*)::bigint AS metric_value FROM quantum.winrate_opportunity_shadow_10o UNION ALL SELECT 'wro_shadow_entry_quality_421'::text AS metric_name, COUNT(*)::bigint AS metric_value FROM quantum.wro_shadow_entry_quality_421 UNION ALL SELECT 'xai_selfopt_brain_10o'::text AS metric_name, COUNT(*)::bigint AS metric_value FROM quantum.xai_selfopt_brain_10o\\n UNION ALL\\nSELECT '__dead_letters_24h'::text AS metric_name, COUNT(*)::bigint AS metric_value\\nFROM quantum.logging_dead_letter\\nWHERE failed_at >= now() - interval '24 hours'\\n UNION ALL\\nSELECT '__latest_open_positions'::text AS metric_name, COUNT(*)::bigint AS metric_value\\nFROM quantum.position_risk_state\\nWHERE observed_at = (SELECT MAX(observed_at) FROM quantum.position_risk_state)\\n UNION ALL\\nSELECT '__latest_not_fully_protected'::text AS metric_name, COUNT(*)::bigint AS metric_value\\nFROM quantum.position_risk_state\\nWHERE observed_at = (SELECT MAX(observed_at) FROM quantum.position_risk_state)\\n  AND COALESCE(protection_status, '') <> 'FULLY_PROTECTED'\\n UNION ALL\\nSELECT '__latest_new_entry_blockers'::text AS metric_name, COUNT(*)::bigint AS metric_value\\nFROM quantum.position_risk_state\\nWHERE observed_at = (SELECT MAX(observed_at) FROM quantum.position_risk_state)\\n  AND COALESCE(blocks_new_entries, false) = true\\n\"\n  }\n}];\n"
+      },
+      "id": "qtp_supabase_health_prepare",
+      "name": "Prepare Supabase Health Query",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        240,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "={{$json.__supabase_health_sql}}",
+        "options": {}
+      },
+      "id": "qtp_supabase_health_query",
+      "name": "Query Supabase Health Counts",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [
+        500,
+        0
+      ],
+      "credentials": {
+        "postgres": {
+          "id": "<N8N_CREDENTIAL_ID_REDACTED>",
+          "name": "Postgres account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "\n// QTP Supabase-only Health Monitor evaluator v4.2.1\nconst source = $('Prepare Supabase Health Query').first().json || {};\nconst expected = source.expected_counts || {};\nconst actualRows = $input.all().map(i => i.json || {});\nconst actual = Object.fromEntries(actualRows.map(r => [String(r.metric_name), Number(r.metric_value ?? 0)]));\nconst tableRows = Object.keys(expected).sort().map(table_name => {\n  const expected_min = Number(expected[table_name] ?? 0);\n  const current_count = Number(actual[table_name] ?? -1);\n  const status = current_count >= expected_min ? 'OK' : 'BELOW_EXPECTED';\n  return { table_name, expected_min, current_count, delta_vs_min: current_count - expected_min, status };\n});\nconst discrepancies = tableRows.filter(r => r.status !== 'OK');\nconst deadLetters24h = Number(actual.__dead_letters_24h ?? 0);\nconst openPositions = Number(actual.__latest_open_positions ?? 0);\nconst notFullyProtected = Number(actual.__latest_not_fully_protected ?? 0);\nconst blockers = Number(actual.__latest_new_entry_blockers ?? 0);\nconst safetyIssues = [];\nif (deadLetters24h > 0) safetyIssues.push(`dead_letters_24h=${deadLetters24h}`);\nif (notFullyProtected > 0) safetyIssues.push(`not_fully_protected=${notFullyProtected}`);\nif (blockers > 0) safetyIssues.push(`new_entry_blockers=${blockers}`);\nconst status = discrepancies.length || safetyIssues.length ? 'ALERT' : 'OK';\nconst report = {\n  monitor_version: source.monitor_version,\n  checked_at: new Date().toISOString(),\n  status,\n  total_tables_checked: tableRows.length,\n  discrepancies,\n  dead_letters_24h: deadLetters24h,\n  open_positions: openPositions,\n  not_fully_protected: notFullyProtected,\n  new_entry_blockers: blockers,\n  safety_issues: safetyIssues,\n};\nreturn [{ json: report }];\n"
+      },
+      "id": "qtp_supabase_health_evaluate",
+      "name": "Evaluate Supabase Health",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        760,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "\n// Send Telegram only on discrepancies/safety issues. Healthy runs stay silent.\nconst report = $input.first().json || {};\nif (report.status === 'OK') {\n  return [{ json: { ...report, alert_sent: false, alert_reason: 'healthy_no_alert' } }];\n}\nconst bot = $vars.TELEGRAM_BOT_TOKEN || '';\nconst chat = $vars.TELEGRAM_CHAT_ID || $vars.TELEGRAM_PERSONAL_CHAT_ID || '';\nif (!bot || !chat) {\n  return [{ json: { ...report, alert_sent: false, alert_error: 'missing_telegram_vars' } }];\n}\nconst top = (report.discrepancies || []).slice(0, 8).map(r => `${r.table_name}: ${r.current_count}/${r.expected_min}`).join('\\n');\nconst text = [\n  '\ud83d\udea8 QTP SUPABASE HEALTH ALERT',\n  `Status: ${report.status}`,\n  `Checked: ${report.checked_at}`,\n  `Tables checked: ${report.total_tables_checked}`,\n  `Discrepancies: ${(report.discrepancies || []).length}`,\n  top ? `\\nBelow expected:\\n${top}` : '',\n  `\\nSafety: dead_letters_24h=${report.dead_letters_24h}, open_positions=${report.open_positions}, not_fully_protected=${report.not_fully_protected}, blockers=${report.new_entry_blockers}`,\n].filter(Boolean).join('\\n');\nconst resp = await this.helpers.httpRequest({\n  method: 'POST',\n  url: `https://api.telegram.org/bot${bot}/sendMessage`,\n  headers: { 'Content-Type': 'application/json' },\n  body: { chat_id: chat, text, disable_web_page_preview: true },\n  json: true,\n  timeout: 20000,\n});\nreturn [{ json: { ...report, alert_sent: true, telegram_ok: resp.ok === true } }];\n"
+      },
+      "id": "qtp_supabase_health_alert",
+      "name": "Alert On Supabase Health Issue",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1020,
+        0
+      ]
+    }
+  ],
+  "connections": {
+    "Every 15 Minutes": {
+      "main": [
+        [
+          {
+            "node": "Prepare Supabase Health Query",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare Supabase Health Query": {
+      "main": [
+        [
+          {
+            "node": "Query Supabase Health Counts",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Query Supabase Health Counts": {
+      "main": [
+        [
+          {
+            "node": "Evaluate Supabase Health",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Evaluate Supabase Health": {
+      "main": [
+        [
+          {
+            "node": "Alert On Supabase Health Issue",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "saveManualExecutions": true
+  },
+  "staticData": {
+    "node:Every 15 Minutes": {
+      "recurrenceRules": []
+    }
+  },
+  "meta": null,
+  "pinData": {},
+  "versionId": "f315aeaa-4e3a-4e4c-a481-bfea4c5dbc5c",
+  "activeVersionId": "f315aeaa-4e3a-4e4c-a481-bfea4c5dbc5c",
+  "versionCounter": 19,
+  "triggerCount": 1,
+  "shared": [
+    {
+      "updatedAt": "2026-05-15T13:54:48.156Z",
+      "createdAt": "2026-05-15T13:54:48.156Z",
+      "role": "workflow:owner",
+      "workflowId": "UHYsIUCB5moypUl3",
+      "projectId": "8FehnoLE6S4OGbZZ",
+      "project": {
+        "updatedAt": "2026-03-16T20:41:27.470Z",
+        "createdAt": "2026-03-16T20:41:22.084Z",
+        "id": "8FehnoLE6S4OGbZZ",
+        "name": "Santosh Adari <sa.nextgenai@gmail.com>",
+        "type": "personal",
+        "icon": null,
+        "description": null,
+        "creatorId": "1d4c2d1c-381a-43b8-ba2e-c190e38191a7"
+      }
+    }
+  ],
+  "tags": [],
+  "activeVersion": {
+    "updatedAt": "2026-05-16T01:03:04.329Z",
+    "createdAt": "2026-05-16T01:03:04.329Z",
+    "versionId": "f315aeaa-4e3a-4e4c-a481-bfea4c5dbc5c",
+    "workflowId": "UHYsIUCB5moypUl3",
+    "nodes": [
+      {
+        "parameters": {
+          "rule": {
+            "interval": [
+              {
+                "field": "minutes",
+                "minutesInterval": 15
+              }
+            ]
+          }
+        },
+        "id": "qtp_supabase_health_schedule",
+        "name": "Every 15 Minutes",
+        "type": "n8n-nodes-base.scheduleTrigger",
+        "typeVersion": 1.2,
+        "position": [
+          0,
+          0
+        ]
+      },
+      {
+        "parameters": {
+          "mode": "runOnceForAllItems",
+          "jsCode": "\n// QTP Supabase-only Health Monitor v4.2.1\n// Read-only. No Alpaca calls. No trading logic changes.\nreturn [{\n  json: {\n    monitor_version: 'QTP_SUPABASE_HEALTH_MONITOR_v4.2.1',\n    checked_at: new Date().toISOString(),\n    expected_counts: {\"alert_route_verification_10fc\": 193, \"audit_trail\": 195, \"audit_trail_backup_20260430t0925z\": 40, \"candidate_path_trace_10fc\": 3424, \"daily_pnl\": 1, \"entry_pause_control\": 1, \"exec_flow_audit\": 2722, \"google_sheets_ai_feedback_raw\": 49493, \"infra_telemetry_15m\": 1, \"logging_dead_letter\": 0, \"new_indicator_candidates_raw\": 55, \"optimization_apply_log\": 8, \"optimization_cycle_ledger\": 14, \"optimization_recommendations\": 202, \"optimization_recommendations_backup_20260430t0920z\": 6, \"optimization_recommendations_dedupe_backup_20260430\": 4, \"optimization_recommendations_dedupe_stage_20260430t0920z\": 4, \"optimization_recommendations_pre_kept_apply_20260506t045645z\": 4, \"optimization_state_shadow\": 4, \"order_events\": 2305, \"performance_metrics\": 4, \"portfolio_snapshot\": 33, \"position_risk_state\": 187, \"public_signal_feed_raw\": 0, \"qtp_cost_guardrail_10o\": 1, \"quantum_strat_cache_raw\": 543, \"quantum_watchlist_raw\": 554, \"risk_events\": 1, \"risk_events_v2\": 11047, \"script_discovery_log_raw\": 295, \"selfopt_approval_queue_10o\": 4, \"selfopt_autofinalizer_runs\": 351, \"shadow_monitor_state\": 18619, \"strategy_signals\": 16457, \"system_health\": 1, \"telegram_grok_heartbeat\": 1, \"trade_log\": 34, \"vc_api_health_events_10o\": 83, \"vc_gate_forensics_shadow\": 8348, \"vc_shadow_score_observations\": 0, \"winrate_opportunity_shadow_10o\": 9505, \"wro_shadow_entry_quality_421\": 2523, \"xai_selfopt_brain_10o\": 5},\n    __supabase_health_sql: \"SELECT 'alert_route_verification_10fc'::text AS metric_name, COUNT(*)::bigint AS metric_value FROM quantum.alert_route_verification_10fc UNION ALL SELECT 'audit_trail'::text AS metric_name, COUNT(*)::bigint AS metric_value FROM quantum.audit_trail UNION ALL SELECT 'audit_trail_backup_20260430t0925z'::text AS metric_name, COUNT(*)::bigint AS metric_value FROM quantum.audit_trail_backup_20260430t0925z UNION ALL SELECT 'candidate_path_trace_10fc'::text AS metric_name, COUNT(*)::bigint AS metric_value FROM quantum.candidate_path_trace_10fc UNION ALL SELECT 'daily_pnl'::text AS metric_name, COUNT(*)::bigint AS metric_value FROM quantum.daily_pnl UNION ALL SELECT 'entry_pause_control'::text AS metric_name, COUNT(*)::bigint AS metric_value FROM quantum.entry_pause_control UNION ALL SELECT 'exec_flow_audit'::text AS metric_name, COUNT(*)::bigint AS metric_value FROM quantum.exec_flow_audit UNION ALL SELECT 'google_sheets_ai_feedback_raw'::text AS metric_name, COUNT(*)::bigint AS metric_value FROM quantum.google_sheets_ai_feedback_raw UNION ALL SELECT 'infra_telemetry_15m'::text AS metric_name, COUNT(*)::bigint AS metric_value FROM quantum.infra_telemetry_15m UNION ALL SELECT 'logging_dead_letter'::text AS metric_name, COUNT(*)::bigint AS metric_value FROM quantum.logging_dead_letter UNION ALL SELECT 'new_indicator_candidates_raw'::text AS metric_name, COUNT(*)::bigint AS metric_value FROM quantum.new_indicator_candidates_raw UNION ALL SELECT 'optimization_apply_log'::text AS metric_name, COUNT(*)::bigint AS metric_value FROM quantum.optimization_apply_log UNION ALL SELECT 'optimization_cycle_ledger'::text AS metric_name, COUNT(*)::bigint AS metric_value FROM quantum.optimization_cycle_ledger UNION ALL SELECT 'optimization_recommendations'::text AS metric_name, COUNT(*)::bigint AS metric_value FROM quantum.optimization_recommendations UNION ALL SELECT 'optimization_recommendations_backup_20260430t0920z'::text AS metric_name, COUNT(*)::bigint AS metric_value FROM quantum.optimization_recommendations_backup_20260430t0920z UNION ALL SELECT 'optimization_recommendations_dedupe_backup_20260430'::text AS metric_name, COUNT(*)::bigint AS metric_value FROM quantum.optimization_recommendations_dedupe_backup_20260430 UNION ALL SELECT 'optimization_recommendations_dedupe_stage_20260430t0920z'::text AS metric_name, COUNT(*)::bigint AS metric_value FROM quantum.optimization_recommendations_dedupe_stage_20260430t0920z UNION ALL SELECT 'optimization_recommendations_pre_kept_apply_20260506t045645z'::text AS metric_name, COUNT(*)::bigint AS metric_value FROM quantum.optimization_recommendations_pre_kept_apply_20260506t045645z UNION ALL SELECT 'optimization_state_shadow'::text AS metric_name, COUNT(*)::bigint AS metric_value FROM quantum.optimization_state_shadow UNION ALL SELECT 'order_events'::text AS metric_name, COUNT(*)::bigint AS metric_value FROM quantum.order_events UNION ALL SELECT 'performance_metrics'::text AS metric_name, COUNT(*)::bigint AS metric_value FROM quantum.performance_metrics UNION ALL SELECT 'portfolio_snapshot'::text AS metric_name, COUNT(*)::bigint AS metric_value FROM quantum.portfolio_snapshot UNION ALL SELECT 'position_risk_state'::text AS metric_name, COUNT(*)::bigint AS metric_value FROM quantum.position_risk_state UNION ALL SELECT 'public_signal_feed_raw'::text AS metric_name, COUNT(*)::bigint AS metric_value FROM quantum.public_signal_feed_raw UNION ALL SELECT 'qtp_cost_guardrail_10o'::text AS metric_name, COUNT(*)::bigint AS metric_value FROM quantum.qtp_cost_guardrail_10o UNION ALL SELECT 'quantum_strat_cache_raw'::text AS metric_name, COUNT(*)::bigint AS metric_value FROM quantum.quantum_strat_cache_raw UNION ALL SELECT 'quantum_watchlist_raw'::text AS metric_name, COUNT(*)::bigint AS metric_value FROM quantum.quantum_watchlist_raw UNION ALL SELECT 'risk_events'::text AS metric_name, COUNT(*)::bigint AS metric_value FROM quantum.risk_events UNION ALL SELECT 'risk_events_v2'::text AS metric_name, COUNT(*)::bigint AS metric_value FROM quantum.risk_events_v2 UNION ALL SELECT 'script_discovery_log_raw'::text AS metric_name, COUNT(*)::bigint AS metric_value FROM quantum.script_discovery_log_raw UNION ALL SELECT 'selfopt_approval_queue_10o'::text AS metric_name, COUNT(*)::bigint AS metric_value FROM quantum.selfopt_approval_queue_10o UNION ALL SELECT 'selfopt_autofinalizer_runs'::text AS metric_name, COUNT(*)::bigint AS metric_value FROM quantum.selfopt_autofinalizer_runs UNION ALL SELECT 'shadow_monitor_state'::text AS metric_name, COUNT(*)::bigint AS metric_value FROM quantum.shadow_monitor_state UNION ALL SELECT 'strategy_signals'::text AS metric_name, COUNT(*)::bigint AS metric_value FROM quantum.strategy_signals UNION ALL SELECT 'system_health'::text AS metric_name, COUNT(*)::bigint AS metric_value FROM quantum.system_health UNION ALL SELECT 'telegram_grok_heartbeat'::text AS metric_name, COUNT(*)::bigint AS metric_value FROM quantum.telegram_grok_heartbeat UNION ALL SELECT 'trade_log'::text AS metric_name, COUNT(*)::bigint AS metric_value FROM quantum.trade_log UNION ALL SELECT 'vc_api_health_events_10o'::text AS metric_name, COUNT(*)::bigint AS metric_value FROM quantum.vc_api_health_events_10o UNION ALL SELECT 'vc_gate_forensics_shadow'::text AS metric_name, COUNT(*)::bigint AS metric_value FROM quantum.vc_gate_forensics_shadow UNION ALL SELECT 'vc_shadow_score_observations'::text AS metric_name, COUNT(*)::bigint AS metric_value FROM quantum.vc_shadow_score_observations UNION ALL SELECT 'winrate_opportunity_shadow_10o'::text AS metric_name, COUNT(*)::bigint AS metric_value FROM quantum.winrate_opportunity_shadow_10o UNION ALL SELECT 'wro_shadow_entry_quality_421'::text AS metric_name, COUNT(*)::bigint AS metric_value FROM quantum.wro_shadow_entry_quality_421 UNION ALL SELECT 'xai_selfopt_brain_10o'::text AS metric_name, COUNT(*)::bigint AS metric_value FROM quantum.xai_selfopt_brain_10o\\n UNION ALL\\nSELECT '__dead_letters_24h'::text AS metric_name, COUNT(*)::bigint AS metric_value\\nFROM quantum.logging_dead_letter\\nWHERE failed_at >= now() - interval '24 hours'\\n UNION ALL\\nSELECT '__latest_open_positions'::text AS metric_name, COUNT(*)::bigint AS metric_value\\nFROM quantum.position_risk_state\\nWHERE observed_at = (SELECT MAX(observed_at) FROM quantum.position_risk_state)\\n UNION ALL\\nSELECT '__latest_not_fully_protected'::text AS metric_name, COUNT(*)::bigint AS metric_value\\nFROM quantum.position_risk_state\\nWHERE observed_at = (SELECT MAX(observed_at) FROM quantum.position_risk_state)\\n  AND COALESCE(protection_status, '') <> 'FULLY_PROTECTED'\\n UNION ALL\\nSELECT '__latest_new_entry_blockers'::text AS metric_name, COUNT(*)::bigint AS metric_value\\nFROM quantum.position_risk_state\\nWHERE observed_at = (SELECT MAX(observed_at) FROM quantum.position_risk_state)\\n  AND COALESCE(blocks_new_entries, false) = true\\n\"\n  }\n}];\n"
+        },
+        "id": "qtp_supabase_health_prepare",
+        "name": "Prepare Supabase Health Query",
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "position": [
+          240,
+          0
+        ]
+      },
+      {
+        "parameters": {
+          "operation": "executeQuery",
+          "query": "={{$json.__supabase_health_sql}}",
+          "options": {}
+        },
+        "id": "qtp_supabase_health_query",
+        "name": "Query Supabase Health Counts",
+        "type": "n8n-nodes-base.postgres",
+        "typeVersion": 2.6,
+        "position": [
+          500,
+          0
+        ],
+        "credentials": {
+          "postgres": {
+            "id": "<N8N_CREDENTIAL_ID_REDACTED>",
+            "name": "Postgres account"
+          }
+        }
+      },
+      {
+        "parameters": {
+          "mode": "runOnceForAllItems",
+          "jsCode": "\n// QTP Supabase-only Health Monitor evaluator v4.2.1\nconst source = $('Prepare Supabase Health Query').first().json || {};\nconst expected = source.expected_counts || {};\nconst actualRows = $input.all().map(i => i.json || {});\nconst actual = Object.fromEntries(actualRows.map(r => [String(r.metric_name), Number(r.metric_value ?? 0)]));\nconst tableRows = Object.keys(expected).sort().map(table_name => {\n  const expected_min = Number(expected[table_name] ?? 0);\n  const current_count = Number(actual[table_name] ?? -1);\n  const status = current_count >= expected_min ? 'OK' : 'BELOW_EXPECTED';\n  return { table_name, expected_min, current_count, delta_vs_min: current_count - expected_min, status };\n});\nconst discrepancies = tableRows.filter(r => r.status !== 'OK');\nconst deadLetters24h = Number(actual.__dead_letters_24h ?? 0);\nconst openPositions = Number(actual.__latest_open_positions ?? 0);\nconst notFullyProtected = Number(actual.__latest_not_fully_protected ?? 0);\nconst blockers = Number(actual.__latest_new_entry_blockers ?? 0);\nconst safetyIssues = [];\nif (deadLetters24h > 0) safetyIssues.push(`dead_letters_24h=${deadLetters24h}`);\nif (notFullyProtected > 0) safetyIssues.push(`not_fully_protected=${notFullyProtected}`);\nif (blockers > 0) safetyIssues.push(`new_entry_blockers=${blockers}`);\nconst status = discrepancies.length || safetyIssues.length ? 'ALERT' : 'OK';\nconst report = {\n  monitor_version: source.monitor_version,\n  checked_at: new Date().toISOString(),\n  status,\n  total_tables_checked: tableRows.length,\n  discrepancies,\n  dead_letters_24h: deadLetters24h,\n  open_positions: openPositions,\n  not_fully_protected: notFullyProtected,\n  new_entry_blockers: blockers,\n  safety_issues: safetyIssues,\n};\nreturn [{ json: report }];\n"
+        },
+        "id": "qtp_supabase_health_evaluate",
+        "name": "Evaluate Supabase Health",
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "position": [
+          760,
+          0
+        ]
+      },
+      {
+        "parameters": {
+          "mode": "runOnceForAllItems",
+          "jsCode": "\n// Send Telegram only on discrepancies/safety issues. Healthy runs stay silent.\nconst report = $input.first().json || {};\nif (report.status === 'OK') {\n  return [{ json: { ...report, alert_sent: false, alert_reason: 'healthy_no_alert' } }];\n}\nconst bot = $vars.TELEGRAM_BOT_TOKEN || '';\nconst chat = $vars.TELEGRAM_CHAT_ID || $vars.TELEGRAM_PERSONAL_CHAT_ID || '';\nif (!bot || !chat) {\n  return [{ json: { ...report, alert_sent: false, alert_error: 'missing_telegram_vars' } }];\n}\nconst top = (report.discrepancies || []).slice(0, 8).map(r => `${r.table_name}: ${r.current_count}/${r.expected_min}`).join('\\n');\nconst text = [\n  '\ud83d\udea8 QTP SUPABASE HEALTH ALERT',\n  `Status: ${report.status}`,\n  `Checked: ${report.checked_at}`,\n  `Tables checked: ${report.total_tables_checked}`,\n  `Discrepancies: ${(report.discrepancies || []).length}`,\n  top ? `\\nBelow expected:\\n${top}` : '',\n  `\\nSafety: dead_letters_24h=${report.dead_letters_24h}, open_positions=${report.open_positions}, not_fully_protected=${report.not_fully_protected}, blockers=${report.new_entry_blockers}`,\n].filter(Boolean).join('\\n');\nconst resp = await this.helpers.httpRequest({\n  method: 'POST',\n  url: `https://api.telegram.org/bot${bot}/sendMessage`,\n  headers: { 'Content-Type': 'application/json' },\n  body: { chat_id: chat, text, disable_web_page_preview: true },\n  json: true,\n  timeout: 20000,\n});\nreturn [{ json: { ...report, alert_sent: true, telegram_ok: resp.ok === true } }];\n"
+        },
+        "id": "qtp_supabase_health_alert",
+        "name": "Alert On Supabase Health Issue",
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "position": [
+          1020,
+          0
+        ]
+      }
+    ],
+    "connections": {
+      "Every 15 Minutes": {
+        "main": [
+          [
+            {
+              "node": "Prepare Supabase Health Query",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Prepare Supabase Health Query": {
+        "main": [
+          [
+            {
+              "node": "Query Supabase Health Counts",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Query Supabase Health Counts": {
+        "main": [
+          [
+            {
+              "node": "Evaluate Supabase Health",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Evaluate Supabase Health": {
+        "main": [
+          [
+            {
+              "node": "Alert On Supabase Health Issue",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      }
+    },
+    "authors": "Santosh Adari",
+    "name": null,
+    "description": null,
+    "autosaved": false,
+    "workflowPublishHistory": [
+      {
+        "createdAt": "2026-05-16T01:03:04.540Z",
+        "id": 2242,
+        "workflowId": "UHYsIUCB5moypUl3",
+        "versionId": "f315aeaa-4e3a-4e4c-a481-bfea4c5dbc5c",
+        "event": "activated",
+        "userId": "1d4c2d1c-381a-43b8-ba2e-c190e38191a7"
+      },
+      {
+        "createdAt": "2026-05-16T01:03:04.908Z",
+        "id": 2244,
+        "workflowId": "UHYsIUCB5moypUl3",
+        "versionId": "f315aeaa-4e3a-4e4c-a481-bfea4c5dbc5c",
+        "event": "activated",
+        "userId": "1d4c2d1c-381a-43b8-ba2e-c190e38191a7"
+      },
+      {
+        "createdAt": "2026-05-16T01:03:04.445Z",
+        "id": 2241,
+        "workflowId": "UHYsIUCB5moypUl3",
+        "versionId": "f315aeaa-4e3a-4e4c-a481-bfea4c5dbc5c",
+        "event": "deactivated",
+        "userId": "1d4c2d1c-381a-43b8-ba2e-c190e38191a7"
+      },
+      {
+        "createdAt": "2026-05-16T01:03:04.818Z",
+        "id": 2243,
+        "workflowId": "UHYsIUCB5moypUl3",
+        "versionId": "f315aeaa-4e3a-4e4c-a481-bfea4c5dbc5c",
+        "event": "deactivated",
+        "userId": "1d4c2d1c-381a-43b8-ba2e-c190e38191a7"
+      }
+    ]
+  }
+}

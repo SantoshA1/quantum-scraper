@@ -1,0 +1,85 @@
+{
+  "ok": true,
+  "workflow_id": "vaqfCaELhOEWnkdo",
+  "workflow_name": "TradingView AI Super Score \u2192 Perplexity \u2192 Telegram",
+  "active": true,
+  "versionId_before": "e073f6a4-ef41-44b4-b533-ee1466775591",
+  "versionId_after": "745c5c9f-6419-4d1d-b501-2360d340e75b",
+  "updatedAt": "2026-05-21T02:30:08.215Z",
+  "target_node": "QTP Multi-Timeframe Confluence Engine",
+  "target_node_id": "qtp-mtf-confluence-engine-v59",
+  "workflow_backup": "/home/user/workspace/outputs/pre_mtf_scalp_reweight_v62_20260521_vaqfCaELhOEWnkdo_20260521T023005Z.json",
+  "node_backup": "/home/user/workspace/outputs/mtf_confluence_engine_pre_scalp_reweight_20260521T023005Z.js",
+  "patched_js": "/home/user/workspace/outputs/mtf_confluence_engine_scalp_reweight_v62_20260521T023005Z.js",
+  "deployed_js": "/home/user/workspace/outputs/mtf_confluence_engine_deployed_scalp_reweight_v62_20260521T023005Z.js",
+  "byte_identical_preservation": {
+    "swing_weight_preserved": true,
+    "long_weight_preserved": true,
+    "swing_floor_preserved": true,
+    "long_floor_preserved": true
+  },
+  "local_counts": {
+    "QTP_MTF_SCALP_REWEIGHT_v6.2_20260521": {
+      "expected": 2,
+      "actual": 2,
+      "pass": true
+    },
+    "QTP_MTF_CONFLUENCE_v6.2_20260521": {
+      "expected": 1,
+      "actual": 1,
+      "pass": true
+    },
+    "(scalp * 0.65) + (swing * 0.35) + (longTerm * 0.00)": {
+      "expected": 1,
+      "actual": 1,
+      "pass": true
+    },
+    "(scalp * 0.55) + (swing * 0.30) + (longTerm * 0.15)": {
+      "expected": 0,
+      "actual": 0,
+      "pass": true
+    },
+    "(scalp * 0.20) + (swing * 0.55) + (longTerm * 0.25)": {
+      "expected": 1,
+      "actual": 1,
+      "pass": true
+    },
+    "(scalp * 0.10) + (swing * 0.30) + (longTerm * 0.60)": {
+      "expected": 1,
+      "actual": 1,
+      "pass": true
+    }
+  },
+  "deployed_counts": {
+    "QTP_MTF_SCALP_REWEIGHT_v6.2_20260521": {
+      "expected": 2,
+      "actual": 2,
+      "pass": true
+    },
+    "QTP_MTF_CONFLUENCE_v6.2_20260521": {
+      "expected": 1,
+      "actual": 1,
+      "pass": true
+    },
+    "(scalp * 0.65) + (swing * 0.35) + (longTerm * 0.00)": {
+      "expected": 1,
+      "actual": 1,
+      "pass": true
+    },
+    "(scalp * 0.55) + (swing * 0.30) + (longTerm * 0.15)": {
+      "expected": 0,
+      "actual": 0,
+      "pass": true
+    },
+    "(scalp * 0.20) + (swing * 0.55) + (longTerm * 0.25)": {
+      "expected": 1,
+      "actual": 1,
+      "pass": true
+    },
+    "(scalp * 0.10) + (swing * 0.30) + (longTerm * 0.60)": {
+      "expected": 1,
+      "actual": 1,
+      "pass": true
+    }
+  }
+}
