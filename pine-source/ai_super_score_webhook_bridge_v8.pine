@@ -1,0 +1,271 @@
+//@version=5
+indicator("AI Super Score Webhook Bridge v8", overlay=true)
+
+// ============================================================
+// AI SUPER SCORE CONFIGURATION
+// Update these inputs to match your AI Super Score readings
+// ============================================================
+i_execution   = input.string("STAND ASIDE", "Execution", options=["BUY", "SELL", "STAND ASIDE"])
+i_signal      = input.string("NEUTRAL", "Signal", options=["BULLISH", "BEARISH", "NEUTRAL"])
+i_regime      = input.string("NEUTRAL", "Regime", options=["TRENDING", "MEAN REVERTING", "NEUTRAL"])
+i_bias_score  = input.float(25.0, "Bias Score %", minval=0, maxval=100)
+i_exec_score  = input.float(0.0, "Exec Score %", minval=0, maxval=100)
+i_grade       = input.string("C", "Grade", options=["A+", "A", "B+", "B", "C+", "C", "D", "F"])
+i_smart_money = input.string("BULLISH", "Smart Money", options=["BULLISH", "BEARISH", "NEUTRAL"])
+i_liquidity   = input.string("SSL NEAR", "Liquidity")
+i_fvg         = input.string("NONE", "FVG")
+i_order_block = input.string("BULL OB BELOW", "Order Block")
+
+// ============================================================
+// SWEEP DETECTION SETTINGS
+// ============================================================
+i_sweep_lookback = input.int(20, "Sweep Lookback Bars", minval=5, maxval=100)
+i_sweep_vol_mult = input.float(1.5, "Sweep Volume Multiplier", minval=1.0, maxval=5.0, step=0.1)
+
+// ============================================================
+// MARKET DATA & TECHNICALS
+// ============================================================
+daily_high = request.security(syminfo.tickerid, "D", high)
+daily_low  = request.security(syminfo.tickerid, "D", low)
+avg_vol    = ta.sma(volume, 30)
+rsi_14     = ta.rsi(close, 14)
+[macdLine, sigLine, histLine] = ta.macd(close, 12, 26, 9)
+sma_50     = ta.sma(close, 50)
+ema_200    = ta.ema(close, 200)
+vwap_val   = ta.vwap(close)
+atr_val    = ta.atr(14)
+adx_val    = ta.rma(math.abs(ta.change(high) - ta.change(low)), 14)
+
+// ============================================================
+// CROSS-ASSET CORRELATION DATA
+// SPY, QQQ, XLY fetched from daily timeframe
+// ============================================================
+spy_close     = request.security("SPY", "D", close)
+spy_prev      = request.security("SPY", "D", close[1])
+spy_sma20     = request.security("SPY", "D", ta.sma(close, 20))
+spy_ema50     = request.security("SPY", "D", ta.ema(close, 50))
+spy_change    = spy_close - spy_prev
+spy_change_pct = spy_prev != 0 ? (spy_change / spy_prev) * 100 : 0
+
+qqq_close     = request.security("QQQ", "D", close)
+qqq_prev      = request.security("QQQ", "D", close[1])
+qqq_sma20     = request.security("QQQ", "D", ta.sma(close, 20))
+qqq_ema50     = request.security("QQQ", "D", ta.ema(close, 50))
+qqq_change    = qqq_close - qqq_prev
+qqq_change_pct = qqq_prev != 0 ? (qqq_change / qqq_prev) * 100 : 0
+
+xly_close     = request.security("XLY", "D", close)
+xly_prev      = request.security("XLY", "D", close[1])
+xly_sma20     = request.security("XLY", "D", ta.sma(close, 20))
+xly_ema50     = request.security("XLY", "D", ta.ema(close, 50))
+xly_change    = xly_close - xly_prev
+xly_change_pct = xly_prev != 0 ? (xly_change / xly_prev) * 100 : 0
+
+// VIX for regime detection
+vix_close     = request.security("CBOE:VIX", "D", close)
+
+// Cross-asset health flags
+spy_healthy   = spy_close > spy_sma20 and spy_close > spy_ema50
+qqq_healthy   = qqq_close > qqq_sma20 and qqq_close > qqq_ema50
+xly_aligned   = xly_close > xly_sma20 and xly_close > xly_ema50
+
+// SPY/QQQ breakdown detection: price below both MAs AND declining
+spy_breaking_down = spy_close < spy_sma20 and spy_close < spy_ema50 and spy_change < 0
+qqq_breaking_down = qqq_close < qqq_sma20 and qqq_close < qqq_ema50 and qqq_change < 0
+
+// Master cross-asset filter for LONG signals:
+// SPY/QQQ must NOT be breaking down, and ideally XLY aligned
+cross_asset_bullish = not spy_breaking_down and not qqq_breaking_down
+cross_asset_strong  = cross_asset_bullish and xly_aligned
+
+// Cross-asset status string for JSON
+cross_asset_status = spy_breaking_down ? "SPY_BREAKDOWN" : qqq_breaking_down ? "QQQ_BREAKDOWN" : cross_asset_strong ? "ALL_ALIGNED" : "PARTIAL"
+
+// ============================================================
+// SWEEP DETECTION LOGIC
+// Sweeps = price breaks a recent high/low with high volume
+// then reverses — indicates institutional stop hunting
+// ============================================================
+
+// Find recent swing high and swing low
+swing_high = ta.highest(high, i_sweep_lookback)
+swing_low  = ta.lowest(low, i_sweep_lookback)
+prev_swing_high = ta.highest(high[1], i_sweep_lookback)
+prev_swing_low  = ta.lowest(low[1], i_sweep_lookback)
+
+// Volume condition: current bar volume > average * multiplier
+high_volume = volume > avg_vol * i_sweep_vol_mult
+
+// BULL SWEEP: Price sweeps below recent low (takes out stops) 
+// then closes back above — bullish reversal signal
+bull_sweep = low < prev_swing_low and close > open and high_volume
+
+// BEAR SWEEP: Price sweeps above recent high (takes out stops)
+// then closes back below — bearish reversal signal  
+bear_sweep = high > prev_swing_high and close < open and high_volume
+
+// Track sweep state for change detection
+var bool prev_bull_sweep = false
+var bool prev_bear_sweep = false
+new_bull_sweep = bull_sweep and not prev_bull_sweep
+new_bear_sweep = bear_sweep and not prev_bear_sweep
+
+if barstate.isconfirmed
+    prev_bull_sweep := bull_sweep
+    prev_bear_sweep := bear_sweep
+
+// ============================================================
+// PRE-COMPUTE STRINGS AT GLOBAL SCOPE
+// ============================================================
+t_ticker    = syminfo.ticker
+t_exchange  = syminfo.prefix
+t_tf        = timeframe.period
+t_price     = str.tostring(close, "#.##")
+t_high      = str.tostring(daily_high, "#.##")
+t_low       = str.tostring(daily_low, "#.##")
+t_vol       = str.tostring(volume)
+t_avgvol    = str.tostring(avg_vol)
+t_rsi       = str.tostring(rsi_14, "#.##")
+t_macdl     = str.tostring(macdLine, "#.####")
+t_macds     = str.tostring(sigLine, "#.####")
+t_macdh     = str.tostring(histLine, "#.####")
+t_sma50     = str.tostring(sma_50, "#.##")
+t_ema200    = str.tostring(ema_200, "#.##")
+t_vwap      = str.tostring(vwap_val, "#.##")
+t_atr       = str.tostring(atr_val, "#.####")
+t_bias      = str.tostring(i_bias_score)
+t_exec      = str.tostring(i_exec_score)
+t_vs_sma50  = close > sma_50 ? "ABOVE" : "BELOW"
+t_vs_ema200 = close > ema_200 ? "ABOVE" : "BELOW"
+t_time      = str.tostring(timenow)
+
+// Sweep strings
+t_sweep_type = bull_sweep ? "BULL_SWEEP" : bear_sweep ? "BEAR_SWEEP" : "NONE"
+t_sweep_low  = str.tostring(prev_swing_low, "#.##")
+t_sweep_high = str.tostring(prev_swing_high, "#.##")
+t_sweep_vol  = str.tostring(volume / avg_vol, "#.##")
+
+// Cross-asset strings
+t_spy_price  = str.tostring(spy_close, "#.##")
+t_spy_chg    = str.tostring(spy_change_pct, "#.##")
+t_spy_health = spy_healthy ? "HEALTHY" : spy_breaking_down ? "BREAKING_DOWN" : "WEAK"
+t_qqq_price  = str.tostring(qqq_close, "#.##")
+t_qqq_chg    = str.tostring(qqq_change_pct, "#.##")
+t_qqq_health = qqq_healthy ? "HEALTHY" : qqq_breaking_down ? "BREAKING_DOWN" : "WEAK"
+t_xly_price  = str.tostring(xly_close, "#.##")
+t_xly_chg    = str.tostring(xly_change_pct, "#.##")
+t_xly_health = xly_aligned ? "ALIGNED" : "DIVERGING"
+t_vix        = str.tostring(vix_close, "#.##")
+t_cross_stat = cross_asset_status
+
+// ============================================================
+// SIGNAL CHANGE DETECTION
+// ============================================================
+var string prev_execution = ""
+execution_changed = i_execution != prev_execution and prev_execution != ""
+if barstate.isconfirmed
+    prev_execution := i_execution
+
+// ============================================================
+// DETERMINE ALERT TYPE
+// ============================================================
+// Priority: SIGNAL_CHANGE > BULL_SWEEP > BEAR_SWEEP > PERIODIC
+t_atype = execution_changed ? "SIGNAL_CHANGE" : new_bull_sweep ? "BULL_SWEEP" : new_bear_sweep ? "BEAR_SWEEP" : "PERIODIC_UPDATE"
+
+// Should we fire alert? Yes for signal changes AND sweeps
+should_alert = execution_changed or new_bull_sweep or new_bear_sweep
+
+// ============================================================
+// BUILD JSON PAYLOAD
+// ============================================================
+p1 = '{"timestamp":"' + t_time + '"'
+p1 += ',"ticker":"' + t_ticker + '"'
+p1 += ',"exchange":"' + t_exchange + '"'
+p1 += ',"timeframe":"' + t_tf + '"'
+p1 += ',"price":' + t_price
+p1 += ',"daily_high":' + t_high
+p1 += ',"daily_low":' + t_low
+p1 += ',"volume":' + t_vol
+p1 += ',"avg_volume_30d":' + t_avgvol
+
+p2 = ',"ai_super_score":{'
+p2 += '"execution":"' + i_execution + '"'
+p2 += ',"signal":"' + i_signal + '"'
+p2 += ',"regime":"' + i_regime + '"'
+p2 += ',"bias_score":' + t_bias
+p2 += ',"exec_score":' + t_exec
+p2 += ',"grade":"' + i_grade + '"'
+p2 += ',"smart_money":"' + i_smart_money + '"'
+p2 += ',"liquidity":"' + i_liquidity + '"'
+p2 += ',"fvg":"' + i_fvg + '"'
+p2 += ',"order_block":"' + i_order_block + '"'
+p2 += '}'
+
+p3 = ',"technicals":{'
+p3 += '"rsi_14":' + t_rsi
+p3 += ',"macd_line":' + t_macdl
+p3 += ',"macd_signal":' + t_macds
+p3 += ',"macd_hist":' + t_macdh
+p3 += ',"sma_50":' + t_sma50
+p3 += ',"ema_200":' + t_ema200
+p3 += ',"vwap":' + t_vwap
+p3 += ',"atr_14":' + t_atr
+p3 += ',"price_vs_sma50":"' + t_vs_sma50 + '"'
+p3 += ',"price_vs_ema200":"' + t_vs_ema200 + '"'
+p3 += '}'
+
+// Sweep data section
+p_sweep = ',"sweep":{'
+p_sweep += '"type":"' + t_sweep_type + '"'
+p_sweep += ',"swing_low":' + t_sweep_low
+p_sweep += ',"swing_high":' + t_sweep_high
+p_sweep += ',"volume_ratio":' + t_sweep_vol
+p_sweep += '}'
+
+// Cross-asset correlation section (NEW in v8)
+p_cross = ',"cross_asset":{'
+p_cross += '"spy_price":' + t_spy_price
+p_cross += ',"spy_change_pct":' + t_spy_chg
+p_cross += ',"spy_status":"' + t_spy_health + '"'
+p_cross += ',"qqq_price":' + t_qqq_price
+p_cross += ',"qqq_change_pct":' + t_qqq_chg
+p_cross += ',"qqq_status":"' + t_qqq_health + '"'
+p_cross += ',"xly_price":' + t_xly_price
+p_cross += ',"xly_change_pct":' + t_xly_chg
+p_cross += ',"xly_status":"' + t_xly_health + '"'
+p_cross += ',"vix":' + t_vix
+p_cross += ',"cross_asset_status":"' + t_cross_stat + '"'
+p_cross += '}'
+
+p4 = ',"alert_type":"' + t_atype + '"'
+p4 += ',"previous_execution":"' + prev_execution + '"'
+p4 += '}'
+
+full_msg = p1 + p2 + p3 + p_sweep + p_cross + p4
+
+// ============================================================
+// VISUAL MARKERS (optional — shows sweep labels on chart)
+// ============================================================
+plotshape(bull_sweep, style=shape.labelup, location=location.belowbar, color=color.new(color.green, 0), textcolor=color.white, text="Bull\nSweep", size=size.small)
+plotshape(bear_sweep, style=shape.labeldown, location=location.abovebar, color=color.new(color.red, 0), textcolor=color.white, text="Bear\nSweep", size=size.small)
+
+// Cross-asset status bar (background color)
+bgcolor(spy_breaking_down or qqq_breaking_down ? color.new(color.red, 92) : cross_asset_strong ? color.new(color.green, 95) : color.new(color.yellow, 95))
+
+// ============================================================
+// HIDDEN PLOT
+// ============================================================
+plot(close, display=display.none)
+
+// ============================================================
+// ALERTS: Fire on signal changes AND sweeps
+// "Any alert() function call" in the alert dropdown
+// ============================================================
+if barstate.isconfirmed and barstate.islast
+    if should_alert
+        // Immediate alert for signal changes and sweeps
+        alert(full_msg, alert.freq_once_per_bar)
+    else
+        // Periodic update (every bar close)
+        alert(full_msg, alert.freq_once_per_bar)
+
