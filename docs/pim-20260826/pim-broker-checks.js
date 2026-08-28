@@ -37,6 +37,13 @@ checks++; if (Number(inv.I8_earnings_stale_days) > 3) { V.push({ code: 'I8_EARNI
 check('I9_SHORT_LEAK', (inv.I9_short_entries_today || []).map((s) => s + ' — short entry past the gov219 halt'));
 checks++; const coh = inv.I10_cohort || { n: 0 };
 if (Number(coh.n) >= 10 && Number(coh.pf) < 0.6) { V.push({ code: 'I10_INTERIM_LOOK_DUE', detail: 'cohort n=' + coh.n + ' PF=' + coh.pf + ' — bring to PO before n=20 (gov241 pre-commitment)' }); }
+// gov 243: I11 cumulative-brake knob pins (I4 pattern — silent knob tampering alarms) +
+// I12 near-trip heads-up at 80% spent so the PO hears BEFORE the halt, not after.
+const KS_BASELINE_PIN = 1787692697, KS_THRESHOLD_PIN = -1250;
+checks++; const brk = inv.brake || {};
+if (Number(brk.baseline) !== KS_BASELINE_PIN || Number(brk.threshold) !== KS_THRESHOLD_PIN) { V.push({ code: 'I11_KS_KNOBS', detail: 'brake knobs ' + JSON.stringify({ baseline: brk.baseline, threshold: brk.threshold }) + ', pinned ' + KS_BASELINE_PIN + '/' + KS_THRESHOLD_PIN + ' (gov243)' }); }
+checks++; const spentPct = brk.threshold ? Math.round(1000 * Number(brk.new_net) / Number(brk.threshold)) / 10 : null;
+if (spentPct !== null && spentPct >= 80) { V.push({ code: 'I12_BRAKE_NEAR', detail: 'cumulative brake ' + brk.new_net + ' of ' + brk.threshold + ' (' + spentPct + '% spent) — next stop-out class may halt the desk' }); }
 
 // ---- broker truth ----
 let account = null, positions = [], orders = [];
@@ -95,7 +102,9 @@ let tg;
 if (V.length === 0) {
   tg = '✅ <b>PIM green</b> — ' + checks + ' invariant groups verified. Entries today: ' + (inv.entries_today_n || 0)
      + ', post-epoch open: ' + (inv.open_post_epoch || []).length
-     + ', cohort n=' + (coh.n || 0) + (coh.pf != null ? ' PF ' + coh.pf : '') + '.';
+     + ', cohort n=' + (coh.n || 0) + (coh.pf != null ? ' PF ' + coh.pf : '')
+     + '. Brake: ' + (brk.new_net != null ? brk.new_net + ' of ' + brk.threshold + ' (' + (spentPct != null ? spentPct : '?') + '%)' : 'unread')
+     + '; legacy ' + (brk.legacy_net != null ? brk.legacy_net : '?') + ' + adjudicated ' + (brk.adjudicated_net != null ? brk.adjudicated_net : '?') + ' (historical, non-tripping).';
 } else {
   tg = '🚨 <b>PIM: ' + V.length + ' violation(s)</b>\n';
   for (const v of V.slice(0, 12)) { tg += '• <b>' + esc(v.code) + '</b>: ' + esc(v.detail) + '\n'; }

@@ -69,5 +69,29 @@ select jsonb_build_object(
   'entries', (select coalesce(jsonb_agg(jsonb_build_object(
        'sym', symbol, 'side', side, 'qty', qty, 'entry', entry_fill_price, 'risk', risk_amount)), '[]'::jsonb)
      from entries_today),
-  'entries_today_n', (select count(*) from entries_today)
+  'entries_today_n', (select count(*) from entries_today),
+  -- gov 243 (PO-ratified 08-27): cumulative-brake reporting + knob pins.
+  -- new_net mirrors the ksmon cum CTE exactly: config epoch, RECERT excluded.
+  -- legacy window runs from the gov-215 baseline to the gov-241 epoch and is FROZEN
+  -- history, RECERT included as it was lived. adjudicated = post-epoch RECERT rows,
+  -- counted in no brake. LESSON (exec 663707/663795, gov243): the v1.3 failure was a
+  -- single missing ')' here — NOT a comment/splitter issue. Two verifier traps to
+  -- avoid: a paren counter that is not comment-aware can be masked by a stray ')'
+  -- inside a comment, and the node's error prettifier reports the line of the FIRST
+  -- 'as' token, not the offending one. Verify balance comment-aware (suite PIM-SQL-7)
+  -- and replay staged bytes, never a reconstruction.
+  'brake', (select jsonb_build_object(
+     'baseline', (select live_value from quantum.gate_config where gate_id='EXPANSION' and constant_name='killswitch_cum_baseline_epoch'),
+     'threshold', (select live_value from quantum.gate_config where gate_id='EXPANSION' and constant_name='killswitch_cohort_cumulative_usd'),
+     'new_net', (select round(coalesce(sum(net_pnl),0)::numeric,2) from public.trade_ledger
+        where strategy='qtp-main-pipeline' and mode='paper' and exit_fill_time is not null and net_pnl is not null
+          and coalesce(lineage_source,'') not like 'RECERT_QUARANTINE%'
+          and exit_fill_time >= coalesce(to_timestamp((select live_value from quantum.gate_config where gate_id='EXPANSION' and constant_name='killswitch_cum_baseline_epoch')::double precision),'epoch'::timestamptz)),
+     'legacy_net', (select round(coalesce(sum(net_pnl),0)::numeric,2) from public.trade_ledger
+        where strategy='qtp-main-pipeline' and mode='paper' and exit_fill_time is not null and net_pnl is not null
+          and exit_fill_time >= to_timestamp(1786714657) and exit_fill_time < to_timestamp(1787692697)),
+     'adjudicated_net', (select round(coalesce(sum(net_pnl),0)::numeric,2) from public.trade_ledger
+        where strategy='qtp-main-pipeline' and mode='paper' and exit_fill_time is not null and net_pnl is not null
+          and coalesce(lineage_source,'') like 'RECERT_QUARANTINE%'
+          and exit_fill_time >= to_timestamp(1787692697))))
 ) as inv;

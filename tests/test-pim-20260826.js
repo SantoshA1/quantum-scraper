@@ -17,13 +17,14 @@ const SQL = fs.readFileSync(path.join(ROOT, 'docs/pim-20260826/pim-query.sql'), 
 let pass = 0, fail = 0;
 const ok = (c, name, extra) => { if (c) { pass++; console.log('  PASS ' + name); } else { fail++; console.log('  FAIL ' + name + (extra ? ' — ' + extra : '')); } };
 const AsyncFunction = Object.getPrototypeOf(async function () {}).constructor;
-const EXPECTED_GROUPS = 9;
+const EXPECTED_GROUPS = 11;
 
 const VARS = { ALPACA_BASE_URL: 'https://paper-api.alpaca.markets', ALPACA_API_KEY: 'k', ALPACA_SECRET_KEY: 's', N8N_API_KEY: 'n' };
 const HEALTHY_INV = () => ({
   I1_bad_stop_widths: [], I4_epoch: { v: 1787692697, status: 'LIVE_PROVISIONAL' },
   I6_overdue_longs: [], I8_earnings_stale_days: 0.2, I9_short_entries_today: [],
   I10_cohort: { n: 3, pf: 1.4 },
+  brake: { baseline: 1787692697, threshold: -1250, new_net: -346.8, legacy_net: -1287.64, adjudicated_net: -255.2 },
   open_post_epoch: [{ sym: 'FLEX', qty: 93, entry: 111.7, stop: 108.91, sessions: 1 }],
   entries: [{ sym: 'FLEX', side: 'buy', qty: 93, entry: 111.7, risk: 259 }],
   entries_today_n: 1,
@@ -65,6 +66,11 @@ const codes = (r) => r.out.violations.map((v) => v.code);
   ok(!/\b(insert|update|delete|truncate|alter|drop)\b/i.test(SQL.replace(/--[^\n]*/g, '')), 'PIM-SQL-4 READ-ONLY (no write verbs outside comments)');
   ok(SQL.includes("side not in ('buy','buy_call','sell_put')"), 'PIM-SQL-5 I9 short-leak predicate');
   ok(SQL.includes("not like 'RECERT_QUARANTINE%'"), 'PIM-SQL-6 adjudicated quarantines do not re-alarm');
+  { // PIM-SQL-7 (gov243 incident 663707): comment/string-AWARE paren balance — a naive
+    // counter was masked by a stray ')' inside a comment while the code missed one.
+    const stripped = SQL.replace(/--[^\n]*/g, '').replace(/'(?:[^']|'')*'/g, "''");
+    const bal = (stripped.match(/\(/g) || []).length - (stripped.match(/\)/g) || []).length;
+    ok(bal === 0, 'PIM-SQL-7 parens balance with comments and strings stripped', 'depth ' + bal); }
 
   console.log('== executed node ==');
   { const r = await runPIM(HEALTHY_INV(), HEALTHY_BROKER());
@@ -114,6 +120,15 @@ const codes = (r) => r.out.violations.map((v) => v.code);
   { const inv = HEALTHY_INV(); inv.I8_earnings_stale_days = 4.5;
     const r = await runPIM(inv, HEALTHY_BROKER());
     ok(codes(r).includes('I8_EARNINGS_STALE'), 'PIM-14 I8 fires on a stale calendar'); }
+  { const inv = HEALTHY_INV(); inv.brake.threshold = -2500; // silent knob revert
+    const r = await runPIM(inv, HEALTHY_BROKER());
+    ok(codes(r).includes('I11_KS_KNOBS'), 'PIM-15 I11 fires on a silently reverted brake knob (gov243 pin)'); }
+  { const inv = HEALTHY_INV(); inv.brake.new_net = -1050; // 84% spent
+    const r = await runPIM(inv, HEALTHY_BROKER());
+    ok(codes(r).includes('I12_BRAKE_NEAR'), 'PIM-16 I12 fires at >=80% of the brake'); }
+  { const r = await runPIM(HEALTHY_INV(), HEALTHY_BROKER());
+    ok(r.out._tg_text.indexOf('Brake: -346.8 of -1250') >= 0 && r.out._tg_text.indexOf('legacy -1287.64') >= 0,
+      'PIM-17 heartbeat reports brake + historical buckets (PO: keep the old number visible)'); }
   console.log('\nRESULT: ' + pass + ' passed, ' + fail + ' failed');
   process.exit(fail ? 1 : 0);
 })().catch((e) => { console.error('HARNESS ERROR', e); process.exit(2); });
