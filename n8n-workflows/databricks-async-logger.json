@@ -1,0 +1,88 @@
+{
+  "name": "Quantum — Async Databricks Logger",
+  "meta": {
+    "description": "Async logging sub-workflow called by the main trading pipeline with 'Wait for completion: false' and 'On Error: Continue'. Non-blocking; uses explicit in-code retry/jitter and Telegram fallback.",
+    "required_env": [
+      "DATABRICKS_HOST",
+      "DATABRICKS_TOKEN",
+      "DATABRICKS_WAREHOUSE_ID",
+      "DATABRICKS_CATALOG",
+      "DATABRICKS_SCHEMA",
+      "TELEGRAM_BOT_TOKEN",
+      "TELEGRAM_PERSONAL_CHAT_ID",
+      "TELEGRAM_SUBSCRIBER_CHAT_ID",
+      "NODE_FUNCTION_ALLOW_EXTERNAL=@databricks/sql",
+      "NODE_FUNCTION_ALLOW_BUILTIN=crypto,https"
+    ]
+  },
+  "nodes": [
+    {
+      "parameters": {},
+      "id": "trigger",
+      "name": "Execute Workflow Trigger",
+      "type": "n8n-nodes-base.executeWorkflowTrigger",
+      "typeVersion": 1,
+      "position": [220, 300]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "// Paste the contents of n8n-workflows/code-nodes/01-normalize-logging-payload.js"
+      },
+      "id": "normalize",
+      "name": "Normalize Logging Payload",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [460, 300]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "// Paste the contents of n8n-workflows/code-nodes/02-databricks-batch-writer.js"
+      },
+      "id": "writer",
+      "name": "Databricks Batch Writer",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [700, 300],
+      "continueOnFail": true,
+      "retryOnFail": false
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "boolean": [
+            {
+              "value1": "={{$json.databricks_logging_ok}}",
+              "operation": "equal",
+              "value2": false
+            }
+          ]
+        }
+      },
+      "id": "if_failed",
+      "name": "IF databricks_logging_ok == false",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 1,
+      "position": [940, 300]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "// Paste the contents of n8n-workflows/code-nodes/03-telegram-fallback-alert.js"
+      },
+      "id": "telegram_alert",
+      "name": "Telegram Fallback Alert",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1180, 220],
+      "continueOnFail": true
+    }
+  ],
+  "connections": {
+    "Execute Workflow Trigger": { "main": [[{ "node": "Normalize Logging Payload", "type": "main", "index": 0 }]] },
+    "Normalize Logging Payload": { "main": [[{ "node": "Databricks Batch Writer", "type": "main", "index": 0 }]] },
+    "Databricks Batch Writer": { "main": [[{ "node": "IF databricks_logging_ok == false", "type": "main", "index": 0 }]] },
+    "IF databricks_logging_ok == false": { "main": [[{ "node": "Telegram Fallback Alert", "type": "main", "index": 0 }]] }
+  }
+}
