@@ -7,25 +7,32 @@
 --   entry 2026-08-05, pre-policy) can never be time-exited: the policy applies only
 --   to trades entered under the policy. Proven live 2026-08-25 with epoch absent:
 --   0 rows while 1 open long existed.
--- FAIL-SAFE #2 (calendar lag): sessions are counted from quantum.scorer_bars_daily
---   (distinct d strictly between entry date and today) + 1 for today (this query only
---   runs at 15:50 ET on a weekday). The bars table lags ~1 day; a stalled feed
---   UNDERCOUNTS sessions, so exits can only fire late, never early.
+-- FAIL-SAFE #2 v2 (gov 244, 2026-08-31): sessions are a DETERMINISTIC weekday count
+--   (entry_date, today], minus the NYSE holiday list below. v1 counted from
+--   quantum.scorer_bars_daily, whose feed is E1-run-driven, not nightly — it froze at
+--   08-24 and starved the count: Friday 08-28's run found FLEX at "session 1" and
+--   returned 0 due (the first live exit, missed). "Fire late, never early" degraded
+--   to "never". No external feed can starve date arithmetic. HOLIDAY LIST must be
+--   extended each December (2026 remaining: Labor Day, Thanksgiving, Christmas).
 -- FAIL-SAFE #3 (blast radius): LIMIT 10 per run; the runner alarms if 10 arrive.
--- Session math (proven live): entry Fri 08-21 -> Tue 08-25 = (Mon) 1 + 1 = 2 = due.
---   Entry today -> 1, not due. Entry yesterday -> 1, not due. Matches E1 d0+2-close.
+-- Session math v2: entry Wed 08-26 -> Mon 08-31 = {Thu,Fri,Mon} = 3 (overdue, exits).
+--   Entry Thu 08-27 -> Mon = {Fri,Mon} = 2 = due. Entry Fri 08-28 -> Mon = 1, not due.
+--   Entry today -> 0. Holiday week: entry Fri 09-04 -> Tue 09-08 = {Tue} = 1 (Labor
+--   Day excluded), due Wed 09-09 — matches true d0+2 sessions. Matches E1 d0+2-close.
 with epoch as (
   select live_value as v from quantum.gate_config
   where gate_id = 'GATE_K' and constant_name = 'edge_baseline_epoch'
 ),
-cal as (select distinct d from quantum.scorer_bars_daily),
+nyse_holidays(h) as (values (date '2026-09-07'), (date '2026-11-26'), (date '2026-12-25')),
 open_pol as (
   select t.symbol,
          t.qty,
          t.entry_fill_time,
-         ((select count(*) from cal
-             where cal.d > (t.entry_fill_time at time zone 'America/New_York')::date
-               and cal.d < (now() at time zone 'America/New_York')::date) + 1) as sessions_incl_today
+         (select count(*) from generate_series(
+             (t.entry_fill_time at time zone 'America/New_York')::date + 1,
+             (now() at time zone 'America/New_York')::date, '1 day') g(d)
+           where extract(isodow from g.d) < 6
+             and g.d::date not in (select h from nyse_holidays)) as sessions_incl_today
   from public.trade_ledger t
   where t.status = 'open'
     and t.side in ('buy', 'buy_call', 'sell_put')

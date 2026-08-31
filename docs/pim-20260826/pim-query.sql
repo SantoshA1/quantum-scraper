@@ -22,11 +22,19 @@ entries_today as (
     -- record, so the monitor does not re-alarm them (first light 2026-08-26: CHTR/EQT).
     and coalesce(lineage_source, '') not like 'RECERT_QUARANTINE%'
 ),
+nyse_holidays(h) as (values (date '2026-09-07'), (date '2026-11-26'), (date '2026-12-25')),
 open_post_epoch as (
   select symbol, qty, entry_fill_price, intended_stop, entry_fill_time,
-         ((select count(distinct d) from quantum.scorer_bars_daily cal
-             where cal.d > (t.entry_fill_time at time zone 'America/New_York')::date
-               and cal.d < (now() at time zone 'America/New_York')::date) + 1) as sessions
+         -- gov 244: deterministic weekday-minus-holiday session clock. v1 counted from
+         -- quantum.scorer_bars_daily, whose E1-run-driven feed froze at 08-24 and starved
+         -- the count — I6 shared the dead clock with the time-exit selector it monitors,
+         -- so the missed FLEX exit (Fri 08-28) raised no alarm. A monitor must never
+         -- share its clock with the mechanism it checks; date arithmetic has no feed.
+         (select count(*) from generate_series(
+             (t.entry_fill_time at time zone 'America/New_York')::date + 1,
+             (now() at time zone 'America/New_York')::date, '1 day') g(d)
+           where extract(isodow from g.d) < 6
+             and g.d::date not in (select h from nyse_holidays)) as sessions
   from public.trade_ledger t
   where t.status = 'open' and t.strategy = 'qtp-main-pipeline' and t.mode = 'paper'
     and t.side in ('buy', 'buy_call', 'sell_put')

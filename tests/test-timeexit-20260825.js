@@ -63,7 +63,9 @@ function orderingViolation(calls) {
   ok(SQL.includes('exists (select 1 from epoch)'), 'TX-SQL-1 epoch-required fail-safe present');
   ok(SQL.includes("constant_name = 'edge_baseline_epoch'") && SQL.includes("gate_id = 'GATE_K'"), 'TX-SQL-2 epoch sourced from GATE_K config');
   ok(SQL.includes('entry_fill_time >= to_timestamp((select v from epoch)'), 'TX-SQL-3 cohort scoped to post-epoch entries (protects DGX)');
-  ok(SQL.includes(') + 1) as sessions_incl_today') && SQL.includes("cal.d < (now() at time zone 'America/New_York')::date"), 'TX-SQL-4 lag-tolerant session count (+1 form, strict < today)');
+  ok(SQL.includes('generate_series') && SQL.includes('extract(isodow from g.d) < 6') && SQL.includes('nyse_holidays'), 'TX-SQL-4 v2 deterministic weekday session clock minus NYSE holidays (gov244: no feed can starve it)');
+  ok(!SQL.replace(/--[^\n]*/g, '').includes('scorer_bars_daily'), 'TX-SQL-4b the dead bars calendar is out of the CODE (history comment allowed)');
+  ok(SQL.includes("date '2026-09-07'") && SQL.includes("date '2026-12-25'"), 'TX-SQL-4c 2026 holiday list present (renew each December)');
   ok(SQL.includes('limit 10'), 'TX-SQL-5 blast-radius LIMIT 10');
   ok(SQL.includes("t.side in ('buy', 'buy_call', 'sell_put')") && SQL.includes("t.status = 'open'"), 'TX-SQL-6 longs-only, open-only');
   ok(SQL.includes('sessions_incl_today >= 2'), 'TX-SQL-7 2-session threshold (E1 time_2d)');
