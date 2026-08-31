@@ -1,0 +1,6 @@
+-- E2 (gov 245, 2026-08-31): candidate table build. See docs/E2-20260831.md for method.
+-- Tiers: t0 = all deduped long candidate-days with bar coverage; t1 = past VC;
+-- t2 = deep survivors (killed only by GATE_K / entry mechanics, or EXECUTED).
+-- Deterministic null seeds via md5. Window capped at 08-20 for full exit paths.
+-- (Executed against quantum.exec_flow_audit + scorer_bars_daily; result table
+--  quantum.e2_candidates_20260831, 904 rows: t0=904, t1=655, t2=144.)

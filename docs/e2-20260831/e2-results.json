@@ -1,0 +1,71 @@
+{
+ "stats": {
+  "real_t0": {
+   "n": 904,
+   "meanR": 0.06,
+   "winrate": 0.4646
+  },
+  "real_t2": {
+   "n": 144,
+   "meanR": 0.0686,
+   "winrate": 0.5278
+  },
+  "n1_t0": {
+   "n": 904,
+   "meanR": 0.0955,
+   "winrate": 0.4867
+  },
+  "n1_t2": {
+   "n": 144,
+   "meanR": 0.2791,
+   "winrate": 0.5486
+  },
+  "n2_t0": {
+   "n": 904,
+   "meanR": 0.1259,
+   "winrate": 0.4768
+  },
+  "n2_t2": {
+   "n": 144,
+   "meanR": 0.1893,
+   "winrate": 0.5347
+  },
+  "n3_t0": {
+   "n": 609,
+   "meanR": 0.0562,
+   "winrate": null
+  }
+ },
+ "comparisons": {
+  "T0: REAL vs N1(rand sym)": {
+   "delta": -0.0355,
+   "lo": -0.1869,
+   "hi": 0.1074,
+   "p_le0": 0.682
+  },
+  "T0: REAL vs N2(rand day)": {
+   "delta": -0.0659,
+   "lo": -0.2366,
+   "hi": 0.0901,
+   "p_le0": 0.798
+  },
+  "T0: REAL vs N3(SPY)": {
+   "delta": -0.0161,
+   "lo": -0.2433,
+   "hi": 0.2161,
+   "p_le0": 0.5579
+  },
+  "T2: REAL vs N1(rand sym)": {
+   "delta": -0.2105,
+   "lo": -0.4965,
+   "hi": 0.0652,
+   "p_le0": 0.94
+  },
+  "T2: REAL vs N2(rand day)": {
+   "delta": -0.1208,
+   "lo": -0.4258,
+   "hi": 0.2842,
+   "p_le0": 0.718
+  }
+ }
+}
