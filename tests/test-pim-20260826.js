@@ -33,7 +33,7 @@ const HEALTHY_BROKER = () => ({
   account: { equity: '104000' },
   positions: [{ symbol: 'FLEX', qty: '93' }],
   orders: [{ symbol: 'FLEX', side: 'sell', type: 'stop', status: 'held', qty: '93', stop_price: '108.91', time_in_force: 'gtc', legs: [] }],
-  n8nActive: { vaqfCaELhOEWnkdo: true, vFnPjyx8srnzcYgV: true, OZx8Lh15zzo7jrJp: true },
+  n8nActive: { vFnPjyx8srnzcYgV: true, OZx8Lh15zzo7jrJp: true }, // gov246: main pipeline deliberately unpublished, unpinned
 });
 async function runPIM(inv, broker, vars) {
   const logs = [];

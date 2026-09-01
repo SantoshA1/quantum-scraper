@@ -14,10 +14,14 @@ if (BASE.indexOf('paper') === -1) { throw new Error('[PIM gov242] refusing non-p
 const HDRS = { 'APCA-API-KEY-ID': $vars.ALPACA_API_KEY, 'APCA-API-SECRET-KEY': $vars.ALPACA_SECRET_KEY };
 const N8N_BASE = 'https://tradenextgen.app.n8n.cloud';
 // gov-pinned workflows: a governance action that replaces one MUST update this table.
+// gov 246 (Ratification B, 2026-08-31): the main pipeline (vaqfCaELhOEWnkdo,
+// scanner -> AI -> SSM entry generation) is DELIBERATELY UNPUBLISHED — the funnel
+// has no edge at n=904 and auto-entry is retired. It is REMOVED from the pins so
+// its idled state never false-alarms I7. Re-add it here ONLY if a PO-ratified
+// resurrection republishes it. Exits/protection/monitors remain pinned.
 const PINNED = [
-  { id: 'vaqfCaELhOEWnkdo', label: 'main pipeline (gov241c 2886a1b2)' },
   { id: 'vFnPjyx8srnzcYgV', label: 'TSM (gov241 5607e03b)' },
-  { id: 'OZx8Lh15zzo7jrJp', label: 'time exit (gov241 3de7ae90)' },
+  { id: 'OZx8Lh15zzo7jrJp', label: 'time exit (gov244 2fecc459)' },
 ];
 const EPOCH_PIN = 1787692697; // gov241 activation second — value equality is I4's teeth
 const LIVE = ['new', 'accepted', 'held', 'partially_filled', 'pending_new', 'accepted_for_bidding'];
